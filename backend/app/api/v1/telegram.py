@@ -1,0 +1,83 @@
+from fastapi import APIRouter, Request, HTTPException, Depends
+from telegram import Update
+from app.core.config import settings
+import logging
+
+router = APIRouter(prefix="/telegram", tags=["telegram"])
+logger = logging.getLogger(__name__)
+
+_bot_app = None
+
+
+def get_bot_app():
+    global _bot_app
+    if _bot_app is None:
+        from app.bot.handlers import build_application
+        _bot_app = build_application()
+    return _bot_app
+
+
+@router.post("/webhook")
+async def telegram_webhook(request: Request):
+    # Validate secret token
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+    if secret != settings.WEBHOOK_SECRET:
+        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+
+    try:
+        data = await request.json()
+        app = get_bot_app()
+        update = Update.de_json(data, app.bot)
+        await app.process_update(update)
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+
+    return {"ok": True}
+
+
+@router.post("/set-webhook")
+async def set_webhook():
+    """Set the webhook URL with Telegram"""
+    if not settings.WEBHOOK_URL:
+        raise HTTPException(status_code=400, detail="WEBHOOK_URL not set in .env")
+    app = get_bot_app()
+    await app.initialize()
+    await app.bot.set_webhook(
+        url=settings.WEBHOOK_URL,
+        secret_token=settings.WEBHOOK_SECRET,
+        allowed_updates=["message", "callback_query", "edited_message"],
+    )
+    return {"ok": True, "message": f"Webhook set to: {settings.WEBHOOK_URL}"}
+
+
+@router.post("/delete-webhook")
+async def delete_webhook():
+    """Delete the webhook (switch to polling mode)"""
+    app = get_bot_app()
+    await app.initialize()
+    await app.bot.delete_webhook(drop_pending_updates=True)
+    return {"ok": True, "message": "Webhook deleted"}
+
+
+@router.get("/info")
+async def bot_info():
+    """Get bot information and status"""
+    try:
+        app = get_bot_app()
+        await app.initialize()
+        me = await app.bot.get_me()
+        webhook = await app.bot.get_webhook_info()
+        return {
+            "ok": True,
+            "bot": {
+                "id": me.id,
+                "username": f"@{me.username}",
+                "name": me.full_name,
+                "link": f"https://t.me/{me.username}",
+            },
+            "mode": settings.BOT_MODE,
+            "webhook_url": webhook.url or "(none - polling mode)",
+            "pending_updates": webhook.pending_update_count,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
