@@ -110,21 +110,39 @@
             </div>
 
             <!-- Input -->
-            <div class="flex gap-3">
-              <textarea v-model="newComment.content" rows="2"
-                class="input flex-1 resize-none"
-                :placeholder="newComment.is_internal ? 'Ichki eslatma yozing...' : 'Yuboruvchiga xabar yozing...'">
-              </textarea>
-              <button @click="sendComment" :disabled="!newComment.content.trim() || sending"
-                class="btn-primary px-4 self-end disabled:opacity-50">
-                <svg v-if="sending" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                </svg>
-                <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
-                </svg>
-              </button>
+            <div class="space-y-2">
+              <!-- Telegram reply hint -->
+              <div v-if="!newComment.is_internal"
+                class="flex items-center gap-2 text-xs text-surface-500 px-1">
+                <span>📬</span>
+                <span v-if="caseData.is_anonymous">
+                  Anonim murojaat — javob Telegram orqali yuboriladi (shaxsiyat oshkor bo'lmaydi)
+                </span>
+                <span v-else>
+                  Javob Telegram orqali murojaat yuborguvchiga yuboriladi
+                </span>
+              </div>
+              <div v-else class="flex items-center gap-2 text-xs text-amber-500/70 px-1">
+                <span>🔒</span>
+                <span>Ichki eslatma — faqat adminlar ko'radi, reporterga yuborilmaydi</span>
+              </div>
+
+              <div class="flex gap-3">
+                <textarea v-model="newComment.content" rows="2"
+                  class="input flex-1 resize-none"
+                  :placeholder="newComment.is_internal ? 'Ichki eslatma yozing...' : 'Yuboruvchiga xabar yozing...'">
+                </textarea>
+                <button @click="sendComment" :disabled="!newComment.content.trim() || sending"
+                  class="btn-primary px-4 self-end disabled:opacity-50">
+                  <svg v-if="sending" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <svg v-else class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>

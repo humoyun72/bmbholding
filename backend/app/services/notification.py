@@ -93,12 +93,17 @@ async def send_email_notification(
 
 
 async def send_reporter_message(bot: Bot, telegram_chat_id: int, case_id: str, message: str):
-    """Send anonymous reply back to reporter"""
+    """Send reply back to reporter (works for both anonymous and non-anonymous cases)"""
     try:
         await bot.send_message(
             chat_id=telegram_chat_id,
-            text=f"💬 *Murojaat {case_id} bo'yicha javob:*\n\n{message}",
+            text=(
+                f"📬 *Murojaat {case_id} bo'yicha javob keldi*\n"
+                f"{'─' * 30}\n\n"
+                f"{message}\n\n"
+                f"_Compliance departamenti_"
+            ),
             parse_mode=ParseMode.MARKDOWN,
         )
     except Exception as e:
-        logger.error(f"Failed to send reporter message: {e}")
+        logger.error(f"Failed to send reporter message to {telegram_chat_id}: {e}")

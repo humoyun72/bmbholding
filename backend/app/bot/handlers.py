@@ -351,12 +351,11 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             category = context.user_data["category"]
             description = context.user_data["description"]
             is_anonymous = context.user_data["is_anonymous"]
-            telegram_chat_id = None if is_anonymous else update.effective_user.id
 
             case = Case(
                 external_id=case_id,
                 reporter_token=token_hash,
-                telegram_chat_id=telegram_chat_id,
+                telegram_chat_id=update.effective_user.id,  # har doim saqlaymiz — javob yuborish uchun
                 is_anonymous=is_anonymous,
                 category=category,
                 priority=PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM),
@@ -409,10 +408,12 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 🔑 *Kuzatuv tokeni:* `{reporter_token}`
 
 ⚡ *Ustuvorlik:* {priority_map[priority]}
+{"🔒 *Anonimlik:* Shaxsiyatingiz maxfiy saqlandi" if is_anonymous else "👤 *Anonimlik:* Yo'q"}
 
-ℹ️ _Ushbu raqam va tokenni saqlang! Murojaat holatini tekshirish va qo'shimcha ma'lumot yuborish uchun kerak bo'ladi._
+📬 *Javob qayerga keladi?*
+Compliance departamenti javob yuborganida bu chatga xabar keladi.
 
-Compliance departamenti tez orada murojaat bilan tanishadi.
+ℹ️ _Murojaat raqamini saqlang — holat tekshirish uchun kerak bo'ladi._
         """
         await query.edit_message_text(
             success_text,

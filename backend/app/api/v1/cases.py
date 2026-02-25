@@ -5,6 +5,7 @@ from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 from typing import Optional
 import uuid
+import logging
 
 from app.core.database import get_db
 from app.core.security import decrypt_text, encrypt_text
@@ -21,6 +22,7 @@ from app.api.v1.auth import get_current_user, require_investigator_or_above, req
 from app.services.notification import send_reporter_message
 
 router = APIRouter(prefix="/cases", tags=["cases"])
+logger = logging.getLogger(__name__)
 
 
 def decrypt_case(case: Case) -> dict:
@@ -264,11 +266,15 @@ async def add_comment(
     )
     db.add(comment)
 
-    # If not internal, try to send to reporter
-    if not body.is_internal and case.telegram_chat_id and not case.is_anonymous:
-        from app.bot.handlers import build_application
-        app = build_application()
-        await send_reporter_message(app.bot, case.telegram_chat_id, case.external_id, body.content)
+    # Ichki eslatma bo'lmasa — har doim reporterga Telegram orqali yuboramiz
+    # (anonim bo'lsa ham chat_id saqlanadi, shaxsiy ma'lumot emas)
+    if not body.is_internal and case.telegram_chat_id:
+        try:
+            from app.api.v1.telegram import get_bot_app
+            bot_app = get_bot_app()
+            await send_reporter_message(bot_app.bot, case.telegram_chat_id, case.external_id, body.content)
+        except Exception as e:
+            logger.warning(f"Could not send Telegram reply for {case.external_id}: {e}")
 
     db.add(AuditLog(
         user_id=current_user.id,
