@@ -603,6 +603,22 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await db.commit()
             await notify_admins(context.bot, case_id, category, description, is_anonymous)
 
+            # Real-time WebSocket notification to admin panel
+            try:
+                import redis.asyncio as aioredis
+                from app.services.websocket_manager import publish_notification
+                r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+                await publish_notification(r, "new_case", {
+                    "case_id": case_id,
+                    "category": category.value if hasattr(category, "value") else str(category),
+                    "priority": PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM).value,
+                    "is_anonymous": is_anonymous,
+                    "message": f"Yangi murojaat: {case_id}",
+                })
+                await r.aclose()
+            except Exception as e:
+                logger.warning(f"WS notify failed: {e}")
+
         priority_map = {
             CasePriority.CRITICAL: "🔴 Kritik (24 soat)",
             CasePriority.HIGH: "🟠 Yuqori (72 soat)",

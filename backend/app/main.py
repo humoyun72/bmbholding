@@ -9,7 +9,7 @@ import asyncio
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.models import *  # noqa - register all models
-from app.api.v1 import auth, cases, polls, telegram, audit
+from app.api.v1 import auth, cases, polls, telegram, audit, ws
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -18,11 +18,12 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _polling_task = None
+_redis_subscriber_task = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _polling_task
+    global _polling_task, _redis_subscriber_task
     # Startup
     logger.info("Starting IntegrityBot API...")
     async with engine.begin() as conn:
@@ -54,6 +55,11 @@ async def lifespan(app: FastAPI):
                 await db.rollback()
                 logger.info("Admin user already exists, skipping creation.")
 
+    # Start Redis subscriber for WebSocket broadcast
+    from app.services.websocket_manager import redis_subscriber
+    _redis_subscriber_task = asyncio.create_task(redis_subscriber(settings.REDIS_URL))
+    logger.info("Redis WS subscriber started ✅")
+
     # Start bot
     if settings.BOT_MODE == "polling":
         logger.info("Starting bot in POLLING mode...")
@@ -71,6 +77,12 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down...")
+    if _redis_subscriber_task:
+        _redis_subscriber_task.cancel()
+        try:
+            await _redis_subscriber_task
+        except asyncio.CancelledError:
+            pass
     if _polling_task:
         _polling_task.cancel()
         try:
@@ -123,6 +135,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(cases.router, prefix="/api/v1")
 app.include_router(polls.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
+app.include_router(ws.router, prefix="/api")
 app.include_router(telegram.router, prefix="/api")
 
 # Serve uploads (only in dev — use nginx in prod)
