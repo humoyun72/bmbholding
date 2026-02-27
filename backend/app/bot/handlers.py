@@ -20,7 +20,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import encrypt_text, decrypt_text
 from app.models import (
     Case, CaseAttachment, CaseComment, CaseCategory,
-    CasePriority, CaseStatus
+    CasePriority, CaseStatus, PollQuestion, PollOption, PollStatus
 )
 from app.services.storage import save_telegram_file
 from app.services.notification import notify_admins
@@ -1077,6 +1077,123 @@ async def send_pending_reminders(context: ContextTypes.DEFAULT_TYPE):
 
 # ─── Build application ────────────────────────────────────────────────────────
 
+async def handle_poll_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Telegram anonymous poll natijasi o'zgarganda chaqiriladi (kanal poll'lari).
+    `poll` update turi — poll.options ichida yangilangan voter_count bor.
+    """
+    poll = update.poll
+    if not poll:
+        return
+
+    tg_poll_id = poll.id
+    logger.info(f"POLL_UPDATE received: tg_poll_id={tg_poll_id}, total_voters={poll.total_voter_count}")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(PollQuestion).where(PollQuestion.telegram_poll_id == tg_poll_id)
+            )
+            question = result.scalar_one_or_none()
+            if not question:
+                logger.warning(f"POLL_UPDATE: no question found for telegram_poll_id={tg_poll_id}")
+                return
+
+            logger.info(f"POLL_UPDATE: matched question_id={question.id}")
+
+            # poll.options da har bir variant uchun voter_count bor
+            opts_result = await db.execute(
+                select(PollOption)
+                .where(PollOption.question_id == question.id)
+                .order_by(PollOption.order)
+            )
+            options = opts_result.scalars().all()
+
+            for idx, tg_option in enumerate(poll.options):
+                if idx < len(options):
+                    options[idx].vote_count = tg_option.voter_count
+                    logger.info(f"  option[{idx}]='{options[idx].option_text}' -> {tg_option.voter_count}")
+
+            await db.commit()
+
+            # WebSocket broadcast
+            try:
+                import redis.asyncio as aioredis
+                from app.services.websocket_manager import publish_notification
+                r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+                await publish_notification(r, "poll_vote", {
+                    "poll_id": str(question.poll_id),
+                    "question_id": str(question.id),
+                    "message": "So'rovnomada yangi ovoz berildi",
+                })
+                await r.aclose()
+            except Exception as e:
+                logger.warning(f"WS poll_vote notify failed: {e}")
+
+        except Exception as e:
+            logger.error(f"handle_poll_update error: {e}")
+
+
+async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Foydalanuvchi Telegram native poll'da ovoz berganda chaqiriladi.
+    Ovozni DB ga yozadi va WebSocket orqali admin panelga yuboradi.
+    """
+    poll_answer = update.poll_answer
+    if not poll_answer:
+        return
+
+    tg_poll_id = poll_answer.poll_id
+    option_ids = poll_answer.option_ids
+
+    logger.info(f"POLL_ANSWER received: tg_poll_id={tg_poll_id}, options={option_ids}")
+
+    async with AsyncSessionLocal() as db:
+        try:
+            from sqlalchemy import select
+            result = await db.execute(
+                select(PollQuestion).where(PollQuestion.telegram_poll_id == tg_poll_id)
+            )
+            question = result.scalar_one_or_none()
+            if not question:
+                logger.warning(f"POLL_ANSWER: no question found for telegram_poll_id={tg_poll_id}")
+                return
+
+            logger.info(f"POLL_ANSWER: matched question_id={question.id}, poll_id={question.poll_id}")
+
+            opts_result = await db.execute(
+                select(PollOption)
+                .where(PollOption.question_id == question.id)
+                .order_by(PollOption.order)
+            )
+            options = opts_result.scalars().all()
+
+            for idx in option_ids:
+                if 0 <= idx < len(options):
+                    options[idx].vote_count += 1
+                    logger.info(f"POLL_ANSWER: option[{idx}]='{options[idx].option_text}' vote_count={options[idx].vote_count}")
+
+            await db.commit()
+
+            # WebSocket orqali admin panelga real-time yangilanish
+            try:
+                import redis.asyncio as aioredis
+                from app.services.websocket_manager import publish_notification
+                r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+                await publish_notification(r, "poll_vote", {
+                    "poll_id": str(question.poll_id),
+                    "question_id": str(question.id),
+                    "message": "So'rovnomada yangi ovoz berildi",
+                })
+                await r.aclose()
+            except Exception as e:
+                logger.warning(f"WS poll_vote notify failed: {e}")
+
+        except Exception as e:
+            logger.error(f"handle_poll_answer error: {e}")
+
+
 def build_application() -> Application:
     app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
 
@@ -1168,6 +1285,13 @@ def build_application() -> Application:
 
     app.add_handler(conv_handler)
     app.add_handler(CommandHandler("getchatid", get_chat_id))
+
+    # Poll answer handler — non-anonymous guruh poll'lari uchun
+    from telegram.ext import PollAnswerHandler as TGPollAnswerHandler
+    from telegram.ext import PollHandler as TGPollHandler
+    app.add_handler(TGPollAnswerHandler(handle_poll_answer))
+    # Poll update handler — anonymous kanal poll'lari uchun (natijalar o'zgarganda)
+    app.add_handler(TGPollHandler(handle_poll_update))
 
     # ✅ Reminder scheduler — har 24 soatda bir marta ishlaydi
     # Birinchi marta ishga tushishdan 60 soniya keyin boshlanadi

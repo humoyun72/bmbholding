@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     WEBHOOK_SECRET: str = "changeme"
     WEBHOOK_URL: str = ""
     ADMIN_CHAT_ID: int = 0
+    POLL_CHAT_ID: int = 0   # guruh yoki kanal ID — so'rovnomalar shu yerga yuboriladi
     # "webhook" yoki "polling"
     BOT_MODE: str = "polling"
 

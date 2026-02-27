@@ -101,7 +101,13 @@ async def _run_polling(bot_app):
     """Run bot polling loop"""
     try:
         await bot_app.updater.start_polling(
-            allowed_updates=["message", "callback_query", "edited_message"],
+            allowed_updates=[
+                "message",
+                "callback_query",
+                "edited_message",
+                "poll_answer",   # native poll'da ovoz berilganda
+                "poll",          # poll holati o'zgarganda
+            ],
             drop_pending_updates=True,
         )
         # Keep running until cancelled

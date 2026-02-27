@@ -49,6 +49,17 @@ export const useNotificationStore = defineStore('notifications', () => {
         })
         _playSound()
         break
+      case 'poll_vote':
+        // poll_vote — faqat store'ga qo'shamiz (bell'da ko'rsatilmaydi, PollDetail watch qiladi)
+        _add({
+          type: 'poll_vote',
+          title: '🗳️ Yangi ovoz',
+          body: data.message || "So'rovnomada yangi ovoz berildi",
+          poll_id: data.poll_id,
+          question_id: data.question_id,
+          read: true,   // bell'da ko'rinmasin
+        })
+        break
       case 'pong':
         break
       default:
@@ -99,9 +110,17 @@ export const useNotificationStore = defineStore('notifications', () => {
       } catch (_) {}
     }
 
-    _ws.onclose = () => {
+    _ws.onclose = async (event) => {
       connected.value = false
       clearInterval(_pingTimer)
+      // 4001 = token muddati o'tgan → logout
+      if (event.code === 4001) {
+        _intentionalClose = true
+        const { useAuthStore } = await import('./auth')
+        useAuthStore().logout()
+        window.location.href = '/login'
+        return
+      }
       if (!_intentionalClose) {
         _reconnectTimer = setTimeout(connect, RECONNECT_DELAY)
       }

@@ -3,11 +3,37 @@
     <div class="flex items-center justify-between mb-8">
       <div>
         <h1 class="text-2xl font-bold text-white">So'rovnomalar</h1>
-        <p class="text-surface-400 text-sm mt-1">Telegram orqali so'rovnomalar yaratish va boshqarish</p>
+        <p class="text-surface-400 text-sm mt-1">Telegram guruh yoki kanalda so'rovnomalar o'tkazish</p>
       </div>
       <button @click="showCreate = true" class="btn-primary">
         + Yangi so'rovnoma
       </button>
+    </div>
+
+    <!-- Warning banner -->
+    <div v-if="activateWarning"
+      class="mb-6 flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3">
+      <span class="text-yellow-400 text-lg flex-shrink-0">⚠️</span>
+      <div>
+        <p class="text-yellow-300 text-sm font-medium">So'rovnoma faollashtirildi, lekin Telegram'ga yuborilmadi</p>
+        <p class="text-yellow-400/70 text-xs mt-0.5">{{ activateWarning }}</p>
+        <p class="text-surface-500 text-xs mt-1">Yechim: <code class="text-brand-400">.env</code> faylga <code class="text-brand-400">POLL_CHAT_ID=&lt;guruh_yoki_kanal_id&gt;</code> qo'shing va konteynerlarni qayta ishga tushiring.</p>
+      </div>
+      <button @click="activateWarning = ''" class="ml-auto text-surface-500 hover:text-white">✕</button>
+    </div>
+
+    <!-- Info: where polls are sent -->
+    <div class="mb-6 flex items-center gap-3 bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-3">
+      <span class="text-blue-400 text-lg">📢</span>
+      <div class="text-sm">
+        <span class="text-surface-300">So'rovnomalar </span>
+        <span class="text-white font-medium">Telegram guruh yoki kanalingizga</span>
+        <span class="text-surface-300"> native poll sifatida yuboriladi. Kanal/guruh ID ni </span>
+        <code class="text-brand-400">.env</code>
+        <span class="text-surface-300"> da </span>
+        <code class="text-brand-400">POLL_CHAT_ID</code>
+        <span class="text-surface-300"> orqali sozlang.</span>
+      </div>
     </div>
 
     <!-- List -->
@@ -114,6 +140,7 @@ const loading = ref(true)
 const saving = ref(false)
 const showCreate = ref(false)
 const polls = ref([])
+const activateWarning = ref('')
 
 const form = reactive({
   title: '',
@@ -162,7 +189,15 @@ async function createPoll() {
 }
 
 async function activatePoll(id) {
-  await api.post(`/v1/polls/${id}/activate`)
+  try {
+    const { data } = await api.post(`/v1/polls/${id}/activate`)
+    if (data.warning) {
+      activateWarning.value = data.warning
+      setTimeout(() => { activateWarning.value = '' }, 8000)
+    }
+  } catch (e) {
+    console.error(e)
+  }
   await loadPolls()
 }
 

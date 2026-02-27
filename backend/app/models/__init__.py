@@ -212,6 +212,8 @@ class PollQuestion(Base):
     poll_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("polls.id"), nullable=False)
     question_text: Mapped[str] = mapped_column(Text, nullable=False)
     order: Mapped[int] = mapped_column(Integer, default=0)
+    telegram_message_id: Mapped[Optional[int]] = mapped_column(Integer)   # Telegram poll message ID
+    telegram_poll_id: Mapped[Optional[str]] = mapped_column(String(64))   # Telegram internal poll ID
 
     poll: Mapped[Poll] = relationship("Poll", back_populates="questions")
     options: Mapped[list["PollOption"]] = relationship("PollOption", back_populates="question", cascade="all, delete-orphan")
