@@ -199,6 +199,7 @@ async def get_case(
 async def assign_case(
     case_id: str,
     body: AssignCaseRequest,
+    request: Request,
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
@@ -213,6 +214,7 @@ async def assign_case(
         case_id=case.id,
         action=AuditAction.CASE_ASSIGN,
         payload={"assigned_to": body.user_id},
+        ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
     return {"message": "Case assigned"}
@@ -222,6 +224,7 @@ async def assign_case(
 async def change_status(
     case_id: str,
     body: ChangeStatusRequest,
+    request: Request,
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
@@ -239,7 +242,8 @@ async def change_status(
         user_id=current_user.id,
         case_id=case.id,
         action=AuditAction.CASE_UPDATE,
-        payload={"old_status": old_status, "new_status": body.status},
+        payload={"old_status": old_status.value if hasattr(old_status, 'value') else str(old_status), "new_status": body.status.value if hasattr(body.status, 'value') else str(body.status)},
+        ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
     return {"message": "Status updated"}
@@ -249,6 +253,7 @@ async def change_status(
 async def add_comment(
     case_id: str,
     body: AddCommentRequest,
+    request: Request,
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
@@ -281,6 +286,7 @@ async def add_comment(
         case_id=case.id,
         action=AuditAction.CASE_COMMENT,
         payload={"is_internal": body.is_internal},
+        ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
     return {"message": "Comment added"}

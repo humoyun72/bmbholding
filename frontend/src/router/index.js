@@ -18,7 +18,7 @@ const routes = [
       { path: 'cases/:id', name: 'CaseDetail', component: () => import('@/pages/CaseDetail.vue') },
       { path: 'polls', name: 'Polls', component: () => import('@/pages/Polls.vue') },
       { path: 'polls/:id', name: 'PollDetail', component: () => import('@/pages/PollDetail.vue') },
-      { path: 'audit', name: 'Audit', component: () => import('@/pages/Audit.vue') },
+      { path: 'audit', name: 'Audit', component: () => import('@/pages/Audit.vue'), meta: { adminOnly: true } },
       { path: 'users', name: 'Users', component: () => import('@/pages/Users.vue'), meta: { adminOnly: true } },
       { path: 'settings', name: 'Settings', component: () => import('@/pages/Settings.vue') },
     ]

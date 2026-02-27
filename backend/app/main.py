@@ -9,7 +9,7 @@ import asyncio
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.models import *  # noqa - register all models
-from app.api.v1 import auth, cases, polls, telegram
+from app.api.v1 import auth, cases, polls, telegram, audit
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -122,6 +122,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/api/v1")
 app.include_router(cases.router, prefix="/api/v1")
 app.include_router(polls.router, prefix="/api/v1")
+app.include_router(audit.router, prefix="/api/v1")
 app.include_router(telegram.router, prefix="/api")
 
 # Serve uploads (only in dev — use nginx in prod)

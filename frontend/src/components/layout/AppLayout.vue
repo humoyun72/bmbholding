@@ -107,7 +107,7 @@ const navItems = computed(() => [
   { path: '/cases', label: 'Murojaatlar', icon: icons.cases },
   { path: '/polls', label: "So'rovnomalar", icon: icons.polls },
   ...(auth.isAdmin ? [{ path: '/users', label: 'Foydalanuvchilar', icon: icons.users }] : []),
-  { path: '/audit', label: 'Audit jurnali', icon: icons.audit },
+  ...(auth.isAdmin ? [{ path: '/audit', label: 'Audit jurnali', icon: icons.audit }] : []),
   { path: '/settings', label: 'Sozlamalar', icon: icons.settings },
 ])
 
