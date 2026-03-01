@@ -1,0 +1,4 @@
+# Load testing dependencies
+# Install: pip install -r requirements-load-test.txt
+locust==2.32.3
+
