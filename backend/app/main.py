@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone, timedelta
 import logging
 import os
 import asyncio
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 _polling_task = None
 _redis_subscriber_task = None
+_retention_task = None
 
 
 @asynccontextmanager
@@ -64,6 +66,11 @@ async def lifespan(app: FastAPI):
     _redis_subscriber_task = asyncio.create_task(redis_subscriber(settings.REDIS_URL))
     logger.info("Redis WS subscriber started ✅")
 
+    # Start data retention scheduler (har kecha 02:00 UTC)
+    from app.services.retention import run_retention
+    _retention_task = asyncio.create_task(_run_retention_scheduler())
+    logger.info("Data retention scheduler started ✅ (daily at 02:00 UTC)")
+
     # Start bot
     if settings.BOT_MODE == "polling":
         logger.info("Starting bot in POLLING mode...")
@@ -85,6 +92,12 @@ async def lifespan(app: FastAPI):
         _redis_subscriber_task.cancel()
         try:
             await _redis_subscriber_task
+        except asyncio.CancelledError:
+            pass
+    if _retention_task:
+        _retention_task.cancel()
+        try:
+            await _retention_task
         except asyncio.CancelledError:
             pass
     if _polling_task:
@@ -110,7 +123,7 @@ async def _run_polling(bot_app):
                 "callback_query",
                 "edited_message",
                 "poll_answer",   # native poll'da ovoz berilganda
-                "poll",          # poll holati o'zgarganda
+                "poll",          # poll holati o'zganganda
             ],
             drop_pending_updates=True,
         )
@@ -120,6 +133,39 @@ async def _run_polling(bot_app):
     except asyncio.CancelledError:
         await bot_app.updater.stop()
         raise
+
+
+async def _run_retention_scheduler():
+    """
+    Data retention'ni har kecha 02:00 UTC da ishga tushiradi.
+    Birinchi ishga tushirishdan oldin 02:00 ga qadar kutadi.
+    """
+    from app.services.retention import run_retention
+
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+            # Keyingi 02:00 UTC gacha hisoblash
+            next_run = now.replace(hour=2, minute=0, second=0, microsecond=0)
+            if next_run <= now:
+                next_run = next_run + timedelta(days=1)
+            wait_seconds = (next_run - now).total_seconds()
+
+            logger.info(
+                f"Data retention keyingi ishga tushishi: {next_run.strftime('%Y-%m-%d %H:%M')} UTC "
+                f"({wait_seconds / 3600:.1f} soatdan keyin)"
+            )
+            await asyncio.sleep(wait_seconds)
+
+            logger.info("Data retention ishga tushmoqda...")
+            stats = await run_retention()
+            logger.info(f"Data retention yakunlandi: {stats}")
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Data retention xato: {e}", exc_info=True)
+            await asyncio.sleep(3600)  # Xato bo'lsa 1 soatdan keyin qayta urinish
 
 
 app = FastAPI(

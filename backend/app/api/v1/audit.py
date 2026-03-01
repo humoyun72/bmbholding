@@ -81,3 +81,33 @@ async def list_audit_actions(
     from app.models import AuditAction
     return [a.value for a in AuditAction]
 
+
+@router.get("/retention/stats")
+async def get_retention_stats(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Data retention statistikasi — nechta yozuv muddati yaqinlashmoqda.
+    Admin dashboard uchun.
+    """
+    from app.services.retention import get_retention_stats as _get_stats
+    return await _get_stats(db)
+
+
+@router.post("/retention/run")
+async def run_retention_now(
+    current_user: User = Depends(require_admin),
+):
+    """
+    Data retention'ni qo'lda ishga tushirish (admin only).
+    Odatda har kecha 02:00 UTC da avtomatik ishlaydi.
+    """
+    from app.services.retention import run_retention
+    logger.info(f"Manual retention triggered by {current_user.username}")
+    stats = await run_retention()
+    return {
+        "message": "Data retention muvaffaqiyatli bajarildi",
+        "stats": stats,
+    }
+
