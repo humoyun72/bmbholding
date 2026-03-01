@@ -213,11 +213,7 @@
                 <dt class="text-surface-500 text-xs mb-1">Yopilgan</dt>
                 <dd class="text-surface-200">{{ formatDate(caseData.closed_at) }}</dd>
               </div>
-              <!-- Reporter IP -->
-              <div v-if="caseData.reporter_ip">
-                <dt class="text-surface-500 text-xs mb-1">Reporter IP</dt>
-                <dd class="text-surface-400 font-mono text-xs">{{ caseData.reporter_ip }}</dd>
-              </div>
+              <!-- reporter_ip ko'rsatilmaydi — anonimlik kafolati (ISO 37001) -->
             </dl>
           </div>
 

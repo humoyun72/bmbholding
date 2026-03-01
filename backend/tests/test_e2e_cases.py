@@ -242,6 +242,25 @@ class TestCasesCRUDFlow:
         case = make_case()
         assert case.is_anonymous is True
 
+    def test_reporter_ip_not_in_decrypt_case(self):
+        """
+        Anonimlik kafolati: decrypt_case reporter_ip qaytarmasligi kerak.
+        ISO 37001 va O'zbekiston shaxsiy ma'lumotlar qonuni talabi.
+        """
+        from app.api.v1.cases import decrypt_case
+        case = make_case()
+        result = decrypt_case(case)
+        assert "reporter_ip" not in result, (
+            "reporter_ip decrypt_case da bo'lmasligi kerak — anonimlik buziladi!"
+        )
+
+    def test_case_model_has_no_reporter_ip_field(self):
+        """Case modelida reporter_ip maydoni bo'lmasligi kerak."""
+        from app.models import Case
+        assert not hasattr(Case, "reporter_ip"), (
+            "Case modelida reporter_ip maydoni bo'lmasligi kerak — anonimlik buziladi!"
+        )
+
     def test_case_comment_encryption(self):
         """Izoh ham shifrlangan holda saqlanishi kerak."""
         from app.core.security import encrypt_text, decrypt_text
