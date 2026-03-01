@@ -25,6 +25,7 @@ from app.models import (
 from app.services.storage import save_telegram_file
 from app.services.notification import notify_admins
 from app.bot.rate_limit import check_rate_limit, rate_limited
+from app.bot.i18n import t, get_user_lang, set_user_lang, get_language_keyboard, SUPPORTED_LANGS
 
 logger = logging.getLogger(__name__)
 
@@ -105,20 +106,27 @@ compliance@company.uz manziliga yozing.
 """
 
 
-def get_main_keyboard():
+def get_main_keyboard(lang: str = "uz"):
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📝 Murojaat yuborish", callback_data="report")],
-        [InlineKeyboardButton("🔍 Murojaat holatini tekshirish", callback_data="check_status")],
-        [InlineKeyboardButton("💬 Adminga javob yozish", callback_data="followup_prompt")],
-        [InlineKeyboardButton("❓ FAQ / Ko'p so'raladigan savollar", callback_data="faq")],
-        [InlineKeyboardButton("📞 Aloqa ma'lumotlari", callback_data="contacts")],
+        [InlineKeyboardButton(t("btn_report", lang),       callback_data="report")],
+        [InlineKeyboardButton(t("btn_check_status", lang), callback_data="check_status")],
+        [InlineKeyboardButton(t("btn_followup", lang),     callback_data="followup_prompt")],
+        [InlineKeyboardButton(t("btn_faq", lang),          callback_data="faq")],
+        [InlineKeyboardButton(t("btn_contacts", lang),     callback_data="contacts")],
     ])
 
 
-def get_category_keyboard():
-    buttons = [[InlineKeyboardButton(cat, callback_data=f"cat_{i}")]
-               for i, cat in enumerate(CATEGORY_MAP.keys())]
-    buttons.append([InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel")])
+def get_category_keyboard(lang: str = "uz"):
+    category_keys = [
+        "category_corruption", "category_conflict", "category_fraud",
+        "category_safety", "category_discrimination", "category_procurement",
+        "category_other",
+    ]
+    buttons = [
+        [InlineKeyboardButton(t(key, lang), callback_data=f"cat_{i}")]
+        for i, key in enumerate(category_keys)
+    ]
+    buttons.append([InlineKeyboardButton(t("cancel_btn", lang), callback_data="cancel")])
     return InlineKeyboardMarkup(buttons)
 
 
@@ -159,6 +167,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return MAIN_MENU
 
     context.user_data.clear()
+    lang = get_user_lang(context)
     # Avval persistent menyu tugmalarini ko'rsatamiz
     await update.message.reply_text(
         "👇 Quyidagi tugmalardan foydalaning:",
@@ -166,9 +175,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     # Keyin inline menyu bilan xush kelibsiz xabari
     await update.message.reply_text(
-        WELCOME_TEXT,
+        t("welcome", lang),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard(lang),
     )
     return MAIN_MENU
 
@@ -177,11 +186,12 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Yordam sahifasini ko'rsatish"""
+    lang = get_user_lang(context)
     await update.message.reply_text(
-        HELP_TEXT,
+        t("help", lang),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([[
-            InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+            InlineKeyboardButton(t("btn_home", lang), callback_data="home")
         ]])
     )
     return MAIN_MENU
@@ -192,38 +202,35 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    lang = get_user_lang(context)
 
     if query.data == "report":
         await query.edit_message_text(
-            CATEGORY_TEXT,
+            t("choose_category", lang),
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_category_keyboard()
+            reply_markup=get_category_keyboard(lang)
         )
         return CHOOSE_CATEGORY
 
     elif query.data == "check_status":
         await query.edit_message_text(
-            "🔍 *Murojaat raqamingizni kiriting:*\n\nMasalan: `CASE-20251201-00001`",
+            t("enter_case_id", lang),
             parse_mode=ParseMode.MARKDOWN
         )
         return CHECK_STATUS
 
     elif query.data == "followup_prompt":
-        # Foydalanuvchi bosh menyudan "Adminga javob yozish" ni tanladi
         await query.edit_message_text(
-            "💬 *Adminga javob yozish*\n\n"
-            "Murojaat raqamingizni kiriting:\n"
-            "Masalan: `CASE-20251201-00001`",
+            t("enter_case_id", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("❌ Bekor qilish", callback_data="home")
+                InlineKeyboardButton(t("cancel_btn", lang), callback_data="home")
             ]])
         )
         context.user_data["followup_mode"] = "from_menu"
         return CHECK_STATUS
 
     elif query.data.startswith("followup_"):
-        # Status tekshirishdan "Javob yozish" tugmasi bosildi
         case_external_id = query.data.replace("followup_", "")
         context.user_data["followup_case_id"] = case_external_id
         await query.edit_message_text(
@@ -651,36 +658,25 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.warning(f"WS notify failed: {e}")
 
-        priority_map = {
-            CasePriority.CRITICAL: "🔴 Kritik (24 soat)",
-            CasePriority.HIGH: "🟠 Yuqori (72 soat)",
-            CasePriority.MEDIUM: "🟡 O'rta (7 kun)",
-            CasePriority.LOW: "🟢 Past (30 kun)",
-        }
-        priority = PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM)
-
-        success_text = (
-            f"✅ *Murojaat muvaffaqiyatli yuborildi!*\n\n"
-            f"📋 *Murojaat raqamingiz:* `{case_id}`\n"
-            f"🔑 *Kuzatuv tokeni:* `{reporter_token}`\n\n"
-            f"⚡ *Ustuvorlik:* {priority_map[priority]}\n"
-            f"{'🔒 *Anonimlik:* Shaxsiyatingiz maxfiy saqlandi' if is_anonymous else '👤 Anonimlik: Yoq'}\n\n"
-            f"📬 *Javob qayerga keladi?*\n"
-            f"Compliance departamenti javob yuborganida bu chatga xabar keladi.\n\n"
-            f"ℹ️ _Murojaat raqamini saqlang — holat tekshirish uchun kerak bo'ladi._"
+        lang = get_user_lang(context)
+        success_text = t(
+            "case_submitted", lang,
+            case_id=case_id,
+            token=reporter_token,
         )
         await query.edit_message_text(
             success_text,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                InlineKeyboardButton(t("btn_home", lang), callback_data="home")
             ]])
         )
     except Exception as e:
         logger.error(f"Error saving case: {e}")
+        lang = get_user_lang(context)
         await query.edit_message_text(
-            "❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
-            reply_markup=get_main_keyboard()
+            t("error_generic", lang),
+            reply_markup=get_main_keyboard(lang)
         )
 
     context.user_data.clear()
@@ -1011,13 +1007,49 @@ async def my_cases_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── Cancel ───────────────────────────────────────────────────────────────────
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    lang = get_user_lang(context)
     context.user_data.clear()
     await update.message.reply_text(
-        "❌ Bekor qilindi.",
+        t("cancelled", lang),
         reply_markup=ReplyKeyboardRemove()
     )
     await update.message.reply_text(
-        WELCOME_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard()
+        t("welcome", lang), parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(lang)
+    )
+    return MAIN_MENU
+
+
+# ─── /lang — Til tanlash ─────────────────────────────────────────────────────
+
+async def lang_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """/lang buyrug'i — til tanlash menyusini ko'rsatadi."""
+    await update.message.reply_text(
+        t("choose_language", get_user_lang(context)),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_language_keyboard(),
+    )
+    return MAIN_MENU
+
+
+async def lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """lang_{code} callback — tilni o'zgartiradi."""
+    query = update.callback_query
+    await query.answer()
+
+    lang_code = query.data.replace("lang_", "")
+    if lang_code not in SUPPORTED_LANGS:
+        lang_code = "uz"
+
+    set_user_lang(context, lang_code)
+    await query.edit_message_text(
+        t("language_changed", lang_code),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+    # Bosh menyuni yangi tilda ko'rsatish
+    await query.message.reply_text(
+        t("welcome", lang_code),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_main_keyboard(lang_code),
     )
     return MAIN_MENU
 
@@ -1335,6 +1367,8 @@ def build_application() -> Application:
 
     app.add_handler(conv_handler)
     app.add_handler(CommandHandler("getchatid", get_chat_id))
+    app.add_handler(CommandHandler("lang", lang_command))
+    app.add_handler(CallbackQueryHandler(lang_callback, pattern=r"^lang_(uz|ru|en)$"))
 
     # Poll answer handler — non-anonymous guruh poll'lari uchun
     from telegram.ext import PollAnswerHandler as TGPollAnswerHandler
