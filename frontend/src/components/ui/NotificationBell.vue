@@ -23,12 +23,12 @@
         store.connected ? 'bg-green-400' : 'bg-surface-600']"></span>
     </button>
 
-    <!-- Dropdown panel -->
+    <!-- Dropdown panel — fixed positioning to avoid going off-screen -->
     <Transition name="dropdown">
       <div v-if="open"
-        class="absolute right-0 top-12 w-96 bg-surface-900 border border-surface-700 rounded-2xl
-               shadow-2xl z-50 flex flex-col overflow-hidden"
-        style="max-height: 520px">
+        class="fixed w-80 sm:w-96 bg-surface-900 border border-surface-700 rounded-2xl
+               shadow-2xl z-[9999] flex flex-col overflow-hidden"
+        :style="panelStyle">
 
         <!-- Header -->
         <div class="flex items-center justify-between px-4 py-3 border-b border-surface-800">
@@ -101,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 import { useNotificationStore } from '@/stores/notifications'
@@ -111,12 +111,37 @@ const router = useRouter()
 const open = ref(false)
 const containerRef = ref(null)
 
+// Panel pozitsiyasini saqlash
+const panelTop = ref(0)
+const panelRight = ref(0)
+
+const panelStyle = computed(() => ({
+  top: panelTop.value + 'px',
+  right: panelRight.value + 'px',
+  maxHeight: '520px',
+}))
+
 onClickOutside(containerRef, () => { open.value = false })
 
 function togglePanel() {
+  if (!open.value) {
+    // Bell tugmasining ekrandagi pozitsiyasini olish
+    const btn = containerRef.value
+    if (btn) {
+      const rect = btn.getBoundingClientRect()
+      const panelWidth = window.innerWidth < 640 ? 320 : 384  // w-80 : w-96
+
+      // Yuqoridan: tugma pastidan 8px pastga
+      panelTop.value = rect.bottom + 8
+
+      // O'ngdan: ekran o'ng chetidan hisoblash
+      const rightEdge = window.innerWidth - rect.right
+      // Panel ekrandan chiqib ketmasligi uchun
+      panelRight.value = Math.max(8, Math.min(rightEdge, window.innerWidth - panelWidth - 8))
+    }
+  }
   open.value = !open.value
   if (open.value && store.unreadCount > 0) {
-    // mark all read after a short delay (user sees the count first)
     setTimeout(() => store.markAllRead(), 1500)
   }
 }
