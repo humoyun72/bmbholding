@@ -5,23 +5,28 @@
 IntegrityBot — AES-256-GCM shifrlangan maydonlarni yangi kalit bilan qayta shifrlaydi.
 
 Shifrlangan maydonlar:
-  - cases.description_encrypted
-  - case_comments.content_encrypted
+  - cases.description_encrypted        → CASE_ENCRYPTION_KEY (yoki ENCRYPTION_KEY)
+  - case_comments.content_encrypted    → COMMENT_ENCRYPTION_KEY (yoki ENCRYPTION_KEY)
 
-Ishlatish:
-  # 1. Avval DRY RUN qilib ko'ring (hech narsa o'zgarmaydi):
+Alohida kalit rotatsiyasi:
+  # Faqat case kalitini almashtirish:
   python scripts/rotate_encryption_key.py \\
-    --old-key "eski_base64_kalit" \\
-    --new-key "yangi_base64_kalit"
+    --old-key "eski_case_kalit" \\
+    --new-key "yangi_case_kalit" \\
+    --target cases --apply
 
-  # 2. Haqiqatan o'zgartirish uchun --apply flag qo'shing:
+  # Faqat comment kalitini almashtirish:
   python scripts/rotate_encryption_key.py \\
-    --old-key "eski_base64_kalit" \\
-    --new-key "yangi_base64_kalit" \\
+    --old-key "eski_comment_kalit" \\
+    --new-key "yangi_comment_kalit" \\
+    --target comments --apply
+
+  # Ikkalasini bir xil kalit bilan (eski ENCRYPTION_KEY dan migration):
+  python scripts/rotate_encryption_key.py \\
+    --old-key "eski_umumiy_kalit" \\
+    --new-key "yangi_kalit" \\
     --apply
 
-  # 3. Yangi kalit yaratish:
-  python -c "import secrets, base64; print(base64.b64encode(secrets.token_bytes(32)).decode())"
 
 Xavfsizlik eslatmalari:
   ⚠️  --old-key va --new-key ni command line argumenti sifatida BERMASLIK tavsiya etiladi
@@ -90,6 +95,7 @@ async def rotate_keys(
     new_key_bytes: bytes,
     dry_run: bool = True,
     batch_size: int = 100,
+    target: str = "all",
 ) -> dict:
     """
     Barcha shifrlangan maydonlarni eski kalit bilan ochib, yangi kalit bilan qayta shifrlaydi.
@@ -127,81 +133,73 @@ async def rotate_keys(
 
     async with AsyncSessionLocal() as db:
         # ── 1. Case.description_encrypted ────────────────────────────────────
-        logger.info(f"{prefix}Cases.description_encrypted ni rotatsiya qilinmoqda...")
-
-        offset = 0
-        while True:
-            result = await db.execute(
-                select(Case.id, Case.external_id, Case.description_encrypted)
-                .offset(offset)
-                .limit(batch_size)
-            )
-            rows = result.fetchall()
-            if not rows:
-                break
-
-            for case_id, external_id, encrypted in rows:
-                stats["cases_processed"] += 1
-                try:
-                    # Eski kalit bilan ochish
-                    plaintext = _decrypt_with_key(encrypted, old_key_bytes)
-                    # Yangi kalit bilan shifrlash
-                    new_encrypted = _encrypt_with_key(plaintext, new_key_bytes)
-
-                    if not dry_run:
-                        await db.execute(
-                            text("UPDATE cases SET description_encrypted = :enc WHERE id = :id"),
-                            {"enc": new_encrypted, "id": case_id},
-                        )
-                    stats["cases_rotated"] += 1
-
-                    if stats["cases_processed"] % 10 == 0:
-                        logger.info(
-                            f"{prefix}Cases: {stats['cases_processed']} ta qayta ishlandi, "
-                            f"{stats['cases_rotated']} ta rotatsiya qilindi"
-                        )
-                except Exception as e:
-                    stats["cases_errors"] += 1
-                    err_msg = f"Case {external_id}: {e}"
-                    stats["errors"].append(err_msg)
-                    logger.error(f"{prefix}XATO — {err_msg}")
-
-            offset += batch_size
+        if target in ("all", "cases"):
+            logger.info(f"{prefix}Cases.description_encrypted ni rotatsiya qilinmoqda...")
+            offset = 0
+            while True:
+                result = await db.execute(
+                    select(Case.id, Case.external_id, Case.description_encrypted)
+                    .offset(offset).limit(batch_size)
+                )
+                rows = result.fetchall()
+                if not rows:
+                    break
+                for case_id, external_id, encrypted in rows:
+                    stats["cases_processed"] += 1
+                    try:
+                        plaintext = _decrypt_with_key(encrypted, old_key_bytes)
+                        new_encrypted = _encrypt_with_key(plaintext, new_key_bytes)
+                        if not dry_run:
+                            await db.execute(
+                                text("UPDATE cases SET description_encrypted = :enc WHERE id = :id"),
+                                {"enc": new_encrypted, "id": case_id},
+                            )
+                        stats["cases_rotated"] += 1
+                        if stats["cases_processed"] % 10 == 0:
+                            logger.info(
+                                f"{prefix}Cases: {stats['cases_processed']} ta qayta ishlandi, "
+                                f"{stats['cases_rotated']} ta rotatsiya qilindi"
+                            )
+                    except Exception as e:
+                        stats["cases_errors"] += 1
+                        err_msg = f"Case {external_id}: {e}"
+                        stats["errors"].append(err_msg)
+                        logger.error(f"{prefix}XATO — {err_msg}")
+                offset += batch_size
+        else:
+            logger.info(f"{prefix}Cases o'tkazib yuborildi (--target={target})")
 
         # ── 2. CaseComment.content_encrypted ─────────────────────────────────
-        logger.info(f"{prefix}CaseComments.content_encrypted ni rotatsiya qilinmoqda...")
-
-        offset = 0
-        while True:
-            result = await db.execute(
-                select(CaseComment.id, CaseComment.case_id, CaseComment.content_encrypted)
-                .offset(offset)
-                .limit(batch_size)
-            )
-            rows = result.fetchall()
-            if not rows:
-                break
-
-            for comment_id, case_id, encrypted in rows:
-                stats["comments_processed"] += 1
-                try:
-                    plaintext = _decrypt_with_key(encrypted, old_key_bytes)
-                    new_encrypted = _encrypt_with_key(plaintext, new_key_bytes)
-
-                    if not dry_run:
-                        await db.execute(
-                            text("UPDATE case_comments SET content_encrypted = :enc WHERE id = :id"),
-                            {"enc": new_encrypted, "id": comment_id},
-                        )
-                    stats["comments_rotated"] += 1
-
-                except Exception as e:
-                    stats["comments_errors"] += 1
-                    err_msg = f"Comment {comment_id} (case {case_id}): {e}"
-                    stats["errors"].append(err_msg)
-                    logger.error(f"{prefix}XATO — {err_msg}")
-
-            offset += batch_size
+        if target in ("all", "comments"):
+            logger.info(f"{prefix}CaseComments.content_encrypted ni rotatsiya qilinmoqda...")
+            offset = 0
+            while True:
+                result = await db.execute(
+                    select(CaseComment.id, CaseComment.case_id, CaseComment.content_encrypted)
+                    .offset(offset).limit(batch_size)
+                )
+                rows = result.fetchall()
+                if not rows:
+                    break
+                for comment_id, case_id, encrypted in rows:
+                    stats["comments_processed"] += 1
+                    try:
+                        plaintext = _decrypt_with_key(encrypted, old_key_bytes)
+                        new_encrypted = _encrypt_with_key(plaintext, new_key_bytes)
+                        if not dry_run:
+                            await db.execute(
+                                text("UPDATE case_comments SET content_encrypted = :enc WHERE id = :id"),
+                                {"enc": new_encrypted, "id": comment_id},
+                            )
+                        stats["comments_rotated"] += 1
+                    except Exception as e:
+                        stats["comments_errors"] += 1
+                        err_msg = f"Comment {comment_id} (case {case_id}): {e}"
+                        stats["errors"].append(err_msg)
+                        logger.error(f"{prefix}XATO — {err_msg}")
+                offset += batch_size
+        else:
+            logger.info(f"{prefix}Comments o'tkazib yuborildi (--target={target})")
 
         # ── Commit (faqat --apply da) ─────────────────────────────────────────
         if not dry_run:
@@ -251,6 +249,12 @@ Misol:
         "--from-env",
         action="store_true",
         help="Kalitlarni OLD_ENCRYPTION_KEY va NEW_ENCRYPTION_KEY env o'zgaruvchisidan olish",
+    )
+    parser.add_argument(
+        "--target",
+        choices=["all", "cases", "comments"],
+        default="all",
+        help="Qaysi maydonlarni rotatsiya qilish: all (default), cases, comments",
     )
     parser.add_argument(
         "--apply",

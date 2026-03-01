@@ -9,7 +9,11 @@ import uuid
 import logging
 
 from app.core.database import get_db
-from app.core.security import decrypt_text, encrypt_text
+from app.core.security import (
+    decrypt_text, encrypt_text,
+    decrypt_case_content, encrypt_case_content,
+    decrypt_comment_content, encrypt_comment_content,
+)
 from app.models import (
     Case, CaseAttachment, CaseComment, AuditLog, AuditAction, CaseStatus,
     CasePriority, CaseCategory, User, UserRole
@@ -171,7 +175,7 @@ async def get_case(
     await db.commit()
 
     base = decrypt_case(case)
-    base["description"] = decrypt_text(case.description_encrypted)
+    base["description"] = decrypt_case_content(case.description_encrypted)
 
     # reporter_ip SAQLANMAYDI — anonimlik kafolati (ISO 37001, O'zbekiston shaxsiy ma'lumotlar qonuni)
     # Audit log'dagi IP faqat ADMIN harakatlarini qayd etadi, reporter IP'si emas
@@ -180,7 +184,7 @@ async def get_case(
     for c in sorted(case.comments, key=lambda x: x.created_at):
         base["comments"].append({
             "id": str(c.id),
-            "content": decrypt_text(c.content_encrypted),
+            "content": decrypt_comment_content(c.content_encrypted),
             "is_from_reporter": c.is_from_reporter,
             "is_internal": c.is_internal,
             "author": c.author.full_name if c.author else ("Reporter" if c.is_from_reporter else "System"),
@@ -274,7 +278,7 @@ async def add_comment(
         author_id=current_user.id,
         is_from_reporter=False,
         is_internal=body.is_internal,
-        content_encrypted=encrypt_text(body.content),
+        content_encrypted=encrypt_comment_content(body.content),
     )
     db.add(comment)
 

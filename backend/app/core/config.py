@@ -48,7 +48,12 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
-    ENCRYPTION_KEY: str  # base64 encoded 32 bytes
+    ENCRYPTION_KEY: str  # base64 encoded 32 bytes — asosiy kalit
+
+    # Ixtiyoriy: alohida kalitlar (xavfsizroq, kalit izolyatsiyasi)
+    # Bo'sh qoldirilsa — ENCRYPTION_KEY dan foydalaniladi (backwards compatibility)
+    CASE_ENCRYPTION_KEY: Optional[str] = None     # Case.description_encrypted uchun
+    COMMENT_ENCRYPTION_KEY: Optional[str] = None  # CaseComment.content_encrypted uchun
 
     # Default admin (birinchi ishga tushirishda yaratiladi)
     # .env da majburiy o'zgartiring! CHANGE_ME qoldirilsa — xatolik chiqadi
@@ -99,6 +104,26 @@ class Settings(BaseSettings):
     @property
     def encryption_key_bytes(self) -> bytes:
         return base64.b64decode(self.ENCRYPTION_KEY)
+
+    @property
+    def case_encryption_key_bytes(self) -> bytes:
+        """
+        Foydalanuvchi murojaatlari (Case.description_encrypted) uchun kalit.
+        CASE_ENCRYPTION_KEY berilmasa — ENCRYPTION_KEY dan foydalanadi (backwards compat).
+        """
+        if self.CASE_ENCRYPTION_KEY:
+            return base64.b64decode(self.CASE_ENCRYPTION_KEY)
+        return self.encryption_key_bytes
+
+    @property
+    def comment_encryption_key_bytes(self) -> bytes:
+        """
+        Admin/reporter izohlari (CaseComment.content_encrypted) uchun kalit.
+        COMMENT_ENCRYPTION_KEY berilmasa — ENCRYPTION_KEY dan foydalanadi (backwards compat).
+        """
+        if self.COMMENT_ENCRYPTION_KEY:
+            return base64.b64decode(self.COMMENT_ENCRYPTION_KEY)
+        return self.encryption_key_bytes
 
     @property
     def allowed_origins_list(self) -> list[str]:

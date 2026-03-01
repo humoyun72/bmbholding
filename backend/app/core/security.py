@@ -36,22 +36,75 @@ def decode_token(token: str) -> Optional[dict]:
 
 
 # AES-256-GCM encryption for sensitive fields
-def encrypt_text(plaintext: str) -> str:
-    """Encrypt text, return base64 encoded nonce+ciphertext"""
-    aesgcm = AESGCM(settings.encryption_key_bytes)
+def _encrypt_with_key(plaintext: str, key_bytes: bytes) -> str:
+    """Berilgan kalit bilan shifrlaydi, base64 qaytaradi."""
+    aesgcm = AESGCM(key_bytes)
     nonce = os.urandom(12)
     ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
-    combined = nonce + ciphertext
-    return base64.b64encode(combined).decode("utf-8")
+    return base64.b64encode(nonce + ciphertext).decode("utf-8")
 
 
-def decrypt_text(encrypted: str) -> str:
-    """Decrypt base64 encoded nonce+ciphertext"""
+def _decrypt_with_key(encrypted: str, key_bytes: bytes) -> str:
+    """Berilgan kalit bilan ochadi."""
     combined = base64.b64decode(encrypted.encode("utf-8"))
     nonce = combined[:12]
     ciphertext = combined[12:]
-    aesgcm = AESGCM(settings.encryption_key_bytes)
-    return aesgcm.decrypt(nonce, ciphertext, None).decode("utf-8")
+    return AESGCM(key_bytes).decrypt(nonce, ciphertext, None).decode("utf-8")
+
+
+def encrypt_text(plaintext: str) -> str:
+    """Umumiy shifrlash — asosiy ENCRYPTION_KEY ishlatadi (backwards compat)."""
+    return _encrypt_with_key(plaintext, settings.encryption_key_bytes)
+
+
+def decrypt_text(encrypted: str) -> str:
+    """Umumiy ochish — asosiy ENCRYPTION_KEY ishlatadi (backwards compat)."""
+    return _decrypt_with_key(encrypted, settings.encryption_key_bytes)
+
+
+def encrypt_case_content(plaintext: str) -> str:
+    """
+    Case.description_encrypted uchun shifrlash.
+    CASE_ENCRYPTION_KEY berilgan bo'lsa uni, aks holda ENCRYPTION_KEY ishlatadi.
+    """
+    return _encrypt_with_key(plaintext, settings.case_encryption_key_bytes)
+
+
+def decrypt_case_content(encrypted: str) -> str:
+    """
+    Case.description_encrypted uchun ochish.
+    Avval CASE_ENCRYPTION_KEY bilan urinadi, xato bo'lsa ENCRYPTION_KEY bilan.
+    (Kalit rotatsiyasi paytida backwards compatibility uchun.)
+    """
+    # Asosiy kalit bilan urinish
+    try:
+        return _decrypt_with_key(encrypted, settings.case_encryption_key_bytes)
+    except Exception:
+        # Fallback: asosiy ENCRYPTION_KEY bilan (migratsiya davri uchun)
+        if settings.CASE_ENCRYPTION_KEY:
+            return _decrypt_with_key(encrypted, settings.encryption_key_bytes)
+        raise
+
+
+def encrypt_comment_content(plaintext: str) -> str:
+    """
+    CaseComment.content_encrypted uchun shifrlash.
+    COMMENT_ENCRYPTION_KEY berilgan bo'lsa uni, aks holda ENCRYPTION_KEY ishlatadi.
+    """
+    return _encrypt_with_key(plaintext, settings.comment_encryption_key_bytes)
+
+
+def decrypt_comment_content(encrypted: str) -> str:
+    """
+    CaseComment.content_encrypted uchun ochish.
+    Avval COMMENT_ENCRYPTION_KEY bilan urinadi, xato bo'lsa ENCRYPTION_KEY bilan.
+    """
+    try:
+        return _decrypt_with_key(encrypted, settings.comment_encryption_key_bytes)
+    except Exception:
+        if settings.COMMENT_ENCRYPTION_KEY:
+            return _decrypt_with_key(encrypted, settings.encryption_key_bytes)
+        raise
 
 
 # TOTP for 2FA

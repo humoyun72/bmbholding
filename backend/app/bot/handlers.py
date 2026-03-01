@@ -17,7 +17,7 @@ import re
 
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
-from app.core.security import encrypt_text, decrypt_text
+from app.core.security import encrypt_text, decrypt_text, encrypt_case_content, encrypt_comment_content
 from app.models import (
     Case, CaseAttachment, CaseComment, CaseCategory,
     CasePriority, CaseStatus, PollQuestion, PollOption, PollStatus
@@ -607,7 +607,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 category=category,
                 priority=PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM),
                 status=CaseStatus.NEW,
-                description_encrypted=encrypt_text(description),
+                description_encrypted=encrypt_case_content(description),
                 title=f"{description[:100]}..." if len(description) > 100 else description,
             )
             db.add(case)
@@ -840,7 +840,7 @@ async def followup_enter(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 author_id=None,          # reporter — tashqi foydalanuvchi
                 is_from_reporter=True,
                 is_internal=False,
-                content_encrypted=encrypt_text(
+                content_encrypted=encrypt_comment_content(
                     f"[Reporter xabari]\n{text}"
                 ),
             )

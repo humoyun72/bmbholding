@@ -135,3 +135,36 @@ class TestTOTP:
         except ImportError:
             pytest.skip("verify_totp not implemented yet")
 
+class TestSeparateEncryptionKeys:
+    """Case va Comment uchun alohida kalitlar testlari."""
+    def test_fallback_to_main_key_when_no_separate_keys(self):
+        """Alohida kalitlar yo''q bo''lsa ENCRYPTION_KEY ishlatilishi kerak."""
+        from app.core.security import (
+            encrypt_case_content, decrypt_case_content,
+            encrypt_comment_content, decrypt_comment_content,
+        )
+        text = "Oddiy matn"
+        case_enc = encrypt_case_content(text)
+        comment_enc = encrypt_comment_content(text)
+        assert decrypt_case_content(case_enc) == text
+        assert decrypt_comment_content(comment_enc) == text
+    def test_case_comment_different_functions_exist(self):
+        """Alohida funksiyalar mavjud bo''lishi kerak."""
+        from app.core.security import (
+            encrypt_case_content, decrypt_case_content,
+            encrypt_comment_content, decrypt_comment_content,
+        )
+        assert callable(encrypt_case_content)
+        assert callable(decrypt_case_content)
+        assert callable(encrypt_comment_content)
+        assert callable(decrypt_comment_content)
+    def test_case_roundtrip(self):
+        """encrypt_case_content ? decrypt_case_content roundtrip."""
+        from app.core.security import encrypt_case_content, decrypt_case_content
+        text = "Murojaat: Korrupsiya haqida"
+        assert decrypt_case_content(encrypt_case_content(text)) == text
+    def test_comment_roundtrip(self):
+        """encrypt_comment_content ? decrypt_comment_content roundtrip."""
+        from app.core.security import encrypt_comment_content, decrypt_comment_content
+        text = "Admin izohi: ko''rib chiqildi"
+        assert decrypt_comment_content(encrypt_comment_content(text)) == text
