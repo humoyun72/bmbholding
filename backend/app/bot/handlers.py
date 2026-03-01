@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.services.storage import save_telegram_file
 from app.services.notification import notify_admins
+from app.bot.rate_limit import check_rate_limit, rate_limited
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,14 @@ async def generate_case_id() -> str:
 # ─── /start ──────────────────────────────────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    allowed, retry_after = await check_rate_limit(user.id, "start")
+    if not allowed:
+        await update.message.reply_text(
+            f"⏳ Juda ko'p so'rov. {retry_after} soniyadan keyin urinib ko'ring."
+        )
+        return MAIN_MENU
+
     context.user_data.clear()
     # Avval persistent menyu tugmalarini ko'rsatamiz
     await update.message.reply_text(
@@ -437,6 +446,15 @@ async def enter_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── Attachment ───────────────────────────────────────────────────────────────
 
 async def add_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Rate limiting — fayl yuklash
+    user = update.effective_user
+    allowed, retry_after = await check_rate_limit(user.id, "file_upload")
+    if not allowed:
+        await update.message.reply_text(
+            f"⏳ Juda ko'p fayl yuklandi. {retry_after} soniyadan keyin urinib ko'ring."
+        )
+        return ADD_ATTACHMENT
+
     attachments = context.user_data.setdefault("attachments", [])
 
     if len(attachments) >= 5:
@@ -555,6 +573,20 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return CHOOSE_CATEGORY
 
+    # Rate limiting — murojaat yuborish uchun
+    user = update.effective_user
+    allowed, retry_after = await check_rate_limit(user.id, "report")
+    if not allowed:
+        minutes = retry_after // 60
+        time_str = f"{minutes} daqiqa" if minutes > 0 else f"{retry_after} soniya"
+        await query.edit_message_text(
+            f"⏳ *Juda ko'p murojaat yuborildi.*\n\n"
+            f"{time_str}dan keyin urinib ko'ring.\n"
+            f"_Limit: 5 ta murojaat / 5 daqiqa_",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return MAIN_MENU
+
     await query.edit_message_text("⏳ Murojaat saqlanmoqda...")
 
     try:
@@ -658,6 +690,15 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── Check status ─────────────────────────────────────────────────────────────
 
 async def check_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # Rate limiting
+    user = update.effective_user
+    allowed, retry_after = await check_rate_limit(user.id, "check_status")
+    if not allowed:
+        await update.message.reply_text(
+            f"⏳ Juda ko'p so'rov. {retry_after} soniyadan keyin urinib ko'ring."
+        )
+        return CHECK_STATUS
+
     text = update.message.text.strip().upper()
 
     if not re.match(r"CASE-\d{8}-\d{5}", text):
@@ -756,6 +797,15 @@ async def followup_enter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     Reporter tomonidan adminга jo'natilayotgan qo'shimcha xabar.
     FOLLOWUP_ENTER holatida ishlaydi.
     """
+    # Rate limiting
+    user = update.effective_user
+    allowed, retry_after = await check_rate_limit(user.id, "followup")
+    if not allowed:
+        await update.message.reply_text(
+            f"⏳ Juda ko'p xabar yuborildi. {retry_after} soniyadan keyin urinib ko'ring."
+        )
+        return FOLLOWUP_ENTER
+
     text = update.message.text.strip()
     case_external_id = context.user_data.get("followup_case_id")
 
