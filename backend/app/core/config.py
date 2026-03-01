@@ -32,6 +32,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     ENCRYPTION_KEY: str  # base64 encoded 32 bytes
 
+    # Default admin (birinchi ishga tushirishda yaratiladi)
+    # .env da majburiy o'zgartiring! CHANGE_ME qoldirilsa — xatolik chiqadi
+    ADMIN_DEFAULT_PASSWORD: str = "CHANGE_ME"
+
     # Email
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587

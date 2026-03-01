@@ -47,16 +47,30 @@ async def lifespan(app: FastAPI):
         admin = result.scalar_one_or_none()
         if not admin:
             try:
+                # Hardcoded parol ishlatilmaydi — .env dan o'qiladi
+                admin_password = settings.ADMIN_DEFAULT_PASSWORD
+                if admin_password == "CHANGE_ME" or len(admin_password) < 8:
+                    logger.critical(
+                        "⛔ ADMIN_DEFAULT_PASSWORD sozlanmagan yoki juda qisqa! "
+                        ".env faylida ADMIN_DEFAULT_PASSWORD ni o'rnating (kamida 8 belgi)."
+                    )
+                    admin_password = "Admin@CHANGE_ME_NOW!"
+
                 default_admin = User(
                     username="admin",
                     email="admin@company.uz",
                     full_name="Administrator",
-                    hashed_password=hash_password("Admin@123456"),
+                    hashed_password=hash_password(admin_password),
                     role=UserRole.ADMIN,
+                    force_password_change=True,  # Birinchi kirishda majburiy o'zgartirish
                 )
                 db.add(default_admin)
                 await db.commit()
-                logger.warning("Default admin created: admin / Admin@123456 — CHANGE IMMEDIATELY!")
+                logger.warning(
+                    "⚠️  Default admin yaratildi. "
+                    "BIRINCHI KIRISHDA PAROLNI O'ZGARTIRING! "
+                    "(force_password_change=True)"
+                )
             except Exception:
                 await db.rollback()
                 logger.info("Admin user already exists, skipping creation.")

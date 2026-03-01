@@ -55,14 +55,13 @@ docker compose up -d
 ### 4. Webhook ulash
 ```bash
 # Admin panelga kiring: http://localhost/
-# Login: admin / Admin@123456
 # Sozlamalar sahifasida "Webhook ulash" tugmasini bosing
 # YOKI:
 curl -X POST http://localhost/api/telegram/set-webhook
 ```
 
 ### 5. **DARHOL QILING** — Default admin parolini o'zgartiring!
-Admin panelga kirib, sozlamalarda parolingizni o'zgartiring.
+Birinchi kirishda tizim avtomatik parol o'zgartirish oynasini ko'rsatadi.
 
 ---
 
@@ -71,9 +70,10 @@ Admin panelga kirib, sozlamalarda parolingizni o'zgartiring.
 |--------|--------|
 | URL | http://localhost |
 | Login | `admin` |
-| Parol | `Admin@123456` |
+| Parol | `.env` faylida `ADMIN_DEFAULT_PASSWORD` da belgilangan qiymat |
 
-> ⚠️ **BIRINCHI KIRISHDA PAROLNI O'ZGARTIRING!**
+> ⚠️ **Birinchi kirishda parol o'zgartirish MAJBURIY** — tizim avtomatik so'raydi.  
+> ⚠️ `.env` faylida `ADMIN_DEFAULT_PASSWORD=` ni **albatta** kuchli parol bilan to'ldiring!
 
 ---
 

@@ -28,6 +28,7 @@ export const useAuthStore = defineStore('auth', () => {
       fullName: data.full_name,
       role: data.role,
       totpEnabled: data.totp_enabled,
+      forcePasswordChange: data.force_password_change,
     }
 
     localStorage.setItem('token', data.access_token)

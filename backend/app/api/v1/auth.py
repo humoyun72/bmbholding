@@ -92,6 +92,7 @@ async def login(
         username=user.username,
         full_name=user.full_name,
         totp_enabled=user.totp_enabled,
+        force_password_change=user.force_password_change,
     )
 
 
@@ -185,3 +186,38 @@ async def list_users(
 ):
     result = await db.execute(select(User).order_by(User.created_at.desc()))
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
+
+
+@router.post("/change-password")
+async def change_password(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Parol o'zgartirish.
+    force_password_change=True bo'lsa — joriy parol talab qilinmaydi (birinchi kirish).
+    """
+    new_password = body.get("new_password", "")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Parol kamida 8 belgidan iborat bo'lishi kerak")
+
+    # Majburiy o'zgartirish rejimida emas bo'lsa — joriy parolni tekshirish
+    if not current_user.force_password_change:
+        current_password = body.get("current_password", "")
+        if not current_password or not verify_password(current_password, current_user.hashed_password):
+            raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
+
+    current_user.hashed_password = hash_password(new_password)
+    current_user.force_password_change = False  # Majburiy o'zgartirish bajarildi
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action=AuditAction.USER_UPDATE,
+        entity_type="user",
+        entity_id=str(current_user.id),
+        payload={"action": "password_changed"},
+    ))
+    await db.commit()
+    return {"message": "Parol muvaffaqiyatli o'zgartirildi"}
+

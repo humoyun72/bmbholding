@@ -89,6 +89,7 @@ class User(Base):
     totp_secret: Mapped[Optional[str]] = mapped_column(String(64))
     totp_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     telegram_chat_id: Mapped[Optional[int]] = mapped_column(BigInteger)
+    force_password_change: Mapped[bool] = mapped_column(Boolean, default=False)  # birinchi kirish
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     last_login: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
