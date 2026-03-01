@@ -124,6 +124,10 @@ class Case(Base):
     closed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
     due_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
 
+    # Jira / Redmine tiket ID (opsional integratsiya)
+    jira_ticket_id: Mapped[Optional[str]] = mapped_column(String(64))     # masalan: "COMP-123" yoki "#456"
+    jira_ticket_url: Mapped[Optional[str]] = mapped_column(String(512))   # tiketga to'g'ridan havola
+
     attachments: Mapped[list["CaseAttachment"]] = relationship("CaseAttachment", back_populates="case", cascade="all, delete-orphan")
     comments: Mapped[list["CaseComment"]] = relationship("CaseComment", back_populates="case", cascade="all, delete-orphan")
     notifications: Mapped[list["Notification"]] = relationship("Notification", back_populates="case", cascade="all, delete-orphan")

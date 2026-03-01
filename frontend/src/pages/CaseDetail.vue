@@ -246,6 +246,50 @@
               </button>
             </div>
           </div>
+
+          <!-- Jira / Redmine Ticket -->
+          <div class="card p-5">
+            <h3 class="font-semibold text-white mb-4 text-sm">🎫 Tiket tizimi</h3>
+            <!-- Ticket mavjud -->
+            <div v-if="caseData.jira_ticket_id" class="space-y-3">
+              <div class="flex items-center gap-2 text-xs text-green-400">
+                <span>✅</span>
+                <span>Tiket yaratilgan</span>
+              </div>
+              <div class="bg-surface-800 rounded-lg p-3 space-y-2">
+                <div>
+                  <dt class="text-surface-500 text-xs mb-1">Tiket ID</dt>
+                  <dd class="text-white font-mono text-sm">{{ caseData.jira_ticket_id }}</dd>
+                </div>
+                <div v-if="caseData.jira_ticket_url">
+                  <a :href="caseData.jira_ticket_url" target="_blank" rel="noopener noreferrer"
+                    class="text-brand-400 hover:text-brand-300 text-xs flex items-center gap-1 transition-colors">
+                    🔗 Tiketni ochish
+                    <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+            <!-- Ticket yo'q -->
+            <div v-else class="space-y-3">
+              <p class="text-surface-500 text-xs">Bu murojaat uchun tiket yaratilmagan.</p>
+              <button @click="createTicket"
+                :disabled="ticketCreating"
+                class="btn-ghost w-full text-sm justify-center disabled:opacity-50">
+                <svg v-if="ticketCreating" class="w-4 h-4 animate-spin mr-1.5" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <span v-else class="mr-1.5">🎫</span>
+                {{ ticketCreating ? 'Yaratilmoqda...' : 'Tiket yaratish' }}
+              </button>
+              <p v-if="ticketError" class="text-red-400 text-xs">{{ ticketError }}</p>
+              <p v-if="ticketSkipped" class="text-surface-500 text-xs">{{ ticketSkipped }}</p>
+            </div>
+          </div>
         </div>
       </div>
     </template>
@@ -343,6 +387,9 @@ const users = ref([])
 const newStatus = ref('')
 const assignedTo = ref('')
 const newComment = reactive({ content: '', is_internal: false })
+const ticketCreating = ref(false)
+const ticketError = ref('')
+const ticketSkipped = ref('')
 
 // Preview modal state
 const preview = reactive({ open: false, att: null })
@@ -434,6 +481,26 @@ async function sendComment() {
 
 async function exportCase() {
   window.open(`/api/v1/cases/${caseData.value.external_id}/export`, '_blank')
+}
+
+async function createTicket() {
+  ticketCreating.value = true
+  ticketError.value = ''
+  ticketSkipped.value = ''
+  try {
+    const { data } = await api.post(`/v1/tickets/${caseData.value.external_id}/create`)
+    if (data.created || data.already_exists) {
+      caseData.value.jira_ticket_id = data.ticket_id
+      caseData.value.jira_ticket_url = data.ticket_url
+    } else if (data.skipped) {
+      ticketSkipped.value = data.message || 'Tiket yaratilmadi: priority yetarli emas'
+    }
+  } catch (e) {
+    const msg = e.response?.data?.detail || 'Tiket yaratishda xato'
+    ticketError.value = msg
+  } finally {
+    ticketCreating.value = false
+  }
 }
 
 function formatDate(d) { return d ? format(new Date(d), 'dd.MM.yyyy HH:mm') : '—' }

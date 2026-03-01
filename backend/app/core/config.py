@@ -101,6 +101,20 @@ class Settings(BaseSettings):
     # AWS Secrets Manager
     AWS_SECRET_NAME: str = "integritybot/prod"
 
+    # ── Jira integratsiya (opsional) ─────────────────────────────────────
+    JIRA_URL: Optional[str] = None            # https://yourcompany.atlassian.net
+    JIRA_TOKEN: Optional[str] = None          # API token yoki PAT
+    JIRA_USER_EMAIL: Optional[str] = None     # Atlassian Cloud uchun email
+    JIRA_PROJECT_KEY: str = "COMP"            # Jira project kaliti
+    JIRA_ISSUE_TYPE: str = "Task"             # Task / Bug / Story
+    # Qaysi priority lardan tiket yaratsin: critical,high | critical | all
+    JIRA_MIN_PRIORITY: str = "critical"
+
+    # ── Redmine integratsiya (opsional, Jira alternativasi) ──────────────
+    REDMINE_URL: Optional[str] = None         # http://redmine.yourcompany.uz
+    REDMINE_API_KEY: Optional[str] = None     # Redmine API key
+    REDMINE_PROJECT_ID: Optional[str] = None  # Redmine project identifier
+
     @property
     def encryption_key_bytes(self) -> bytes:
         return base64.b64decode(self.ENCRYPTION_KEY)

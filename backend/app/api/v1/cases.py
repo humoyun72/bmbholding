@@ -8,6 +8,8 @@ from typing import Optional
 import uuid
 import logging
 
+logger = logging.getLogger(__name__)
+
 from app.core.database import get_db
 from app.core.security import (
     decrypt_text, encrypt_text,
@@ -47,6 +49,8 @@ def decrypt_case(case: Case) -> dict:
         "due_at": case.due_at,
         "assigned_to": str(case.assigned_to) if case.assigned_to else None,
         "attachments_count": len(case.attachments) if case.attachments else 0,
+        "jira_ticket_id": case.jira_ticket_id,
+        "jira_ticket_url": case.jira_ticket_url,
     }
     return base
 
@@ -257,6 +261,20 @@ async def change_status(
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
+
+    # Jira / Redmine tiketini yangilash (agar tiket ID saqlangan bo'lsa)
+    jira_ticket_id = getattr(case, "jira_ticket_id", None)
+    if jira_ticket_id:
+        try:
+            from app.services.jira_integration import ticket_service
+            await ticket_service.update_ticket_on_case_status_change(
+                ticket_id=jira_ticket_id,
+                new_status=body.status.value if hasattr(body.status, "value") else str(body.status),
+                case_id=case_id,
+            )
+        except Exception as e:
+            logger.warning(f"Tiket yangilashda xato ({case_id}): {e}")
+
     return {"message": "Status updated"}
 
 

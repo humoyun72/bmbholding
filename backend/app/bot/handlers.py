@@ -658,6 +658,35 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.warning(f"WS notify failed: {e}")
 
+            # Jira / Redmine tiket yaratish (kritik/yuqori prioritylar uchun)
+            try:
+                from app.services.jira_integration import ticket_service
+                ticket_result = await ticket_service.create_ticket_for_case(
+                    case_id=case_id,
+                    category=category.value if hasattr(category, "value") else str(category),
+                    priority=PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM).value,
+                    description=description,
+                    is_anonymous=is_anonymous,
+                )
+                if ticket_result.created:
+                    logger.info(
+                        f"Tiket yaratildi [{ticket_result.system}]: "
+                        f"{ticket_result.ticket_id} → {case_id}"
+                    )
+                    # Tiket ID ni case ga saqlash
+                    async with AsyncSessionLocal() as db2:
+                        from sqlalchemy import select as _select
+                        result = await db2.execute(_select(Case).where(Case.external_id == case_id))
+                        saved_case = result.scalar_one_or_none()
+                        if saved_case:
+                            saved_case.jira_ticket_id = ticket_result.ticket_id
+                            saved_case.jira_ticket_url = ticket_result.url
+                            await db2.commit()
+                elif ticket_result.skipped:
+                    logger.debug(f"Tiket o'tkazildi ({case_id}): {ticket_result.skip_reason}")
+            except Exception as e:
+                logger.warning(f"Tiket yaratishda xato ({case_id}): {e}")
+
         lang = get_user_lang(context)
         success_text = t(
             "case_submitted", lang,

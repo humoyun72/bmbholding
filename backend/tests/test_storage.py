@@ -129,9 +129,6 @@ class TestClamAVScan:
     async def test_scan_virus_found_raises(self):
         """ClamAV virus topsa ValueError chiqarishi kerak."""
         from app.services import storage
-        from app.core.config import settings
-        original = settings.CLAMAV_ENABLED
-        settings.CLAMAV_ENABLED = True
 
         mock_reader = AsyncMock()
         mock_reader.read = AsyncMock(return_value=b"stream: Eicar-Test-Signature FOUND\n")
@@ -139,20 +136,18 @@ class TestClamAVScan:
         mock_writer.drain = AsyncMock()
         mock_writer.wait_closed = AsyncMock()
 
-        try:
+        with patch("app.services.storage.settings") as mock_settings:
+            mock_settings.CLAMAV_ENABLED = True
+            mock_settings.CLAMAV_HOST = "clamav"
+            mock_settings.CLAMAV_PORT = 3310
             with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
                 with pytest.raises(ValueError, match="zararli"):
                     await storage.scan_with_clamav(b"EICAR test", "eicar.txt")
-        finally:
-            settings.CLAMAV_ENABLED = original
 
     @pytest.mark.asyncio
     async def test_scan_clean_file_passes(self):
         """Toza fayl scan dan o'tishi kerak."""
         from app.services import storage
-        from app.core.config import settings
-        original = settings.CLAMAV_ENABLED
-        settings.CLAMAV_ENABLED = True
 
         mock_reader = AsyncMock()
         mock_reader.read = AsyncMock(return_value=b"stream: OK\n")
@@ -160,11 +155,12 @@ class TestClamAVScan:
         mock_writer.drain = AsyncMock()
         mock_writer.wait_closed = AsyncMock()
 
-        try:
+        with patch("app.services.storage.settings") as mock_settings:
+            mock_settings.CLAMAV_ENABLED = True
+            mock_settings.CLAMAV_HOST = "clamav"
+            mock_settings.CLAMAV_PORT = 3310
             with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
                 await storage.scan_with_clamav(b"clean file content", "clean.pdf")
-        finally:
-            settings.CLAMAV_ENABLED = original
 
 
 class TestClamavHealth:
@@ -189,9 +185,6 @@ class TestClamavHealth:
     async def test_health_enabled_ok_when_pong(self):
         """ClamAV yoqilgan va PONG javob kelsa — status 'ok' bo'lishi kerak."""
         from app.services.storage import check_clamav_health
-        from app.core.config import settings
-        original = settings.CLAMAV_ENABLED
-        settings.CLAMAV_ENABLED = True
 
         mock_reader = AsyncMock()
         mock_reader.read = AsyncMock(return_value=b"PONG\0")
@@ -199,27 +192,27 @@ class TestClamavHealth:
         mock_writer.drain = AsyncMock()
         mock_writer.wait_closed = AsyncMock()
 
-        try:
+        with patch("app.services.storage.settings") as mock_settings:
+            mock_settings.CLAMAV_ENABLED = True
+            mock_settings.CLAMAV_HOST = "clamav"
+            mock_settings.CLAMAV_PORT = 3310
             with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
                 result = await check_clamav_health()
-            assert result["enabled"] is True
-            assert result["status"] == "ok"
-        finally:
-            settings.CLAMAV_ENABLED = original
+        assert result["enabled"] is True
+        assert result["status"] == "ok"
 
     @pytest.mark.asyncio
     async def test_health_enabled_error_when_unreachable(self):
         """ClamAV ulanmasa — status 'error' bo'lishi kerak."""
         from app.services.storage import check_clamav_health
-        from app.core.config import settings
-        original = settings.CLAMAV_ENABLED
-        settings.CLAMAV_ENABLED = True
-        try:
+
+        with patch("app.services.storage.settings") as mock_settings:
+            mock_settings.CLAMAV_ENABLED = True
+            mock_settings.CLAMAV_HOST = "clamav"
+            mock_settings.CLAMAV_PORT = 3310
             with patch("asyncio.open_connection", side_effect=ConnectionRefusedError("refused")):
                 result = await check_clamav_health()
-            assert result["enabled"] is True
-            assert result["status"] == "error"
-            assert "error" in result
-        finally:
-            settings.CLAMAV_ENABLED = original
+        assert result["enabled"] is True
+        assert result["status"] == "error"
+        assert "error" in result
 

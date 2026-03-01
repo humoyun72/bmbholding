@@ -85,7 +85,7 @@
     </div>
 
     <!-- Webhook info -->
-    <div class="card p-6">
+    <div class="card p-6 mb-6">
       <h3 class="font-semibold text-white mb-4">Telegram Bot</h3>
       <p class="text-surface-400 text-sm mb-4">Webhook manzilini Telegram ga ulash uchun quyidagi tugmani bosing.</p>
       <button @click="setWebhook" :disabled="webhookLoading" class="btn-ghost text-sm">
@@ -93,6 +93,70 @@
       </button>
       <div v-if="webhookMsg" :class="webhookMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm mt-3">
         {{ webhookMsg.text }}
+      </div>
+    </div>
+
+    <!-- Jira / Redmine Integration -->
+    <div class="card p-6">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="font-semibold text-white">🎫 Tiket tizimi</h3>
+          <p class="text-surface-400 text-sm mt-1">Jira yoki Redmine integratsiya holati</p>
+        </div>
+        <button @click="checkTicketStatus" :disabled="ticketStatusLoading"
+          class="btn-ghost text-xs px-3 py-1.5">
+          {{ ticketStatusLoading ? '...' : '🔄 Tekshirish' }}
+        </button>
+      </div>
+
+      <div v-if="ticketStatus" class="space-y-3">
+        <!-- Disabled -->
+        <div v-if="!ticketStatus.enabled"
+          class="flex items-center gap-3 p-3 bg-surface-800 rounded-xl text-sm">
+          <span class="text-surface-500">⚪</span>
+          <div>
+            <div class="text-surface-400">Tiket tizimi ulanmagan</div>
+            <div class="text-surface-600 text-xs mt-0.5">
+              .env faylida JIRA_URL va JIRA_TOKEN ni sozlang
+            </div>
+          </div>
+        </div>
+
+        <!-- Connected -->
+        <div v-else-if="ticketStatus.status === 'ok'"
+          class="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-sm">
+          <span class="text-green-400">✅</span>
+          <div>
+            <div class="text-green-300 font-medium capitalize">
+              {{ ticketStatus.system }} — Ulangan
+            </div>
+            <div class="text-green-500/70 text-xs mt-0.5">Tiketlar avtomatik yaratilmoqda</div>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <div v-else
+          class="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm">
+          <span class="text-red-400">❌</span>
+          <div>
+            <div class="text-red-300 font-medium capitalize">
+              {{ ticketStatus.system }} — Xatolik
+            </div>
+            <div class="text-red-400/70 text-xs mt-0.5">{{ ticketStatus.message }}</div>
+          </div>
+        </div>
+
+        <!-- Config hint -->
+        <div v-if="ticketStatus.enabled" class="text-surface-600 text-xs">
+          Sozlash uchun: <code class="text-surface-500">.env</code> faylida
+          <code class="text-surface-500">JIRA_URL</code>,
+          <code class="text-surface-500">JIRA_TOKEN</code>,
+          <code class="text-surface-500">JIRA_PROJECT_KEY</code> ni o'rnating
+        </div>
+      </div>
+
+      <div v-else class="text-surface-500 text-sm">
+        Holati tekshirish uchun yuqoridagi tugmani bosing
       </div>
     </div>
   </div>
@@ -115,6 +179,8 @@ const showDisable2FA = ref(false)
 const disableTotpCode = ref('')
 const disableError = ref('')
 const disabling = ref(false)
+const ticketStatus = ref(null)
+const ticketStatusLoading = ref(false)
 
 const initials = computed(() => {
   const name = auth.user?.fullName || auth.user?.username || 'U'
@@ -173,6 +239,22 @@ async function setWebhook() {
     webhookMsg.value = { ok: false, text: '❌ Xatolik: ' + (e.response?.data?.detail || e.message) }
   } finally {
     webhookLoading.value = false
+  }
+}
+
+async function checkTicketStatus() {
+  ticketStatusLoading.value = true
+  try {
+    const { data } = await api.get('/v1/tickets/status')
+    ticketStatus.value = data
+  } catch (e) {
+    ticketStatus.value = {
+      enabled: false,
+      status: 'error',
+      message: e.response?.data?.detail || 'Ulanish xatosi',
+    }
+  } finally {
+    ticketStatusLoading.value = false
   }
 }
 </script>

@@ -10,7 +10,7 @@ import asyncio
 from app.core.config import settings
 from app.core.database import engine, Base
 from app.models import *  # noqa - register all models
-from app.api.v1 import auth, cases, polls, telegram, audit, ws
+from app.api.v1 import auth, cases, polls, telegram, audit, ws, tickets
 
 logging.basicConfig(
     level=logging.INFO if not settings.DEBUG else logging.DEBUG,
@@ -260,6 +260,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(cases.router, prefix="/api/v1")
 app.include_router(polls.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
+app.include_router(tickets.router, prefix="/api/v1")
 app.include_router(ws.router, prefix="/api")
 app.include_router(telegram.router, prefix="/api")
 
@@ -272,11 +273,14 @@ if settings.ENVIRONMENT != "production":
 @app.get("/api/health")
 async def health():
     from app.services.storage import check_s3_connection, check_clamav_health
+    from app.services.jira_integration import ticket_service
     storage_info = await check_s3_connection()
     clamav_info = await check_clamav_health()
+    ticket_info = await ticket_service.health_check()
     return {
         "status": "ok",
         "version": "1.0.0",
         "storage": storage_info,
         "antivirus": clamav_info,
+        "ticketing": ticket_info,
     }

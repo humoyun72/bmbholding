@@ -142,14 +142,14 @@
 
 ---
 
-### 8. Bildirishnomalar (3/5 — 60%)
+### 8. Bildirishnomalar (4/5 — 80%)
 
 | Talab | Holat |
 |-------|-------|
 | Telegram bildirishnomalari (admin guruh) | ✅ |
 | Email (SMTP) bildirishnomalari | ✅ aiosmtplib |
 | Real-time WebSocket | ✅ |
-| Tiket tizimi integratsiya (Jira/Redmine) | ❌ |
+| Tiket tizimi integratsiya (Jira/Redmine) | ✅ jira_integration.py + /api/v1/tickets/* + CaseDetail UI |
 | SIEM/Log integratsiya (Splunk/Elastic) | ❌ |
 
 ---
