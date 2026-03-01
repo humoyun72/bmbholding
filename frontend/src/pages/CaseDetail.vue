@@ -45,22 +45,62 @@
           <!-- Attachments -->
           <div v-if="caseData.attachments?.length" class="card p-6">
             <h3 class="font-semibold text-white mb-4">📎 Biriktirilgan fayllar</h3>
-            <div class="space-y-2">
+            <div class="space-y-3">
               <div v-for="att in caseData.attachments" :key="att.id"
-                class="flex items-center justify-between p-3 bg-surface-800 rounded-xl">
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 bg-surface-700 rounded-lg flex items-center justify-center text-sm">
-                    {{ getFileIcon(att.mime_type) }}
-                  </div>
-                  <div>
-                    <div class="text-white text-sm font-medium">{{ att.filename }}</div>
-                    <div class="text-surface-500 text-xs">{{ formatSize(att.size_bytes) }}</div>
+                class="border border-surface-700 rounded-xl overflow-hidden">
+
+                <!-- Image preview -->
+                <div v-if="att.mime_type?.startsWith('image/')"
+                  class="bg-surface-950 flex items-center justify-center cursor-pointer max-h-64 overflow-hidden"
+                  @click="openPreview(att)">
+                  <img
+                    :src="`/api/v1/cases/${caseData.external_id}/attachments/${att.id}`"
+                    :alt="att.filename"
+                    class="max-h-64 max-w-full object-contain hover:opacity-90 transition-opacity"
+                    @error="att._imgError = true"
+                  />
+                </div>
+
+                <!-- Video preview -->
+                <div v-else-if="att.mime_type?.startsWith('video/')">
+                  <video controls class="w-full max-h-48 bg-black rounded-t-xl">
+                    <source :src="`/api/v1/cases/${caseData.external_id}/attachments/${att.id}`"
+                      :type="att.mime_type" />
+                  </video>
+                </div>
+
+                <!-- PDF preview -->
+                <div v-else-if="att.mime_type === 'application/pdf'"
+                  class="bg-surface-950 cursor-pointer"
+                  @click="openPreview(att)">
+                  <div class="flex items-center gap-3 p-3 bg-red-500/10 border-b border-surface-700">
+                    <span class="text-2xl">📄</span>
+                    <span class="text-red-300 text-sm font-medium">PDF hujjat — ko'rish uchun bosing</span>
                   </div>
                 </div>
-                <a :href="`/api/v1/cases/${caseData.external_id}/attachments/${att.id}`"
-                  class="btn-ghost text-xs px-3 py-1.5" target="_blank">
-                  Yuklab olish
-                </a>
+
+                <!-- File info row -->
+                <div class="flex items-center justify-between p-3 bg-surface-800">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-sm flex-shrink-0">{{ getFileIcon(att.mime_type) }}</span>
+                    <div class="min-w-0">
+                      <div class="text-white text-sm font-medium truncate">{{ att.filename }}</div>
+                      <div class="text-surface-500 text-xs">{{ formatSize(att.size_bytes) }} · {{ att.mime_type }}</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2 flex-shrink-0 ml-3">
+                    <button v-if="isPreviewable(att)"
+                      @click="openPreview(att)"
+                      class="btn-ghost text-xs px-3 py-1.5">
+                      👁 Ko'rish
+                    </button>
+                    <a :href="`/api/v1/cases/${caseData.external_id}/attachments/${att.id}`"
+                      class="btn-ghost text-xs px-3 py-1.5"
+                      :download="att.filename">
+                      ⬇ Yuklab olish
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -173,6 +213,11 @@
                 <dt class="text-surface-500 text-xs mb-1">Yopilgan</dt>
                 <dd class="text-surface-200">{{ formatDate(caseData.closed_at) }}</dd>
               </div>
+              <!-- Reporter IP -->
+              <div v-if="caseData.reporter_ip">
+                <dt class="text-surface-500 text-xs mb-1">Reporter IP</dt>
+                <dd class="text-surface-400 font-mono text-xs">{{ caseData.reporter_ip }}</dd>
+              </div>
             </dl>
           </div>
 
@@ -208,6 +253,82 @@
         </div>
       </div>
     </template>
+
+    <!-- ── Preview Modal ─────────────────────────────────────────────── -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="preview.open"
+          class="fixed inset-0 z-[99999] flex items-center justify-center p-4"
+          @click.self="preview.open = false">
+          <!-- Backdrop -->
+          <div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+          <!-- Panel -->
+          <div class="relative z-10 bg-surface-900 rounded-2xl border border-surface-700
+                      shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-3 border-b border-surface-800">
+              <div class="flex items-center gap-3">
+                <span>{{ getFileIcon(preview.att?.mime_type) }}</span>
+                <span class="text-white text-sm font-medium truncate max-w-xs">{{ preview.att?.filename }}</span>
+                <span class="text-surface-500 text-xs">{{ formatSize(preview.att?.size_bytes) }}</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <a :href="`/api/v1/cases/${caseData?.external_id}/attachments/${preview.att?.id}`"
+                  :download="preview.att?.filename"
+                  class="btn-ghost text-xs px-3 py-1.5">
+                  ⬇ Yuklab olish
+                </a>
+                <button @click="preview.open = false"
+                  class="w-8 h-8 rounded-lg hover:bg-surface-700 flex items-center justify-center text-surface-400 hover:text-white transition-colors">
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-auto flex items-center justify-center bg-surface-950 p-4">
+              <!-- Image -->
+              <img v-if="preview.att?.mime_type?.startsWith('image/')"
+                :src="`/api/v1/cases/${caseData?.external_id}/attachments/${preview.att?.id}`"
+                :alt="preview.att?.filename"
+                class="max-w-full max-h-full object-contain rounded-lg" />
+
+              <!-- PDF -->
+              <iframe v-else-if="preview.att?.mime_type === 'application/pdf'"
+                :src="`/api/v1/cases/${caseData?.external_id}/attachments/${preview.att?.id}`"
+                class="w-full h-[70vh] rounded-lg border-0"
+                title="PDF viewer" />
+
+              <!-- Video -->
+              <video v-else-if="preview.att?.mime_type?.startsWith('video/')"
+                controls autoplay
+                class="max-w-full max-h-full rounded-lg">
+                <source :src="`/api/v1/cases/${caseData?.external_id}/attachments/${preview.att?.id}`"
+                  :type="preview.att?.mime_type" />
+              </video>
+
+              <!-- Audio -->
+              <audio v-else-if="preview.att?.mime_type?.startsWith('audio/')"
+                controls autoplay class="w-full max-w-md">
+                <source :src="`/api/v1/cases/${caseData?.external_id}/attachments/${preview.att?.id}`"
+                  :type="preview.att?.mime_type" />
+              </audio>
+
+              <!-- Other — download only -->
+              <div v-else class="text-center text-surface-400 py-16">
+                <div class="text-5xl mb-4">📎</div>
+                <p class="text-sm mb-4">Bu fayl tur ko'rib bo'lmaydi</p>
+                <a :href="`/api/v1/cases/${caseData?.external_id}/attachments/${preview.att?.id}`"
+                  :download="preview.att?.filename"
+                  class="btn-primary text-sm">
+                  ⬇ Yuklab olish
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
@@ -226,6 +347,22 @@ const users = ref([])
 const newStatus = ref('')
 const assignedTo = ref('')
 const newComment = reactive({ content: '', is_internal: false })
+
+// Preview modal state
+const preview = reactive({ open: false, att: null })
+
+function openPreview(att) {
+  preview.att = att
+  preview.open = true
+}
+
+function isPreviewable(att) {
+  if (!att?.mime_type) return false
+  return att.mime_type.startsWith('image/') ||
+    att.mime_type.startsWith('video/') ||
+    att.mime_type.startsWith('audio/') ||
+    att.mime_type === 'application/pdf'
+}
 
 const statusOptions = [
   { value: 'new', label: 'Yangi' },
@@ -351,3 +488,22 @@ const PriorityBadge = defineComponent({
 
 onMounted(() => { loadCase(); loadUsers() })
 </script>
+
+<style>
+.modal-enter-active, .modal-leave-active {
+  transition: opacity 0.2s ease;
+}
+.modal-enter-active .relative.z-10,
+.modal-leave-active .relative.z-10 {
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.modal-enter-from, .modal-leave-to {
+  opacity: 0;
+}
+.modal-enter-from .relative.z-10,
+.modal-leave-to .relative.z-10 {
+  transform: scale(0.95);
+  opacity: 0;
+}
+</style>
+

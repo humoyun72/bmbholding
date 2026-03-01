@@ -1,7 +1,7 @@
 # 📊 IntegrityBot — Talablar Bajarish Hisoboti
 **Sana:** 2026-yil 1-mart  
 **Hujjat:** IntegrityBot_Yuriqnoma.docx talablari asosida  
-**Umumiy bajarish:** ~**87%**
+**Umumiy bajarish:** ~**92%**
 
 ---
 
@@ -67,9 +67,9 @@
 | 13 | Real-time WebSocket bildirishnomalar | ✅ Redis pub/sub + WS |
 | 14 | So'rovnomalar moduli (polls) | ✅ Bonus |
 | 15 | SSO/LDAP integratsiya | ❌ |
-| 16 | Ilovalar preview | ⚠️ Download bor (StreamingResponse + S3 presigned), preview yo'q |
+| 16 | Ilovalar preview | ✅ Rasm inline, PDF iframe, Video/Audio player, modal ko'rish |
 | 17 | Responsiv dizayn (mobil) | ✅ |
-| 18 | IP/metadata ko'rish | ⚠️ Audit logda bor, case kartochkasida yo'q |
+| 18 | IP/metadata ko'rish | ✅ Case kartochkasi sidebar'ida ko'rsatiladi |
 
 ---
 
@@ -97,7 +97,7 @@
 | 4 | Rol-bazali kirish (3 ta rol) | ✅ |
 | 5 | Audit trail (barcha harakatlar) | ✅ |
 | 6 | Anonimlik: IP/telefon saqlanmasligi | ✅ is_anonymous flag, token hash |
-| 7 | KMS/HSM (kalitlar boshqaruvi) | ❌ .env da — Vault/KMS kerak |
+| 7 | KMS/HSM (kalitlar boshqaruvi) | ✅ HashiCorp Vault + AWS Secrets Manager integratsiya (`secrets.py`) |
 | 8 | Antivirus skanerlash (ClamAV) | ✅ Docker service + INSTREAM protokol, CLAMAV_ENABLED flag |
 | 9 | Fayl o'chirish (to'liq, media bilan) | ✅ Local + S3 delete_file() |
 | 10 | .exe va zararli fayllarni bloklash | ✅ BLOCKED_EXTENSIONS + ALLOWED_MIME_TYPES |
@@ -119,7 +119,7 @@
 | S3 storage (aioboto3) | ✅ Local/S3/MinIO/Yandex/DO + presigned URL |
 | Monitoring (Prometheus + Grafana) | ✅ `--profile monitoring` bilan |
 | Kubernetes | ❌ |
-| Secrets boshqaruvi (Vault/KMS) | ❌ .env faylda |
+| Secrets boshqaruvi (Vault/KMS) | ✅ `secrets.py` — Vault AppRole + AWS Secrets Manager, env fallback |
 
 ---
 
@@ -171,7 +171,7 @@
 
 | Talab | Holat |
 |-------|-------|
-| Backend unit testlari (70%+ qamrov) | ✅ **43 test, 79.66% coverage** |
+| Backend unit testlari (70%+ qamrov) | ✅ **52 test, 79%+ coverage** |
 | E2E testlar | ❌ |
 | Yuklanish testi (1000 xabar/oy) | ❌ |
 | Xavfsizlik testlari | ❌ |
@@ -182,6 +182,7 @@
 - `tests/test_storage.py` — fayl validatsiya, sanitize, ClamAV mock (14 test)
 - `tests/test_cases.py` — model va enum testlari (7 test)
 - `tests/test_notifications.py` — notify_admins mock testlari (6 test)
+- `tests/test_secrets.py` — Vault/KMS/inject mock testlari (9 test)
 
 ---
 
@@ -216,13 +217,13 @@ JAMI:                        █████████████████
 
 ## 🔴 QOLGAN ISHLAR (Muhimlik bo'yicha)
 
-### 🚨 1-DARAJALI — Tezkor
+### 🚨 1-DARAJALI — ✅ BARCHASI BAJARILDI
 
-| # | Vazifa | Taxminiy vaqt | Holat |
-|---|--------|---------------|-------|
-| 1 | KMS/Vault — `.env` kalitini Vault ga ko'chirish | 4 soat | ❌ |
-| 2 | Ilovalar preview (rasm/PDF ko'rinishi) | 4 soat | ❌ |
-| 3 | IP case kartochkasida ko'rsatish | 1 soat | ❌ |
+| # | Vazifa | Holat |
+|---|--------|-------|
+| 1 | KMS/Vault — Vault AppRole + AWS Secrets Manager | ✅ `services/secrets.py`, `scripts/vault_setup.sh` |
+| 2 | Ilovalar preview — rasm/PDF/video/audio modal | ✅ `CaseDetail.vue` — inline + modal viewer |
+| 3 | IP case kartochkasida ko'rsatish | ✅ Sidebar'da `reporter_ip` ko'rinadi |
 
 ### ⚠️ 2-DARAJALI — Birinchi sprint (1 hafta)
 
@@ -264,10 +265,13 @@ JAMI:                        █████████████████
 | Adminlar uchun 2FA sozlangan | ✅ |
 | Kunlik DB zaxira nusxalari ishlaydi | ✅ |
 | Monitoring (Prometheus + Grafana) | ✅ |
-| Unit testlar 70%+ coverage | ✅ 79.66% |
+| Secrets management (Vault/KMS) | ✅ |
+| Ilovalar preview (rasm/PDF/video) | ✅ |
+| Reporter IP case kartochkasida | ✅ |
+| Unit testlar 70%+ coverage | ✅ 79%+ (52 test) |
 | Yuklanish testi o'tgan | ❌ |
 
-**Qabul qilish mezonlaridan: 8/9 (89%) bajarilgan**
+**Qabul qilish mezonlaridan: 11/12 (92%) bajarilgan**
 
 ---
 

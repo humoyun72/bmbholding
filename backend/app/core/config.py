@@ -58,7 +58,21 @@ class Settings(BaseSettings):
     # ClamAV antivirus (docker-compose da clamav service kerak)
     CLAMAV_HOST: str = "clamav"
     CLAMAV_PORT: int = 3310
-    CLAMAV_ENABLED: bool = False   # True qilish uchun clamav container healthcheck o'tishi kerak
+    CLAMAV_ENABLED: bool = False
+
+    # ── Secrets backend ─────────────────────────────────────────────────
+    # "env" (default) | "vault" | "awskms"
+    SECRETS_BACKEND: str = "env"
+
+    # HashiCorp Vault
+    VAULT_ADDR: str = "http://vault:8200"
+    VAULT_TOKEN: Optional[str] = None
+    VAULT_ROLE_ID: Optional[str] = None       # AppRole auth
+    VAULT_SECRET_ID: Optional[str] = None     # AppRole auth
+    VAULT_SECRET_PATH: str = "secret/data/integritybot"
+
+    # AWS Secrets Manager
+    AWS_SECRET_NAME: str = "integritybot/prod"
 
     @property
     def encryption_key_bytes(self) -> bytes:

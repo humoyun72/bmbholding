@@ -24,6 +24,10 @@ _redis_subscriber_task = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _polling_task, _redis_subscriber_task
+    # ── Secrets backend (Vault / AWS KMS / env) ──────────────────────────
+    from app.services.secrets import bootstrap_secrets
+    await bootstrap_secrets()
+
     # Startup
     logger.info("Starting IntegrityBot API...")
     async with engine.begin() as conn:

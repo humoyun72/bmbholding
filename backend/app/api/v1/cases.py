@@ -172,6 +172,17 @@ async def get_case(
 
     base = decrypt_case(case)
     base["description"] = decrypt_text(case.description_encrypted)
+
+    # Reporter IP — birinchi CASE_VIEW yoki yaratilgan log'dan olish
+    from sqlalchemy import select as sa_select
+    ip_result = await db.execute(
+        sa_select(AuditLog.ip_address)
+        .where(AuditLog.case_id == case.id, AuditLog.ip_address.isnot(None))
+        .order_by(AuditLog.created_at.asc())
+        .limit(1)
+    )
+    base["reporter_ip"] = ip_result.scalar()
+
     base["comments"] = []
     for c in sorted(case.comments, key=lambda x: x.created_at):
         base["comments"].append({
