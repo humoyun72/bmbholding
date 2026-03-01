@@ -1,7 +1,7 @@
 <template>
-  <div class="p-8 animate-fade-in max-w-2xl">
-    <div class="mb-8">
-      <h1 class="text-2xl font-bold text-white">Sozlamalar</h1>
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in max-w-2xl">
+    <div class="mb-6">
+      <h1 class="text-xl sm:text-2xl font-bold text-white">Sozlamalar</h1>
       <p class="text-surface-400 text-sm mt-1">Profil va xavfsizlik sozlamalari</p>
     </div>
 

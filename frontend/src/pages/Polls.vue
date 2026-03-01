@@ -1,11 +1,11 @@
 <template>
-  <div class="p-8 animate-fade-in">
-    <div class="flex items-center justify-between mb-8">
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
+    <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-2xl font-bold text-white">So'rovnomalar</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">So'rovnomalar</h1>
         <p class="text-surface-400 text-sm mt-1">Telegram guruh yoki kanalda so'rovnomalar o'tkazish</p>
       </div>
-      <button @click="showCreate = true" class="btn-primary">
+      <button @click="showCreate = true" class="btn-primary whitespace-nowrap">
         + Yangi so'rovnoma
       </button>
     </div>

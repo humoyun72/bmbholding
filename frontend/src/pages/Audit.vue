@@ -1,33 +1,33 @@
 <template>
-  <div class="p-8 animate-fade-in">
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
+    <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-2xl font-bold text-white">Audit jurnali</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">Audit jurnali</h1>
         <p class="text-surface-400 text-sm mt-1">Tizimda bajarilgan barcha amallar</p>
       </div>
-      <button @click="loadLogs" class="btn-ghost text-sm flex items-center gap-2">
+      <button @click="loadLogs" class="btn-ghost text-sm flex items-center gap-2 whitespace-nowrap">
         <span :class="{ 'animate-spin': loading }">🔄</span> Yangilash
       </button>
     </div>
 
     <!-- Filters -->
     <div class="card p-4 mb-6">
-      <div class="flex items-center gap-4 flex-wrap">
-        <select v-model="filters.action" class="input w-auto min-w-48" @change="resetAndLoad">
+      <div class="flex items-center gap-3 flex-wrap">
+        <select v-model="filters.action" class="input flex-1 min-w-40" @change="resetAndLoad">
           <option value="">Barcha amallar</option>
           <option v-for="a in actions" :key="a" :value="a">{{ actionLabel(a) }}</option>
         </select>
-        <select v-model="filters.user_id" class="input w-auto min-w-48" @change="resetAndLoad">
+        <select v-model="filters.user_id" class="input flex-1 min-w-40" @change="resetAndLoad">
           <option value="">Barcha foydalanuvchilar</option>
           <option v-for="u in users" :key="u.id" :value="u.id">{{ u.full_name || u.username }}</option>
         </select>
-        <button @click="clearFilters" class="btn-ghost text-sm">Filtrni tozalash</button>
+        <button @click="clearFilters" class="btn-ghost text-sm whitespace-nowrap">Filtrni tozalash</button>
       </div>
     </div>
 
-    <!-- Table -->
-    <div class="card overflow-hidden">
+    <!-- Desktop table -->
+    <div class="card overflow-hidden hidden sm:block">
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
@@ -39,7 +39,6 @@
             </tr>
           </thead>
           <tbody>
-            <!-- Loading state -->
             <tr v-if="loading">
               <td colspan="5" class="py-16 text-center">
                 <div class="flex flex-col items-center gap-3">
@@ -48,19 +47,13 @@
                 </div>
               </td>
             </tr>
-
-            <!-- Empty state -->
             <tr v-else-if="!logs.length">
               <td colspan="5" class="py-16 text-center text-surface-600 text-sm">
                 Audit yozuvlari topilmadi
               </td>
             </tr>
-
-            <!-- Rows -->
             <tr v-else v-for="log in logs" :key="log.id"
               class="border-b border-surface-800/50 hover:bg-surface-800/30 transition-colors">
-
-              <!-- Foydalanuvchi -->
               <td class="px-5 py-3.5">
                 <div v-if="log.user" class="flex items-center gap-2">
                   <div class="w-7 h-7 rounded-full bg-brand-600/30 flex items-center justify-center text-xs font-bold text-brand-400 flex-shrink-0">
@@ -73,21 +66,15 @@
                 </div>
                 <span v-else class="text-surface-600 text-sm italic">Tizim</span>
               </td>
-
-              <!-- Amal -->
               <td class="px-5 py-3.5">
                 <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', actionBadge(log.action)]">
                   <span>{{ actionIcon(log.action) }}</span>
                   <span>{{ actionLabel(log.action) }}</span>
                 </span>
               </td>
-
-              <!-- Murojaat / entity -->
               <td class="px-5 py-3.5">
                 <div v-if="log.case_id" class="text-brand-400 text-sm font-mono">
-                  <router-link :to="`/cases/${log.case_id}`" class="hover:underline">
-                    #{{ log.case_id.slice(0, 8) }}
-                  </router-link>
+                  <router-link :to="`/cases/${log.case_id}`" class="hover:underline">#{{ log.case_id.slice(0, 8) }}</router-link>
                 </div>
                 <div v-else-if="log.entity_type" class="text-surface-400 text-sm">
                   {{ log.entity_type }}
@@ -95,13 +82,9 @@
                 </div>
                 <span v-else class="text-surface-700 text-xs">—</span>
               </td>
-
-              <!-- IP manzil -->
               <td class="px-5 py-3.5">
                 <span class="text-surface-400 text-sm font-mono">{{ log.ip_address || '—' }}</span>
               </td>
-
-              <!-- Vaqt -->
               <td class="px-5 py-3.5 whitespace-nowrap">
                 <div class="text-white text-sm">{{ formatDate(log.created_at) }}</div>
                 <div class="text-surface-500 text-xs">{{ formatTime(log.created_at) }}</div>
@@ -112,24 +95,61 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-between px-5 py-4 border-t border-surface-800">
+      <div v-if="totalPages > 1" class="flex items-center justify-between px-5 py-4 border-t border-surface-800 flex-wrap gap-3">
         <span class="text-surface-500 text-sm">Jami {{ total }} yozuv</span>
         <div class="flex items-center gap-2">
           <button @click="changePage(currentPage - 1)" :disabled="currentPage <= 1"
             class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed">← Oldingi</button>
-          <div class="flex items-center gap-1">
-            <button v-for="p in visiblePages" :key="p" @click="changePage(p)"
-              :class="['w-8 h-8 rounded-lg text-sm transition-colors',
-                p === currentPage ? 'bg-brand-600 text-white' : 'text-surface-400 hover:text-white hover:bg-surface-700']">
-              {{ p }}
-            </button>
-          </div>
+          <span class="text-surface-400 text-sm">{{ currentPage }} / {{ totalPages }}</span>
           <button @click="changePage(currentPage + 1)" :disabled="currentPage >= totalPages"
             class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed">Keyingi →</button>
         </div>
       </div>
       <div v-else-if="!loading && logs.length" class="px-5 py-3 border-t border-surface-800">
         <span class="text-surface-500 text-sm">Jami {{ total }} yozuv</span>
+      </div>
+    </div>
+
+    <!-- Mobile card list -->
+    <div class="sm:hidden space-y-3">
+      <div v-if="loading" class="card p-8 text-center">
+        <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      </div>
+      <div v-else-if="!logs.length" class="card p-8 text-center text-surface-600 text-sm">
+        Audit yozuvlari topilmadi
+      </div>
+      <div v-else v-for="log in logs" :key="log.id" class="card p-4">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="flex items-center gap-2">
+            <div v-if="log.user" class="w-7 h-7 rounded-full bg-brand-600/30 flex items-center justify-center text-xs font-bold text-brand-400 flex-shrink-0">
+              {{ (log.user.full_name || log.user.username).charAt(0).toUpperCase() }}
+            </div>
+            <div>
+              <div class="text-white text-sm font-medium">{{ log.user ? (log.user.full_name || log.user.username) : 'Tizim' }}</div>
+              <div class="text-surface-500 text-xs">{{ log.ip_address || '—' }}</div>
+            </div>
+          </div>
+          <div class="text-right flex-shrink-0">
+            <div class="text-surface-400 text-xs">{{ formatDate(log.created_at) }}</div>
+            <div class="text-surface-600 text-xs">{{ formatTime(log.created_at) }}</div>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span :class="['inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', actionBadge(log.action)]">
+            {{ actionIcon(log.action) }} {{ actionLabel(log.action) }}
+          </span>
+          <router-link v-if="log.case_id" :to="`/cases/${log.case_id}`"
+            class="text-brand-400 text-xs font-mono hover:underline">
+            #{{ log.case_id.slice(0, 8) }}
+          </router-link>
+        </div>
+      </div>
+      <div v-if="totalPages > 1" class="flex items-center justify-center gap-3 py-2">
+        <button @click="changePage(currentPage - 1)" :disabled="currentPage <= 1"
+          class="btn-ghost text-sm disabled:opacity-30">← Oldingi</button>
+        <span class="text-surface-400 text-sm">{{ currentPage }} / {{ totalPages }}</span>
+        <button @click="changePage(currentPage + 1)" :disabled="currentPage >= totalPages"
+          class="btn-ghost text-sm disabled:opacity-30">Keyingi →</button>
       </div>
     </div>
   </div>

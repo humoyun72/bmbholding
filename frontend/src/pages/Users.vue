@@ -1,14 +1,15 @@
 <template>
-  <div class="p-8 animate-fade-in">
-    <div class="flex items-center justify-between mb-8">
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
+    <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-2xl font-bold text-white">Foydalanuvchilar</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">Foydalanuvchilar</h1>
         <p class="text-surface-400 text-sm mt-1">Admin panel foydalanuvchilarini boshqarish</p>
       </div>
-      <button @click="showCreate = true" class="btn-primary">+ Foydalanuvchi qo'shish</button>
+      <button @click="showCreate = true" class="btn-primary whitespace-nowrap">+ Foydalanuvchi qo'shish</button>
     </div>
 
-    <div class="card overflow-hidden">
+    <!-- Desktop table -->
+    <div class="card overflow-hidden hidden sm:block">
       <table class="w-full">
         <thead>
           <tr class="border-b border-surface-800">
@@ -35,9 +36,7 @@
               </div>
             </td>
             <td class="px-5 py-4 text-surface-300 text-sm">{{ u.email }}</td>
-            <td class="px-5 py-4">
-              <span :class="roleClass(u.role)" class="badge">{{ roleLabel(u.role) }}</span>
-            </td>
+            <td class="px-5 py-4"><span :class="roleClass(u.role)" class="badge">{{ roleLabel(u.role) }}</span></td>
             <td class="px-5 py-4">
               <span :class="u.totp_enabled ? 'text-green-400' : 'text-surface-600'" class="text-sm">
                 {{ u.totp_enabled ? '✓ Yoqilgan' : '✗ Yoqilmagan' }}
@@ -52,6 +51,34 @@
           </tr>
         </tbody>
       </table>
+    </div>
+
+    <!-- Mobile card list -->
+    <div class="sm:hidden space-y-3">
+      <div v-if="loading" class="card p-8 text-center">
+        <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      </div>
+      <div v-for="u in users" :key="u.id" class="card p-4">
+        <div class="flex items-center gap-3 mb-3">
+          <div class="w-10 h-10 bg-gradient-to-br from-brand-500 to-brand-700 rounded-xl flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+            {{ (u.full_name || u.username)[0].toUpperCase() }}
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="text-white text-sm font-medium truncate">{{ u.full_name || u.username }}</div>
+            <div class="text-surface-500 text-xs">{{ u.email }}</div>
+          </div>
+          <span :class="u.is_active ? 'text-green-400' : 'text-red-400'" class="text-xs flex-shrink-0">
+            {{ u.is_active ? '● Faol' : '○ Nofaol' }}
+          </span>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+          <span :class="roleClass(u.role)" class="badge">{{ roleLabel(u.role) }}</span>
+          <span :class="u.totp_enabled ? 'text-green-400' : 'text-surface-600'" class="text-xs">
+            {{ u.totp_enabled ? '🔐 2FA yoqilgan' : '2FA yoqilmagan' }}
+          </span>
+          <span class="text-surface-500 text-xs ml-auto">{{ u.last_login ? formatDate(u.last_login) : 'Hech qachon' }}</span>
+        </div>
+      </div>
     </div>
 
     <!-- Create user modal -->

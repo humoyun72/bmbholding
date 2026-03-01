@@ -1,7 +1,20 @@
 <template>
   <div class="flex h-screen bg-surface-950 overflow-hidden">
+
+    <!-- Mobile overlay -->
+    <Transition name="fade">
+      <div v-if="sidebarOpen"
+        class="fixed inset-0 bg-black/60 z-30 lg:hidden"
+        @click="sidebarOpen = false" />
+    </Transition>
+
     <!-- Sidebar -->
-    <aside class="w-64 flex-shrink-0 bg-surface-900 border-r border-surface-800 flex flex-col">
+    <aside :class="[
+      'fixed lg:static inset-y-0 left-0 z-40 w-64 flex-shrink-0',
+      'bg-surface-900 border-r border-surface-800 flex flex-col',
+      'transition-transform duration-300 ease-in-out',
+      sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+    ]">
       <!-- Logo -->
       <div class="p-5 border-b border-surface-800">
         <div class="flex items-center gap-3">
@@ -15,15 +28,25 @@
             <div class="font-bold text-white text-sm">IntegrityBot</div>
             <div class="text-surface-500 text-xs">Admin Panel</div>
           </div>
-          <!-- Notification Bell -->
-          <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
+          <!-- Close btn mobile -->
+          <button @click="sidebarOpen = false"
+            class="lg:hidden w-7 h-7 flex items-center justify-center rounded-lg text-surface-400 hover:text-white hover:bg-surface-800">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+          <!-- Bell desktop (inside sidebar) -->
+          <div class="hidden lg:block">
+            <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
+          </div>
         </div>
       </div>
 
       <!-- Navigation -->
       <nav class="flex-1 p-4 space-y-1 overflow-y-auto">
         <RouterLink v-for="item in navItems" :key="item.path" :to="item.path"
-          :class="['sidebar-link', { 'active': isActive(item.path) }]">
+          :class="['sidebar-link', { 'active': isActive(item.path) }]"
+          @click="sidebarOpen = false">
           <component :is="item.icon" class="w-4 h-4 flex-shrink-0" />
           {{ item.label }}
           <span v-if="item.badge" class="ml-auto badge bg-brand-600/20 text-brand-400 border border-brand-500/20">
@@ -51,19 +74,43 @@
       </div>
     </aside>
 
-    <!-- Main content -->
-    <main class="flex-1 overflow-y-auto">
-      <RouterView v-slot="{ Component }">
-        <Transition name="page" mode="out-in">
-          <component :is="Component" />
-        </Transition>
-      </RouterView>
-    </main>
+    <!-- Main content wrapper -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+      <!-- Mobile top bar -->
+      <header class="lg:hidden flex items-center justify-between px-4 h-14 bg-surface-900 border-b border-surface-800 flex-shrink-0">
+        <button @click="sidebarOpen = true"
+          class="w-9 h-9 flex items-center justify-center rounded-xl text-surface-400 hover:text-white hover:bg-surface-800">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+          </svg>
+        </button>
+        <div class="flex items-center gap-2">
+          <div class="w-6 h-6 bg-brand-600 rounded-lg flex items-center justify-center">
+            <svg class="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </div>
+          <span class="text-white font-semibold text-sm">IntegrityBot</span>
+        </div>
+        <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
+      </header>
+
+      <!-- Page content -->
+      <main class="flex-1 overflow-y-auto">
+        <RouterView v-slot="{ Component }">
+          <Transition name="page" mode="out-in">
+            <component :is="Component" />
+          </Transition>
+        </RouterView>
+      </main>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, h, onMounted, onUnmounted } from 'vue'
+import { ref, computed, h, watch, onMounted, onUnmounted } from 'vue'
 import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
@@ -74,6 +121,9 @@ const notif = useNotificationStore()
 const route = useRoute()
 const router = useRouter()
 
+const sidebarOpen = ref(false)
+watch(() => route.path, () => { sidebarOpen.value = false })
+
 onMounted(() => notif.connect())
 onUnmounted(() => notif.disconnect())
 
@@ -82,7 +132,6 @@ const userInitials = computed(() => {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 })
 
-// Icon components (inline SVG)
 const icons = {
   dashboard: { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
     [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2',
@@ -128,3 +177,8 @@ function handleLogout() {
   router.push('/login')
 }
 </script>
+
+<style scoped>
+.fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
+</style>

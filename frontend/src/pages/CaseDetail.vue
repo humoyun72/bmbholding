@@ -1,7 +1,7 @@
 <template>
-  <div class="p-8 animate-fade-in max-w-6xl">
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in max-w-6xl">
     <!-- Back -->
-    <button @click="$router.back()" class="btn-ghost text-sm mb-6 -ml-2">
+    <button @click="$router.back()" class="btn-ghost text-sm mb-4 -ml-2">
       ← Orqaga
     </button>
 
@@ -11,10 +11,10 @@
 
     <template v-else-if="caseData">
       <!-- Title row -->
-      <div class="flex items-start justify-between gap-4 mb-8">
+      <div class="flex items-start justify-between gap-4 mb-6 flex-wrap">
         <div>
-          <div class="flex items-center gap-3 mb-2">
-            <span class="font-mono text-brand-400 text-lg font-semibold">{{ caseData.external_id }}</span>
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <span class="font-mono text-brand-400 text-base sm:text-lg font-semibold">{{ caseData.external_id }}</span>
             <StatusBadge :status="caseData.status" />
             <PriorityBadge :priority="caseData.priority" />
             <span v-if="caseData.is_anonymous" class="badge bg-surface-800 text-surface-400 border border-surface-700">🔒 Anonim</span>
@@ -23,19 +23,19 @@
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center gap-3 flex-shrink-0">
-          <select v-model="newStatus" @change="updateStatus" class="input w-auto text-sm">
+        <div class="flex items-center gap-2 flex-wrap">
+          <select v-model="newStatus" @change="updateStatus" class="input text-sm">
             <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
           </select>
-          <button @click="exportCase" class="btn-ghost text-sm">
+          <button @click="exportCase" class="btn-ghost text-sm whitespace-nowrap">
             📄 Eksport
           </button>
         </div>
       </div>
 
-      <div class="grid grid-cols-3 gap-6">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <!-- Main content - left 2/3 -->
-        <div class="col-span-2 space-y-6">
+        <div class="lg:col-span-2 space-y-6">
           <!-- Description -->
           <div class="card p-6">
             <h3 class="font-semibold text-white mb-4">📝 Murojaat mazmuni</h3>

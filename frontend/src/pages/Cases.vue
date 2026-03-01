@@ -1,36 +1,37 @@
 <template>
-  <div class="p-8 animate-fade-in">
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
     <!-- Header -->
-    <div class="flex items-center justify-between mb-8">
+    <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-2xl font-bold text-white">Murojaatlar</h1>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">Murojaatlar</h1>
         <p class="text-surface-400 text-sm mt-1">Barcha kelgan murojaatlar ro'yxati</p>
       </div>
     </div>
 
     <!-- Filters -->
     <div class="card p-4 mb-6">
-      <div class="flex items-center gap-4 flex-wrap">
-        <select v-model="filters.status" class="input w-auto min-w-40" @change="loadCases">
+      <div class="flex items-center gap-3 flex-wrap">
+        <select v-model="filters.status" class="input flex-1 min-w-32" @change="loadCases">
           <option value="">Barcha holatlar</option>
           <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
         </select>
-        <select v-model="filters.category" class="input w-auto min-w-40" @change="loadCases">
+        <select v-model="filters.category" class="input flex-1 min-w-32" @change="loadCases">
           <option value="">Barcha kategoriyalar</option>
           <option v-for="c in categoryOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
         </select>
-        <select v-model="filters.priority" class="input w-auto min-w-40" @change="loadCases">
+        <select v-model="filters.priority" class="input flex-1 min-w-32" @change="loadCases">
           <option value="">Barcha ustuvorliklar</option>
           <option v-for="p in priorityOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
         </select>
-        <button @click="resetFilters" class="btn-ghost text-sm">
+        <button @click="resetFilters" class="btn-ghost text-sm whitespace-nowrap">
           Filtrni tozalash
         </button>
       </div>
     </div>
 
     <!-- Table -->
-    <div class="card overflow-hidden">
+    <!-- Desktop table -->
+    <div class="card overflow-hidden hidden sm:block">
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
@@ -63,23 +64,15 @@
                   {{ c.external_id }}
                 </span>
               </td>
-              <td class="px-5 py-4">
-                <CategoryBadge :category="c.category" />
-              </td>
-              <td class="px-5 py-4">
-                <PriorityBadge :priority="c.priority" />
-              </td>
-              <td class="px-5 py-4">
-                <StatusBadge :status="c.status" />
-              </td>
+              <td class="px-5 py-4"><CategoryBadge :category="c.category" /></td>
+              <td class="px-5 py-4"><PriorityBadge :priority="c.priority" /></td>
+              <td class="px-5 py-4"><StatusBadge :status="c.status" /></td>
               <td class="px-5 py-4">
                 <span :class="c.is_anonymous ? 'text-surface-400' : 'text-green-400'" class="text-xs">
                   {{ c.is_anonymous ? '🔒 Anonim' : '👤 Ochiq' }}
                 </span>
               </td>
-              <td class="px-5 py-4 text-surface-400 text-sm">
-                {{ formatDate(c.created_at) }}
-              </td>
+              <td class="px-5 py-4 text-surface-400 text-sm">{{ formatDate(c.created_at) }}</td>
               <td class="px-5 py-4">
                 <span v-if="c.attachments_count" class="text-surface-400 text-xs flex items-center gap-1">
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -92,25 +85,55 @@
           </tbody>
         </table>
       </div>
-
       <!-- Pagination -->
-      <div v-if="pagination.pages > 1" class="flex items-center justify-between px-5 py-4 border-t border-surface-800">
-        <span class="text-surface-500 text-sm">
-          Jami {{ pagination.total }} ta murojaat
-        </span>
+      <div v-if="pagination.pages > 1" class="flex items-center justify-between px-5 py-4 border-t border-surface-800 flex-wrap gap-3">
+        <span class="text-surface-500 text-sm">Jami {{ pagination.total }} ta murojaat</span>
         <div class="flex items-center gap-2">
-          <button @click="changePage(pagination.page - 1)"
-            :disabled="pagination.page <= 1"
-            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">
-            ← Oldingi
-          </button>
+          <button @click="changePage(pagination.page - 1)" :disabled="pagination.page <= 1"
+            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">← Oldingi</button>
           <span class="text-surface-400 text-sm">{{ pagination.page }} / {{ pagination.pages }}</span>
-          <button @click="changePage(pagination.page + 1)"
-            :disabled="pagination.page >= pagination.pages"
-            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">
-            Keyingi →
-          </button>
+          <button @click="changePage(pagination.page + 1)" :disabled="pagination.page >= pagination.pages"
+            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">Keyingi →</button>
         </div>
+      </div>
+    </div>
+
+    <!-- Mobile card list -->
+    <div class="sm:hidden space-y-3">
+      <div v-if="loading" class="card p-8 text-center">
+        <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      </div>
+      <div v-else-if="!cases.length" class="card p-8 text-center text-surface-500 text-sm">
+        Murojaatlar topilmadi
+      </div>
+      <div v-for="c in cases" :key="c.id"
+        @click="goToCase(c.external_id)"
+        class="card p-4 cursor-pointer hover:border-surface-700 transition-colors active:bg-surface-800/50">
+        <div class="flex items-center justify-between mb-3">
+          <span class="font-mono text-brand-400 text-sm font-semibold">{{ c.external_id }}</span>
+          <StatusBadge :status="c.status" />
+        </div>
+        <div class="flex items-center gap-2 flex-wrap mb-2">
+          <CategoryBadge :category="c.category" />
+          <PriorityBadge :priority="c.priority" />
+          <span :class="c.is_anonymous ? 'text-surface-400' : 'text-green-400'" class="text-xs">
+            {{ c.is_anonymous ? '🔒 Anonim' : '👤 Ochiq' }}
+          </span>
+        </div>
+        <div class="flex items-center justify-between mt-2">
+          <span class="text-surface-500 text-xs">{{ formatDate(c.created_at) }}</span>
+          <span v-if="c.attachments_count" class="text-surface-500 text-xs flex items-center gap-1">
+            📎 {{ c.attachments_count }}
+          </span>
+        </div>
+      </div>
+      <!-- Mobile pagination -->
+      <div v-if="pagination.pages > 1" class="flex items-center justify-center gap-3 py-2">
+        <button @click="changePage(pagination.page - 1)" :disabled="pagination.page <= 1"
+          class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">← Oldingi</button>
+        <span class="text-surface-400 text-sm">{{ pagination.page }} / {{ pagination.pages }}</span>
+        <button @click="changePage(pagination.page + 1)" :disabled="pagination.page >= pagination.pages"
+          class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">Keyingi →</button>
       </div>
     </div>
   </div>

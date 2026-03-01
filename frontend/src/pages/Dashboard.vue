@@ -1,5 +1,5 @@
 <template>
-  <div class="p-8 animate-fade-in">
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
     <!-- Header -->
     <div class="mb-8">
       <h1 class="text-2xl font-bold text-white">Bosh sahifa</h1>

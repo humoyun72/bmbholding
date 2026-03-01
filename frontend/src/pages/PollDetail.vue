@@ -1,6 +1,6 @@
 <template>
-  <div class="p-8 animate-fade-in">
-    <button @click="$router.back()" class="btn-ghost text-sm mb-6 -ml-2">← Orqaga</button>
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
+    <button @click="$router.back()" class="btn-ghost text-sm mb-4 -ml-2">← Orqaga</button>
 
     <div v-if="loading" class="flex items-center justify-center h-48">
       <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
@@ -8,16 +8,15 @@
 
     <template v-else-if="poll">
       <!-- Header -->
-      <div class="flex items-start justify-between gap-4 mb-8">
+      <div class="flex items-start justify-between gap-4 mb-6 flex-wrap">
         <div>
-          <div class="flex items-center gap-3 mb-2">
-            <h1 class="text-2xl font-bold text-white">{{ poll.title }}</h1>
+          <div class="flex items-center gap-2 flex-wrap mb-2">
+            <h1 class="text-xl sm:text-2xl font-bold text-white">{{ poll.title }}</h1>
             <span :class="statusClass(poll.status)" class="badge">{{ statusLabel(poll.status) }}</span>
-            <!-- Live indicator -->
             <span v-if="poll.status === 'active'"
               class="flex items-center gap-1.5 text-xs text-green-400">
               <span class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-              Jonli yangilanish
+              Jonli
             </span>
           </div>
           <p v-if="poll.description" class="text-surface-400 text-sm">{{ poll.description }}</p>
@@ -25,13 +24,13 @@
 
         <!-- Telegram delivery info -->
         <div v-if="poll.status === 'active' && hasTelegramPoll"
-          class="flex-shrink-0 bg-blue-500/10 border border-blue-500/20 rounded-xl px-4 py-3 text-sm">
-          <div class="text-blue-400 font-medium mb-1">📤 Telegram'da faol</div>
+          class="bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2 text-sm">
+          <div class="text-blue-400 font-medium">📤 Telegram'da faol</div>
           <div class="text-surface-400 text-xs">Ovozlar avtomatik yangilanadi</div>
         </div>
         <div v-else-if="poll.status === 'active' && !hasTelegramPoll"
-          class="flex-shrink-0 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-4 py-3 text-sm">
-          <div class="text-yellow-400 font-medium mb-1">⚠️ Telegram'ga yuborilmadi</div>
+          class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-2 text-sm">
+          <div class="text-yellow-400 font-medium">⚠️ Telegram'ga yuborilmadi</div>
           <div class="text-surface-400 text-xs">POLL_CHAT_ID sozlanmagan</div>
         </div>
       </div>
