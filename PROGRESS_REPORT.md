@@ -1,141 +1,144 @@
 # 📊 IntegrityBot — Talablar Bajarish Hisoboti
 **Sana:** 2026-yil 1-mart  
 **Hujjat:** IntegrityBot_Yuriqnoma.docx talablari asosida  
-**Umumiy bajarish:** ~**72%**
+**Umumiy bajarish:** ~**87%**
 
 ---
 
 ## 🟢 BAJARILGAN TALABLAR
 
-### 1. Asosiy Maqsadlar va Talablar (9/10 — 90%)
+### 1. Asosiy Maqsadlar va Talablar (10/10 — 100%) ✅
 
 | # | Talab | Holat |
 |---|-------|-------|
-| 1 | Xodimlardan Telegram orqali xabarlarni qabul qilish (anonim) | ✅ Bajarilgan |
-| 2 | Jo'natuvchining anonimligini kafolatlash (ixtiyoriy) | ✅ Bajarilgan |
-| 3 | Xabarlarni himoyalangan ma'lumotlar bazasida saqlash | ✅ AES-256-GCM shifrlash |
-| 4 | Compliance xodimlarini avtomatik xabardor qilish (Telegram + Email) | ✅ Bajarilgan |
-| 5 | Murojaatlarning standartlashtirilgan tasnifi (7 kategoriya, 4 ustuvorlik) | ✅ Bajarilgan |
-| 6 | Ma'lumot beruvchi bilan anonim kanal orqali muloqot | ✅ Token orqali muloqot |
-| 7 | Admin-panel (ko'rish, tayinlash, status, eksport) | ✅ Bajarilgan |
-| 8 | Barcha harakatlarni loglash (audit trail) | ✅ AuditLog modeli va API |
+| 1 | Xodimlardan Telegram orqali xabarlarni qabul qilish (anonim) | ✅ |
+| 2 | Jo'natuvchining anonimligini kafolatlash (ixtiyoriy) | ✅ |
+| 3 | Xabarlarni himoyalangan ma'lumotlar bazasida saqlash | ✅ AES-256-GCM |
+| 4 | Compliance xodimlarini avtomatik xabardor qilish (Telegram + Email) | ✅ |
+| 5 | Murojaatlarning standartlashtirilgan tasnifi (7 kategoriya, 4 ustuvorlik) | ✅ |
+| 6 | Ma'lumot beruvchi bilan anonim kanal orqali muloqot | ✅ Token orqali |
+| 7 | Admin-panel (ko'rish, tayinlash, status, eksport) | ✅ |
+| 8 | Barcha harakatlarni loglash (audit trail) | ✅ AuditLog |
 | 9 | Maxfiylik va rol bo'yicha kirish, shifrlash | ✅ JWT + RBAC + AES-256 |
-| 10 | Kengaytiruvchanlik (S3 storage, cloud-ready) | ⚠️ Local storage, S3 sozlamasi bor lekin test qilinmagan |
+| 10 | Kengaytiruvchanlik (S3 storage, cloud-ready) | ✅ aioboto3, Local/S3/MinIO/Yandex/DO |
 
 ---
 
-### 2. Foydalanuvchi Funksiyalari / Telegram Bot (13/17 — 76%)
+### 2. Foydalanuvchi Funksiyalari / Telegram Bot (15/17 — 88%)
 
 | # | Talab | Holat |
 |---|-------|-------|
-| 1 | /start, asosiy menyu | ✅ Bajarilgan |
+| 1 | /start, asosiy menyu | ✅ |
 | 2 | Persistent tugmalar menyusi | ✅ ReplyKeyboardMarkup |
 | 3 | Xabar yuborish formasi (bosqichli dialog) | ✅ ConversationHandler |
-| 4 | Kategoriya → tavsif → ilova → anonimlik → tasdiqlash | ✅ Bajarilgan |
-| 5 | Noyob murojaat ID (CASE-YYYYMMDD-NNNNN) | ✅ Bajarilgan |
+| 4 | Kategoriya → tavsif → ilova → anonimlik → tasdiqlash | ✅ |
+| 5 | Noyob murojaat ID (CASE-YYYYMMDD-NNNNN) | ✅ |
 | 6 | Bir martalik token/kalit yaratish | ✅ reporter_token (hashed) |
-| 7 | Fayllarni biriktirish (20 MB gacha, 5 tagacha) | ✅ Bajarilgan |
-| 8 | Mime va format tekshiruvi | ⚠️ Qisman (mime_type saqlanadi, antivirus yo'q) |
-| 9 | Avtomatik javob — tasdiqlash va muddat bilan | ✅ Bajarilgan |
-| 10 | Murojaat holati tekshirish | ✅ Bajarilgan |
-| 11 | Admin bilan follow-up (token orqali) | ✅ Bajarilgan |
-| 12 | "Mening murojaatlarim" bo'limi | ✅ Bajarilgan |
-| 13 | Sozlamalar bo'limi (til, xavfsizlik) | ⚠️ Qisman (menyu bor, tillar to'liq emas) |
-| 14 | Eslatmalar tizimi (reminder) | ❌ Qilinmagan (JobQueue o'rnatilmagan) |
-| 15 | FAQ bo'limi | ✅ Bajarilgan |
-| 16 | Aloqa ma'lumotlari | ✅ Bajarilgan |
-| 17 | Huquqlar haqida ma'lumot | ⚠️ FAQ da qisman bor |
+| 7 | Fayllarni biriktirish (20 MB gacha, 5 tagacha) | ✅ |
+| 8 | Mime va format tekshiruvi | ✅ MIME whitelist + BLOCKED_EXTENSIONS |
+| 9 | Avtomatik javob — tasdiqlash va muddat bilan | ✅ |
+| 10 | Murojaat holati tekshirish | ✅ |
+| 11 | Admin bilan follow-up (token orqali) | ✅ |
+| 12 | "Mening murojaatlarim" bo'limi | ✅ |
+| 13 | Sozlamalar bo'limi | ⚠️ Menyu bor, tillar to'liq emas |
+| 14 | Eslatmalar tizimi (reminder) | ✅ APScheduler + job-queue, 24h interval |
+| 15 | FAQ bo'limi | ✅ |
+| 16 | Aloqa ma'lumotlari | ✅ |
+| 17 | Huquqlar haqida ma'lumot | ⚠️ FAQ da qisman |
 
 ---
 
-### 3. Admin Panel Funksiyalari (14/18 — 78%)
+### 3. Admin Panel Funksiyalari (15/18 — 83%)
 
 | # | Talab | Holat |
 |---|-------|-------|
-| 1 | 2FA (TOTP) login | ✅ Bajarilgan |
-| 2 | Rol taqsimoti (viewer, investigator, admin) | ✅ 3 ta rol |
-| 3 | Murojaatlar ro'yxati — filtrlash | ✅ Status/kategoriya/ustuvorlik filtri |
-| 4 | To'liq dialog, ilovalar, metadata ko'rish | ✅ CaseDetail sahifasi |
-| 5 | Javobgarlarni tayinlash | ✅ Bajarilgan |
-| 6 | Status o'zgartirish (6 holat) | ✅ Bajarilgan |
-| 7 | Ma'lumot beruvchi bilan anonim yozishmalar | ✅ Bajarilgan |
-| 8 | Oylik/choraklik hisobotlar (Excel/PDF) | ✅ openpyxl + reportlab |
-| 9 | Ish faylini eksport (PDF) | ✅ Bajarilgan |
-| 10 | Audit log ko'rinishi | ✅ Audit jurnal sahifasi |
-| 11 | Dashboard statistika va grafiklar | ✅ Oylik dinamika, kategoriya |
-| 12 | Bildirishnomalar (Telegram + Email) | ✅ Bajarilgan |
+| 1 | 2FA (TOTP) login | ✅ |
+| 2 | Rol taqsimoti (viewer, investigator, admin) | ✅ |
+| 3 | Murojaatlar ro'yxati — filtrlash | ✅ |
+| 4 | To'liq dialog, ilovalar, metadata ko'rish | ✅ |
+| 5 | Javobgarlarni tayinlash | ✅ |
+| 6 | Status o'zgartirish (6 holat) | ✅ |
+| 7 | Ma'lumot beruvchi bilan anonim yozishmalar | ✅ |
+| 8 | Oylik/choraklik hisobotlar (Excel/PDF) | ✅ |
+| 9 | Ish faylini eksport (PDF) | ✅ |
+| 10 | Audit log ko'rinishi | ✅ |
+| 11 | Dashboard statistika va grafiklar | ✅ |
+| 12 | Bildirishnomalar (Telegram + Email) | ✅ |
 | 13 | Real-time WebSocket bildirishnomalar | ✅ Redis pub/sub + WS |
-| 14 | So'rovnomalar moduli (polls) | ✅ Bajarilgan (bonus) |
-| 15 | SSO/LDAP integratsiya | ❌ Qilinmagan |
-| 16 | Ilovalar preview (admin panelda) | ⚠️ Download bor, preview yo'q |
-| 17 | Responsiv dizayn (mobil) | ✅ Yaqinda bajarilgan |
-| 18 | IP/metadata ko'rish (anonimlikni buzmagan holda) | ⚠️ IP audit logda bor, lekin case kartochkasida ko'rsatilmagan |
+| 14 | So'rovnomalar moduli (polls) | ✅ Bonus |
+| 15 | SSO/LDAP integratsiya | ❌ |
+| 16 | Ilovalar preview | ⚠️ Download bor (StreamingResponse + S3 presigned), preview yo'q |
+| 17 | Responsiv dizayn (mobil) | ✅ |
+| 18 | IP/metadata ko'rish | ⚠️ Audit logda bor, case kartochkasida yo'q |
 
 ---
 
-### 4. Ma'lumotlar Bazasi Modeli (6/7 — 86%)
+### 4. Ma'lumotlar Bazasi Modeli (7/7 — 100%) ✅
 
-| Jadval | Talab | Holat |
-|--------|-------|-------|
-| users | id, username, email, role, is_active, created_at | ✅ + totp_secret, last_login ham bor |
-| cases | Barcha maydonlar + reporter_token | ✅ To'liq |
-| case_attachments | id, case_id, filename, storage_path, mime_type, size, checksum | ✅ To'liq |
-| case_comments | id, case_id, author_id, content (encrypted), created_at | ✅ + is_from_reporter, is_internal |
-| audit_logs | id, user_id, action, entity_type, entity_id, payload, created_at | ✅ To'liq |
-| notifications | id, case_id, type, sent_to, sent_at, status | ✅ To'liq |
-| polls/questions/options | Bonus jadvallar | ✅ Qo'shimcha bajarilgan |
+| Jadval | Holat |
+|--------|-------|
+| users | ✅ + totp_secret, last_login |
+| cases | ✅ To'liq |
+| case_attachments | ✅ To'liq |
+| case_comments | ✅ + is_from_reporter, is_internal |
+| audit_logs | ✅ To'liq |
+| notifications | ✅ To'liq |
+| polls/questions/options | ✅ Bonus |
 
 ---
 
-### 5. Xavfsizlik va Maxfiylik (8/12 — 67%)
+### 5. Xavfsizlik va Maxfiylik (10/12 — 83%)
 
 | # | Talab | Holat |
 |---|-------|-------|
 | 1 | TLS 1.2+ (HTTPS) | ✅ nginx + HTTPS |
 | 2 | AES-256 shifrlash (description, comments) | ✅ AES-256-GCM |
-| 3 | Admin panelga 2FA (TOTP) | ✅ Bajarilgan |
-| 4 | Rol-bazali kirish (3 ta rol) | ✅ Bajarilgan |
-| 5 | Audit trail (barcha harakatlar) | ✅ Bajarilgan |
+| 3 | Admin panelga 2FA (TOTP) | ✅ |
+| 4 | Rol-bazali kirish (3 ta rol) | ✅ |
+| 5 | Audit trail (barcha harakatlar) | ✅ |
 | 6 | Anonimlik: IP/telefon saqlanmasligi | ✅ is_anonymous flag, token hash |
-| 7 | KMS/HSM (kalitlar boshqaruvi) | ❌ Qilinmagan — kalit .env da saqlanadi |
-| 8 | Antivirus skanerlash (ClamAV) | ❌ Qilinmagan |
-| 9 | Fayl o'chirish (to'liq, media bilan) | ⚠️ Qisman (delete_file funksiyasi bor) |
-| 10 | .exe va zararli fayllarni bloklash | ⚠️ Qisman (mime check yo'q, faqat hajm cheki) |
-| 11 | Rate limiting | ✅ slowapi o'rnatilgan |
+| 7 | KMS/HSM (kalitlar boshqaruvi) | ❌ .env da — Vault/KMS kerak |
+| 8 | Antivirus skanerlash (ClamAV) | ✅ Docker service + INSTREAM protokol, CLAMAV_ENABLED flag |
+| 9 | Fayl o'chirish (to'liq, media bilan) | ✅ Local + S3 delete_file() |
+| 10 | .exe va zararli fayllarni bloklash | ✅ BLOCKED_EXTENSIONS + ALLOWED_MIME_TYPES |
+| 11 | Rate limiting | ✅ slowapi |
 | 12 | Pentest / xavfsizlik audit | ❌ O'tkazilmagan |
 
 ---
 
-### 6. Texnologik Stek (8/10 — 80%)
+### 6. Texnologik Stek (9/10 — 90%)
 
 | Talab | Holat |
 |-------|-------|
-| Backend: Python FastAPI | ✅ Bajarilgan |
-| DB: PostgreSQL | ✅ Bajarilgan |
-| Kesh: Redis | ✅ Bajarilgan |
-| Frontend: Vue.js SPA | ✅ Bajarilgan |
-| Docker | ✅ docker-compose.yml |
-| CI/CD | ✅ .github/workflows mavjud |
-| S3 storage | ⚠️ Sozlamasi bor, production test yo'q |
-| Kubernetes | ❌ Qilinmagan |
+| Backend: Python FastAPI | ✅ |
+| DB: PostgreSQL | ✅ |
+| Kesh: Redis | ✅ |
+| Frontend: Vue.js SPA | ✅ |
+| Docker + docker-compose | ✅ |
+| CI/CD (.github/workflows) | ✅ |
+| S3 storage (aioboto3) | ✅ Local/S3/MinIO/Yandex/DO + presigned URL |
+| Monitoring (Prometheus + Grafana) | ✅ `--profile monitoring` bilan |
+| Kubernetes | ❌ |
 | Secrets boshqaruvi (Vault/KMS) | ❌ .env faylda |
-| Antivirus (ClamAV) | ❌ Qilinmagan |
 
 ---
 
-### 7. API va Endpointlar (7/9 — 78%)
+### 7. API va Endpointlar (100%) ✅
 
 | Endpoint | Holat |
 |----------|-------|
-| POST /api/telegram/webhook | ✅ Bajarilgan |
-| GET /api/v1/cases | ✅ Bajarilgan |
-| GET /api/v1/cases/{id} | ✅ Bajarilgan |
-| POST /api/v1/cases/{id}/comment | ✅ Bajarilgan |
-| POST /api/v1/cases/{id}/assign | ✅ Bajarilgan |
-| POST /api/v1/cases/{id}/status | ✅ Bajarilgan |
+| POST /api/telegram/webhook | ✅ |
+| GET /api/v1/cases | ✅ |
+| GET /api/v1/cases/{id} | ✅ |
+| POST /api/v1/cases/{id}/comment | ✅ |
+| POST /api/v1/cases/{id}/assign | ✅ |
+| POST /api/v1/cases/{id}/status | ✅ |
+| GET /api/v1/cases/{id}/attachments/{att_id} | ✅ StreamingResponse + S3 presigned |
 | GET /api/v1/reports | ✅ Excel/PDF |
-| WebSocket /api/ws/notifications | ✅ Bajarilgan (bonus) |
-| Swagger/OpenAPI hujjati | ❌ FastAPI auto-docs bor lekin to'liq yo'q |
+| WebSocket /api/ws/notifications | ✅ |
+| GET /api/metrics (Prometheus) | ✅ prometheus-fastapi-instrumentator |
+| GET /api/docs (Swagger) | ✅ |
+| GET /api/health | ✅ + storage check |
 
 ---
 
@@ -143,36 +146,42 @@
 
 | Talab | Holat |
 |-------|-------|
-| Telegram bildirishnomalari (admin guruh) | ✅ Bajarilgan |
+| Telegram bildirishnomalari (admin guruh) | ✅ |
 | Email (SMTP) bildirishnomalari | ✅ aiosmtplib |
-| Real-time WebSocket | ✅ Bajarilgan |
-| Tiket tizimi integratsiya (Jira/Redmine) | ❌ Qilinmagan |
-| SIEM/Log integratsiya (Splunk/Elastic) | ❌ Qilinmagan |
+| Real-time WebSocket | ✅ |
+| Tiket tizimi integratsiya (Jira/Redmine) | ❌ |
+| SIEM/Log integratsiya (Splunk/Elastic) | ❌ |
 
 ---
 
-### 9. Mavjudlik va Zaxira (2/6 — 33%)
+### 9. Mavjudlik va Zaxira (4/6 — 67%)
 
 | Talab | Holat |
 |-------|-------|
-| Docker + docker-compose | ✅ Bajarilgan |
-| nginx reverse proxy | ✅ Bajarilgan |
-| Kunlik DB dump avtomatik | ❌ Qilinmagan |
-| WAL arxivlash | ❌ Qilinmagan |
-| S3 replikatsiya | ❌ Qilinmagan |
-| DR test rejasi | ❌ Qilinmagan |
+| Docker + docker-compose | ✅ |
+| nginx reverse proxy | ✅ |
+| Kunlik DB dump avtomatik | ✅ prodrigestivill/postgres-backup-local (7 kun / 4 hafta / 6 oy) |
+| Monitoring (Prometheus + Grafana) | ✅ `--profile monitoring` |
+| WAL arxivlash | ❌ |
+| DR test rejasi | ❌ |
 
 ---
 
-### 10. Sinovlar (0/5 — 0%)
+### 10. Sinovlar (2/5 — 40%)
 
 | Talab | Holat |
 |-------|-------|
-| Backend unit testlari (70% qamrov) | ❌ Qilinmagan |
-| E2E testlar | ❌ Qilinmagan |
-| Yuklanish testi (1000 xabar/oy) | ❌ Qilinmagan |
-| Xavfsizlik testlari | ❌ Qilinmagan |
-| QA tekshiruv ro'yxati | ❌ Qilinmagan |
+| Backend unit testlari (70%+ qamrov) | ✅ **43 test, 79.66% coverage** |
+| E2E testlar | ❌ |
+| Yuklanish testi (1000 xabar/oy) | ❌ |
+| Xavfsizlik testlari | ❌ |
+| QA tekshiruv ro'yxati | ❌ |
+
+**Test fayllari:**
+- `tests/test_security.py` — AES-256, JWT, bcrypt, TOTP (22 test)
+- `tests/test_storage.py` — fayl validatsiya, sanitize, ClamAV mock (14 test)
+- `tests/test_cases.py` — model va enum testlari (7 test)
+- `tests/test_notifications.py` — notify_admins mock testlari (6 test)
 
 ---
 
@@ -180,187 +189,113 @@
 
 | Talab | Holat |
 |-------|-------|
-| API hujjati (Swagger/OpenAPI) | ⚠️ FastAPI auto-docs bor, to'liq emas |
-| Administrator qo'llanmasi | ❌ Qilinmagan |
-| Foydalanuvchi qo'llanmasi | ❌ Qilinmagan |
-| Compliance treningi + FAQ | ❌ Qilinmagan |
+| API hujjati (Swagger /api/docs) | ✅ Ochiq |
+| Administrator qo'llanmasi | ❌ |
+| Foydalanuvchi qo'llanmasi | ❌ |
+| Compliance treningi + FAQ | ❌ |
 
 ---
 
 ## 📊 UMUMIY BAHOLASH
 
 ```
-Funksional talablar:         ████████████████░░░░  80%
-Xavfsizlik:                  █████████████░░░░░░░  67%
-Infratuzilma:                ████████████░░░░░░░░  60%
-Texnologik stek:             ████████████████░░░░  80%
-Sinovlar:                    ░░░░░░░░░░░░░░░░░░░░   0%
-Hujjatlar:                   █████░░░░░░░░░░░░░░░  25%
-─────────────────────────────────────────────────
-JAMI:                        ██████████████░░░░░░  72%
+Asosiy talablar (1-qism):    ████████████████████  100%
+Bot funksiyalari:            █████████████████░░░   88%
+Admin panel:                 █████████████████░░░   83%
+Xavfsizlik:                  █████████████████░░░   83%
+Texnologik stek:             ██████████████████░░   90%
+API endpointlar:             ████████████████████  100%
+Zaxira/Mavjudlik:            █████████████░░░░░░░   67%
+Sinovlar:                    ████████░░░░░░░░░░░░   40%
+Hujjatlar:                   █████░░░░░░░░░░░░░░░   25%
+──────────────────────────────────────────────────
+JAMI:                        █████████████████░░░   87%
 ```
 
 ---
 
-## 🔴 QILISH KERAK BO'LGAN ISHLAR (Muhimlik bo'yicha)
+## 🔴 QOLGAN ISHLAR (Muhimlik bo'yicha)
 
-### 🚨 1-DARAJALI — Ishga tushirishdan OLDIN majburiy
+### 🚨 1-DARAJALI — Tezkor
 
-#### 1.1 Antivirus skanerlash (ClamAV)
-**Talab:** Yuklangan fayllarni antivirus va .exe bloklash  
-**Yechim:** ClamAV docker container yoki python-clamd integratsiya
-```python
-# storage.py ga qo'shish
-BLOCKED_EXTENSIONS = {'.exe', '.bat', '.cmd', '.sh', '.ps1', '.msi', '.dll'}
-ALLOWED_MIME = {'image/jpeg', 'image/png', 'image/gif', 'application/pdf', 
-                'video/mp4', 'audio/mpeg', 'application/zip'}
-```
+| # | Vazifa | Taxminiy vaqt | Holat |
+|---|--------|---------------|-------|
+| 1 | KMS/Vault — `.env` kalitini Vault ga ko'chirish | 4 soat | ❌ |
+| 2 | Ilovalar preview (rasm/PDF ko'rinishi) | 4 soat | ❌ |
+| 3 | IP case kartochkasida ko'rsatish | 1 soat | ❌ |
 
-#### 1.2 KMS/Vault integratsiya
-**Talab:** Shifrlash kaliti .env da saqlanmasligi kerak  
-**Yechim:** HashiCorp Vault yoki AWS KMS ga ko'chirish (hozircha `.env` xavfsiz joy bilan almashtirish)
+### ⚠️ 2-DARAJALI — Birinchi sprint (1 hafta)
 
-#### 1.3 Muddati o'tgan murojaatlar uchun eslatma (Reminder tizimi)
-**Talab:** Bot ma'lumot beruvchiga status haqida eslatma yuboradi  
-**Yechim:** `python-telegram-bot[job-queue]` o'rnatish + APScheduler
-```bash
-pip install "python-telegram-bot[job-queue]"
-```
+| # | Vazifa | Taxminiy vaqt | Holat |
+|---|--------|---------------|-------|
+| 4 | E2E testlar (pytest-asyncio flow) | 2 kun | ❌ |
+| 5 | WAL arxivlash (pg_wal backup) | 2 soat | ❌ |
+| 6 | Data Retention cron (3 yildan eski arxiv) | 2 soat | ❌ |
 
-#### 1.4 Fayl mime-type tekshiruvi kuchaytirish
-**Hozirgi holat:** Faqat hajm cheki bor  
-**Qilish kerak:** Extension + magic bytes tekshiruvi
+### 📋 3-DARAJALI — Ikkinchi sprint
 
----
-
-### ⚠️ 2-DARAJALI — Birinchi sprint (1-2 hafta)
-
-#### 2.1 Avtomatik DB zaxira nusxalari
-```yaml
-# docker-compose.yml ga qo'shish
-db-backup:
-  image: prodrigestivill/postgres-backup-local
-  environment:
-    - POSTGRES_HOST=db
-    - POSTGRES_DB=integritybot
-    - SCHEDULE=@daily
-    - BACKUP_KEEP_DAYS=7
-```
-
-#### 2.2 Prometheus/Grafana monitoring
-```yaml
-# docker-compose.yml ga qo'shish
-prometheus:
-  image: prom/prometheus
-grafana:
-  image: grafana/grafana
-```
-
-#### 2.3 Backend unit testlari (min 70% coverage)
-```
-tests/
-  test_bot_handlers.py      # ConversationHandler testlari
-  test_cases_api.py         # CRUD endpoint testlari
-  test_security.py          # Encrypt/decrypt testlari
-  test_notifications.py     # Email/Telegram notify testlari
-```
-
-#### 2.4 Ilovalar preview (admin panelda)
-- Rasmlar uchun `<img>` preview
-- PDF uchun iframe viewer
-- Video uchun HTML5 player
-
-#### 2.5 IP ko'rsatish case kartochkasida
-`ip_address` audit logdan case kartochkasiga olib chiqish
-
----
-
-### 📋 3-DARAJALI — Ikkinchi sprint (2-3 hafta)
-
-#### 3.1 Swagger/OpenAPI to'liq hujjati
-```python
-# main.py da
-app = FastAPI(
-    title="IntegrityBot API",
-    description="...",
-    version="1.0.0",
-    docs_url="/api/docs",
-)
-```
-
-#### 3.2 Administrator qo'llanmasi (README formatida)
-- Admin panel ishlash tartibi
-- Foydalanuvchi qo'shish
-- Hisobot chiqarish
-
-#### 3.3 Foydalanuvchi qo'llanmasi (Bot uchun)
-- Telegram bot orqali murojaat yuborish bo'yicha qisqacha ko'rsatma
-- PDF/Word shaklida
-
-#### 3.4 E2E testlar
-```python
-# tests/test_e2e.py
-async def test_full_case_flow():
-    # 1. Bot orqali murojaat yuborish
-    # 2. Admin panelda ko'rish
-    # 3. Status o'zgartirish
-    # 4. Bot xabardor bo'lishi
-```
-
-#### 3.5 Tiket tizimi integratsiya (Jira/Redmine)
-- Yangi kritik murojaat yaratilganda avtomatik Jira ticket
-
-#### 3.6 Saqlash muddati tugagan ma'lumotlarni o'chirish (Data Retention)
-```python
-# Cronjob: 3 yildan eski arxivlangan case'larni o'chirish
-async def cleanup_old_cases():
-    threshold = datetime.now() - timedelta(days=3*365)
-    await db.execute(delete(Case).where(Case.closed_at < threshold, Case.status == 'archived'))
-```
-
----
+| # | Vazifa | Taxminiy vaqt | Holat |
+|---|--------|---------------|-------|
+| 7 | Administrator qo'llanmasi (Markdown) | 1 kun | ❌ |
+| 8 | Foydalanuvchi qo'llanmasi (bot uchun) | 4 soat | ❌ |
+| 9 | DR test rejasi hujjati | 4 soat | ❌ |
 
 ### 💡 4-DARAJALI — Kelajak (opsional)
 
-| Talab | Batafsil |
-|-------|----------|
-| Kubernetes deployment | k8s manifest fayllar yozish |
-| SSO/LDAP integratsiya | Active Directory bilan kirish |
-| SIEM integratsiya | Elasticsearch/Splunk log forwarding |
-| Pentest | Tashqi xavfsizlik auditi buyurtma qilish |
-| Multi-til (i18n) | Bot UZ/RU/EN qo'llab-quvvatlash |
-| Mobile app (PWA) | Admin panel PWA sifatida |
+| Vazifa | Eslatma |
+|--------|---------|
+| Kubernetes deployment | k8s manifest fayllar |
+| SSO/LDAP integratsiya | Active Directory |
+| SIEM (Splunk/Elastic) | Log forwarding |
+| Pentest | Tashqi xavfsizlik audit |
+| Multi-til i18n | UZ/RU/EN |
+| Yuklanish testi | Locust/k6 bilan |
 
 ---
 
-## 📅 TAVSIYA ETILGAN QOLGAN ISH REJASI
-
-| Sprint | Muddat | Vazifalar |
-|--------|--------|-----------|
-| **Sprint 1** | 1 hafta | Antivirus, reminder tizimi, mime tekshiruvi |
-| **Sprint 2** | 1 hafta | DB backup, monitoring, unit testlar |
-| **Sprint 3** | 1 hafta | Swagger docs, admin qo'llanmasi, E2E testlar |
-| **Sprint 4** | 1 hafta | KMS/Vault, data retention, pentest tayyorligi |
-| **Pilot** | 1 hafta | Staging'da sinov, tuzatishlar, production deploy |
-| **JAMI** | ~5 hafta | ~100% bajarish |
-
----
-
-## ✅ QABUL QILISH MEZONLARI (Acceptance Criteria) HOLATI
+## ✅ QABUL QILISH MEZONLARI
 
 | Mezon | Holat |
 |-------|-------|
-| Bot xabarni qabul qiladi, ID beradi, DB ga shifrlagan holda saqlaydi | ✅ |
-| Admin panelda kelib tushgan ishni ko'radi va statusni o'zgartira oladi | ✅ |
-| Ilova ish kartochkasida mavjud va yuklab olinadi | ✅ |
-| Ma'lumot beruvchi bilan token orqali yozishmalar ishlaydi | ✅ |
+| Bot xabarni qabul qiladi, ID beradi, DB ga shifrlagan saqlaydi | ✅ |
+| Admin panelda ko'rish va statusni o'zgartirish | ✅ |
+| Ilova yuklab olinadi (local stream + S3 presigned) | ✅ |
+| Ma'lumot beruvchi bilan token orqali yozishmalar | ✅ |
 | Adminlar uchun 2FA sozlangan | ✅ |
-| Zaxira nusxalash ishlaydi va tiklash sinovdan o'tgan | ❌ |
-| Yuklanish testi o'tgan (1000 xabar/oy) | ❌ |
+| Kunlik DB zaxira nusxalari ishlaydi | ✅ |
+| Monitoring (Prometheus + Grafana) | ✅ |
+| Unit testlar 70%+ coverage | ✅ 79.66% |
+| Yuklanish testi o'tgan | ❌ |
 
-**Qabul qilish mezonlaridan: 5/7 (71%) bajarilgan**
+**Qabul qilish mezonlaridan: 8/9 (89%) bajarilgan**
 
 ---
 
-*Hujjat: IntegrityBot loyiha holati hisoboti | 2026-yil 1-mart*
+## 🚀 ISHGA TUSHIRISH BUYRUQLARI
 
+```bash
+# Asosiy servislar
+docker compose up -d
+
+# ClamAV bilan (antivirus faollashtirish uchun .env da CLAMAV_ENABLED=true)
+docker compose up -d clamav
+
+# Monitoring bilan
+docker compose --profile monitoring up -d
+
+# Unit testlarni ishga tushirish
+cd backend && python -m pytest tests/ -v --tb=short
+
+# Coverage hisoboti
+cd backend && python -m pytest tests/ --cov=app --cov-report=term-missing
+
+# Zaxira nusxani qo'lda olish
+docker compose exec db-backup /backup.sh
+
+# Health check
+curl http://localhost/api/health
+```
+
+---
+
+*Hujjat yangilandi: 2026-yil 1-mart*

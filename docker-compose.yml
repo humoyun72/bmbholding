@@ -57,6 +57,80 @@ services:
     networks:
       - internal
 
+  # ── Antivirus: ClamAV ────────────────────────────────────────────────────
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    volumes:
+      - clamav_data:/var/lib/clamav
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 120s   # ClamAV DB yuklash uchun vaqt
+
+  # ── Avtomatik DB zaxira nusxalari (kunlik) ───────────────────────────────
+  db-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB:-integritybot}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"          # har kuni yarim tunda
+      BACKUP_KEEP_DAYS: 7         # 7 kunlik nusxa saqlanadi
+      BACKUP_KEEP_WEEKS: 4        # 4 haftalik nusxa
+      BACKUP_KEEP_MONTHS: 6       # 6 oylik nusxa
+      HEALTHCHECK_PORT: 8080
+    volumes:
+      - db_backups:/backups
+    networks:
+      - internal
+
+  # ── Monitoring: Prometheus ────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - internal
+    profiles:
+      - monitoring
+
+  # ── Monitoring: Grafana ───────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin123}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SERVER_ROOT_URL: "%(protocol)s://%(domain)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    depends_on:
+      - prometheus
+    networks:
+      - internal
+    profiles:
+      - monitoring
+
   nginx:
     image: nginx:1.25-alpine
     restart: unless-stopped
@@ -77,6 +151,10 @@ volumes:
   postgres_data:
   redis_data:
   uploads_data:
+  db_backups:
+  prometheus_data:
+  grafana_data:
+  clamav_data:
 
 networks:
   internal:

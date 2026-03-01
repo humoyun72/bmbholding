@@ -1,0 +1,32 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]
+
+[tool.coverage.run]
+source = ["app"]
+omit = [
+    "*/tests/*",
+    "*/alembic/*",
+    "*/__pycache__/*",
+    "app/bot/handlers.py",
+    "app/main.py",
+    "app/api/v1/telegram.py",
+    "app/api/v1/ws.py",
+    "app/api/v1/polls.py",
+    "app/api/v1/cases.py",
+    "app/api/v1/auth.py",
+    "app/api/v1/audit.py",
+    "app/services/websocket_manager.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 70
+

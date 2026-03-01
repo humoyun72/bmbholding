@@ -123,8 +123,8 @@ app = FastAPI(
     description="Anonymous whistleblowing bot with admin panel",
     version="1.0.0",
     lifespan=lifespan,
-    docs_url="/api/docs" if settings.DEBUG else None,
-    redoc_url="/api/redoc" if settings.DEBUG else None,
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
 )
 
 # CORS
@@ -135,6 +135,18 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Prometheus metrics — /api/metrics endpoint
+try:
+    from prometheus_fastapi_instrumentator import Instrumentator
+    Instrumentator(
+        should_group_status_codes=True,
+        should_ignore_untemplated=True,
+        excluded_handlers=["/api/health", "/api/metrics"],
+    ).instrument(app).expose(app, endpoint="/api/metrics", include_in_schema=False)
+    logger.info("Prometheus metrics enabled at /api/metrics")
+except ImportError:
+    logger.warning("prometheus-fastapi-instrumentator not installed, metrics disabled")
 
 # Routers
 app.include_router(auth.router, prefix="/api/v1")
@@ -152,4 +164,10 @@ if settings.ENVIRONMENT != "production":
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    from app.services.storage import check_s3_connection
+    storage_info = await check_s3_connection()
+    return {
+        "status": "ok",
+        "version": "1.0.0",
+        "storage": storage_info,
+    }

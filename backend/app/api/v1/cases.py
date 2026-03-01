@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import StreamingResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
@@ -10,7 +11,7 @@ import logging
 from app.core.database import get_db
 from app.core.security import decrypt_text, encrypt_text
 from app.models import (
-    Case, CaseComment, AuditLog, AuditAction, CaseStatus,
+    Case, CaseAttachment, CaseComment, AuditLog, AuditAction, CaseStatus,
     CasePriority, CaseCategory, User, UserRole
 )
 from app.schemas.cases import (
@@ -20,6 +21,8 @@ from app.schemas.cases import (
 )
 from app.api.v1.auth import get_current_user, require_investigator_or_above, require_admin
 from app.services.notification import send_reporter_message
+from app.services.storage import get_file_content, get_download_url, delete_file
+from app.core.config import settings
 
 router = APIRouter(prefix="/cases", tags=["cases"])
 logger = logging.getLogger(__name__)
@@ -290,3 +293,66 @@ async def add_comment(
     ))
     await db.commit()
     return {"message": "Comment added"}
+
+
+@router.get("/{case_id}/attachments/{attachment_id}")
+async def download_attachment(
+    case_id: str,
+    attachment_id: str,
+    request: Request,
+    current_user: User = Depends(require_investigator_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Biriktirilgan faylni yuklab beradi.
+    - S3 rejimida: vaqtinchalik presigned URL ga redirect qiladi
+    - Local rejimda: faylni stream qilib yuboradi
+    """
+    # Case mavjudligini tekshirish
+    result = await db.execute(select(Case).where(Case.external_id == case_id))
+    case = result.scalar_one_or_none()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Attachment topish
+    att_result = await db.execute(
+        select(CaseAttachment).where(
+            CaseAttachment.id == uuid.UUID(attachment_id),
+            CaseAttachment.case_id == case.id,
+        )
+    )
+    attachment = att_result.scalar_one_or_none()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Attachment not found")
+
+    # Audit log
+    db.add(AuditLog(
+        user_id=current_user.id,
+        case_id=case.id,
+        action=AuditAction.ATTACHMENT_DOWNLOAD,
+        payload={"attachment_id": str(attachment.id), "filename": attachment.original_filename},
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+
+    # S3 — presigned URL ga redirect
+    if settings.STORAGE_TYPE == "s3":
+        presigned_url = await get_download_url(attachment.storage_path, expires_in=300)  # 5 daqiqa
+        return RedirectResponse(url=presigned_url, status_code=302)
+
+    # Local — stream
+    try:
+        content = await get_file_content(attachment.storage_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found on disk")
+
+    return StreamingResponse(
+        iter([content]),
+        media_type=attachment.mime_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f'attachment; filename="{attachment.original_filename}"',
+            "Content-Length": str(len(content)),
+        },
+    )
+
+

@@ -45,11 +45,20 @@ class Settings(BaseSettings):
     UPLOADS_DIR: str = "/app/uploads"
     MAX_FILE_SIZE_MB: int = 20
 
-    # AWS S3
+    # AWS S3 / S3-compatible (MinIO, Yandex Cloud, etc.)
     AWS_ACCESS_KEY_ID: Optional[str] = None
     AWS_SECRET_ACCESS_KEY: Optional[str] = None
     AWS_BUCKET_NAME: Optional[str] = None
     AWS_REGION: str = "us-east-1"
+    # S3-compatible endpoint (MinIO: http://minio:9000, Yandex: https://storage.yandexcloud.net)
+    S3_ENDPOINT_URL: Optional[str] = None
+    # Public CDN URL (agar bor bo'lsa, presigned URL o'rniga ishlatiladi)
+    S3_PUBLIC_BASE_URL: Optional[str] = None
+
+    # ClamAV antivirus (docker-compose da clamav service kerak)
+    CLAMAV_HOST: str = "clamav"
+    CLAMAV_PORT: int = 3310
+    CLAMAV_ENABLED: bool = False   # True qilish uchun clamav container healthcheck o'tishi kerak
 
     @property
     def encryption_key_bytes(self) -> bytes:
