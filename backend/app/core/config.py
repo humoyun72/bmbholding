@@ -115,6 +115,17 @@ class Settings(BaseSettings):
     REDMINE_API_KEY: Optional[str] = None     # Redmine API key
     REDMINE_PROJECT_ID: Optional[str] = None  # Redmine project identifier
 
+    # ── SIEM / Log Forwarding (opsional) ─────────────────────────────────
+    SIEM_ENABLED: bool = False
+    # splunk | elastic | graylog | webhook
+    SIEM_BACKEND: str = "splunk"
+    SIEM_URL: Optional[str] = None            # Splunk HEC URL / ES URL / Graylog URL
+    SIEM_TOKEN: Optional[str] = None          # Splunk HEC token / ES API key / Bearer
+    SIEM_INDEX: str = "integritybot-logs"     # Splunk index / ES index
+    SIEM_VERIFY_SSL: bool = True              # SSL sertifikatini tekshirish
+    # JSON structured logging (json | text)
+    SIEM_LOG_FORMAT: str = "json"             # Production: json, Dev: text
+
     @property
     def encryption_key_bytes(self) -> bytes:
         return base64.b64decode(self.ENCRYPTION_KEY)

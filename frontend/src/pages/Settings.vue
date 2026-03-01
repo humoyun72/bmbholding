@@ -159,6 +159,79 @@
         Holati tekshirish uchun yuqoridagi tugmani bosing
       </div>
     </div>
+
+    <!-- SIEM / Log Forwarding -->
+    <div class="card p-6">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="font-semibold text-white">📡 SIEM / Log Forwarding</h3>
+          <p class="text-surface-400 text-sm mt-1">Splunk, Elasticsearch yoki Graylog integratsiya holati</p>
+        </div>
+        <button @click="checkSiemStatus" :disabled="siemStatusLoading"
+          class="btn-ghost text-xs px-3 py-1.5">
+          {{ siemStatusLoading ? '...' : '🔄 Tekshirish' }}
+        </button>
+      </div>
+
+      <div v-if="siemStatus" class="space-y-3">
+        <!-- Disabled -->
+        <div v-if="!siemStatus.enabled"
+          class="flex items-center gap-3 p-3 bg-surface-800 rounded-xl text-sm">
+          <span class="text-surface-500">⚪</span>
+          <div>
+            <div class="text-surface-400">SIEM o'chirilgan</div>
+            <div class="text-surface-600 text-xs mt-0.5">
+              .env da <code>SIEM_ENABLED=true</code> va <code>SIEM_URL</code> ni sozlang
+            </div>
+          </div>
+        </div>
+
+        <!-- Not configured -->
+        <div v-else-if="!siemStatus.configured"
+          class="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm">
+          <span class="text-yellow-400">⚠️</span>
+          <div>
+            <div class="text-yellow-300 font-medium capitalize">
+              {{ siemStatus.backend }} — Sozlanmagan
+            </div>
+            <div class="text-yellow-500/70 text-xs mt-0.5">SIEM_URL va SIEM_TOKEN ni .env da o'rnating</div>
+          </div>
+        </div>
+
+        <!-- Connected -->
+        <div v-else-if="siemStatus.status === 'ok'"
+          class="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-sm">
+          <span class="text-green-400">✅</span>
+          <div>
+            <div class="text-green-300 font-medium capitalize">
+              {{ siemStatus.backend }} — Ulangan
+            </div>
+            <div class="text-green-500/70 text-xs mt-0.5">Loglar avtomatik yuborilmoqda</div>
+          </div>
+        </div>
+
+        <!-- Error -->
+        <div v-else
+          class="flex items-center gap-3 p-3 bg-red-500/10 border border-red-500/20 rounded-xl text-sm">
+          <span class="text-red-400">❌</span>
+          <div>
+            <div class="text-red-300 font-medium capitalize">
+              {{ siemStatus.backend }} — Xatolik
+            </div>
+            <div class="text-red-400/70 text-xs mt-0.5">{{ siemStatus.message }}</div>
+          </div>
+        </div>
+
+        <div v-if="siemStatus.enabled" class="text-surface-600 text-xs space-y-0.5">
+          <div>Backend: <code class="text-surface-500">SIEM_BACKEND={{ siemStatus.backend }}</code></div>
+          <div>Filebeat bilan: <code class="text-surface-500">docker compose --profile siem up -d</code></div>
+        </div>
+      </div>
+
+      <div v-else class="text-surface-500 text-sm">
+        Holati tekshirish uchun yuqoridagi tugmani bosing
+      </div>
+    </div>
   </div>
 </template>
 
@@ -181,6 +254,8 @@ const disableError = ref('')
 const disabling = ref(false)
 const ticketStatus = ref(null)
 const ticketStatusLoading = ref(false)
+const siemStatus = ref(null)
+const siemStatusLoading = ref(false)
 
 const initials = computed(() => {
   const name = auth.user?.fullName || auth.user?.username || 'U'
@@ -255,6 +330,23 @@ async function checkTicketStatus() {
     }
   } finally {
     ticketStatusLoading.value = false
+  }
+}
+
+async function checkSiemStatus() {
+  siemStatusLoading.value = true
+  try {
+    const { data } = await api.get('/health')
+    siemStatus.value = data.siem || { enabled: false, backend: 'splunk' }
+  } catch (e) {
+    siemStatus.value = {
+      enabled: false,
+      status: 'error',
+      backend: 'unknown',
+      message: e.response?.data?.detail || 'Ulanish xatosi',
+    }
+  } finally {
+    siemStatusLoading.value = false
   }
 }
 </script>

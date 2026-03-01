@@ -550,46 +550,62 @@ JIRA_MIN_PRIORITY=critical   # critical | high | all
 
 ---
 
-### 11. SIEM/Log Forwarding Yo'q
+### 11. SIEM/Log Forwarding ✅ BAJARILDI
 
 **Daraja:** 📋 Kichik  
-**Joylashuv:** `backend/app/core/logging.py` yoki yangi `services/siem.py`  
-**Muammo:**
+**Joylashuv:** `backend/app/services/siem.py`, `backend/app/core/logging_config.py`  
+**Holat:** ✅ Amalga oshirildi (2026-03-02)
 
-TZ talabi (bo'lim 10):
-> *"SIEM/Log management (Splunk/Elastic) — opsional"*
+**Bajarilgan ishlar:**
 
-Hozirda loglar faqat Docker container stdout ga yoziladi. Splunk/Elastic/Graylog ga forwarding yo'q.
+1. `backend/app/core/logging_config.py` — `structlog` bilan JSON structured logging:
+   - `SIEM_LOG_FORMAT=json` (default) → har bir log yozuvi JSON formatida
+   - `SIEM_LOG_FORMAT=text` → development uchun oddiy matn
+   - `setup_logging()` — main.py da startup da chaqiriladi
 
-**Tuzatish:**
+2. `backend/requirements.txt` — `structlog==24.4.0` qo'shildi
 
-**Variant A — Filebeat (eng oson):**
-```yaml
-# docker-compose.yml ga qo'shish:
-filebeat:
-  image: docker.elastic.co/beats/filebeat:8.12.0
-  volumes:
-    - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-    - /var/lib/docker/containers:/var/lib/docker/containers:ro
-  profiles: ["siem"]
+3. `backend/app/services/siem.py` — To'liq SIEM forwarding servisi:
+   - **Splunk HEC** (HTTP Event Collector)
+   - **Elasticsearch** (direct REST API, API key yoki Basic auth)
+   - **Graylog** (GELF over HTTP)
+   - **Webhook** (har qanday HTTP endpoint)
+   - `siem_service.send_audit_event()` — audit hodisalar
+   - `siem_service.send_security_event()` — login xatolari, brute-force
+   - `siem_service.send_case_event()` — yangi murojaatlar
+
+4. `backend/app/core/config.py` — SIEM sozlamalari:
+   - `SIEM_ENABLED`, `SIEM_BACKEND`, `SIEM_URL`, `SIEM_TOKEN`, `SIEM_INDEX`
+
+5. `backend/app/api/v1/auth.py` — Login hodisalari SIEM ga yuboriladi:
+   - `LOGIN_FAILED`, `LOGIN_2FA_FAILED`, `LOGIN` (muvaffaqiyatli)
+
+6. `backend/app/bot/handlers.py` — Yangi case yaratilganda `CASE_CREATED` SIEM ga
+
+7. `backend/app/main.py` — `setup_logging()` startup da, health endpointda SIEM holati
+
+8. `filebeat.yml` — Filebeat konfiguratsiyasi (Docker → Elastic/Splunk)
+
+9. `docker-compose.yml` — `filebeat` service (`--profile siem`)
+
+10. `.env.example` — SIEM muhit o'zgaruvchilari
+
+11. `frontend/src/pages/Settings.vue` — SIEM holati kartasi
+
+**.env sozlash:**
+```env
+SIEM_ENABLED=true
+SIEM_BACKEND=splunk         # splunk | elastic | graylog | webhook
+SIEM_URL=https://splunk.company.uz:8088/services/collector
+SIEM_TOKEN=your-hec-token
+SIEM_INDEX=integritybot-logs
+SIEM_LOG_FORMAT=json
 ```
 
-**Variant B — Structlog + Elastic:**
-```python
-# core/logging.py
-import structlog
-import logging
-
-def setup_logging():
-    structlog.configure(
-        processors=[
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.JSONRenderer(),
-        ],
-    )
+**Filebeat bilan (Docker logs → Elastic):**
+```bash
+docker compose --profile siem up -d
 ```
-
-**Taxminiy vaqt:** 1–3 kun
 
 ---
 
@@ -813,7 +829,7 @@ docker run -t owasp/zap2docker-stable zap-baseline.py \
 | 8 | Load testing o'tkazilmagan | ⚠️ O'rta | 1–2 kun |
 | 9 | Bot i18n (ko'p-tillilik) yo'q | 📋 Kichik | 2–3 kun |
 | 10 | Jira/Redmine integratsiya yo'q | 📋 Kichik | ✅ Bajarildi |
-| 11 | SIEM/Log forwarding yo'q | 📋 Kichik | 1–3 kun |
+| 11 | SIEM/Log forwarding yo'q | 📋 Kichik | ✅ Bajarildi |
 | 12 | Kubernetes manifests yo'q | 📋 Kichik | 2–3 kun |
 | 13 | SSO/LDAP integratsiya yo'q | 📋 Kichik | 2–4 kun |
 | 14 | Pentest va QA checklist yo'q | 📋 Kichik | 3–5 kun |

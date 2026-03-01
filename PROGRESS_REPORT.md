@@ -142,7 +142,7 @@
 
 ---
 
-### 8. Bildirishnomalar (4/5 — 80%)
+### 8. Bildirishnomalar (5/5 — 100%) ✅
 
 | Talab | Holat |
 |-------|-------|
@@ -150,7 +150,7 @@
 | Email (SMTP) bildirishnomalari | ✅ aiosmtplib |
 | Real-time WebSocket | ✅ |
 | Tiket tizimi integratsiya (Jira/Redmine) | ✅ jira_integration.py + /api/v1/tickets/* + CaseDetail UI |
-| SIEM/Log integratsiya (Splunk/Elastic) | ❌ |
+| SIEM/Log integratsiya (Splunk/Elastic) | ✅ siem.py (4 backend) + structlog JSON + Filebeat docker profile |
 
 ---
 

@@ -658,6 +658,19 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             except Exception as e:
                 logger.warning(f"WS notify failed: {e}")
 
+            # SIEM: yangi murojaat hodisasi
+            try:
+                from app.services.siem import siem_service
+                await siem_service.send_case_event(
+                    action="CREATED",
+                    case_id=case_id,
+                    category=category.value if hasattr(category, "value") else str(category),
+                    priority=PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM).value,
+                    is_anonymous=is_anonymous,
+                )
+            except Exception as e:
+                logger.debug(f"SIEM case event xatosi: {e}")
+
             # Jira / Redmine tiket yaratish (kritik/yuqori prioritylar uchun)
             try:
                 from app.services.jira_integration import ticket_service

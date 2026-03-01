@@ -147,7 +147,7 @@ services:
     profiles:
       - monitoring
 
-  # ── Monitoring: Grafana ───────────────────────────────────────────────────
+  # ── Monitoring: Grafana ───────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.4.0
     restart: unless-stopped
@@ -166,6 +166,31 @@ services:
       - internal
     profiles:
       - monitoring
+
+  # ── SIEM: Filebeat (Docker loglarini Elastic/Splunk ga yuboradi) ─────────
+  # Ishlatish: docker compose --profile siem up -d
+  # .env da SIEM_ENABLED=true va ELASTICSEARCH_URL/SPLUNK_HEC_URL ni sozlang
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.12.0
+    restart: unless-stopped
+    user: root                          # Docker socket o'qish uchun
+    command: filebeat -e -strict.perms=false
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeat_data:/usr/share/filebeat/data
+    environment:
+      ELASTICSEARCH_ENABLED: ${ELASTICSEARCH_ENABLED:-false}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://localhost:9200}
+      ELASTICSEARCH_TOKEN: ${ELASTICSEARCH_TOKEN:-}
+      ELASTIC_USER: ${ELASTIC_USER:-}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
+      ELASTIC_SSL_VERIFY: ${ELASTIC_SSL_VERIFY:-full}
+    networks:
+      - internal
+    profiles:
+      - siem
 
   # ── Nginx reverse proxy ── (faqat production) ───────────────────────────
   nginx:
@@ -196,6 +221,7 @@ volumes:
   grafana_data:
   clamav_data:
   vault_data:
+  filebeat_data:     # Filebeat registry (qayta o'qilmasligi uchun)
 
 networks:
   internal:

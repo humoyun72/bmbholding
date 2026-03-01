@@ -57,10 +57,22 @@ async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db)
 ):
+    ip = request.client.host if request.client else None
     result = await db.execute(select(User).where(User.username == form_data.username))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(form_data.password, user.hashed_password):
+        # SIEM: login muvaffaqiyatsiz
+        try:
+            from app.services.siem import siem_service
+            await siem_service.send_security_event(
+                event_type="LOGIN_FAILED",
+                severity="medium",
+                ip_address=ip,
+                details={"username": form_data.username, "reason": "invalid_credentials"},
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     if not user.is_active:
@@ -70,6 +82,18 @@ async def login(
     if user.totp_enabled:
         totp_code = form_data.scopes[0] if form_data.scopes else None
         if not totp_code or not verify_totp(user.totp_secret, totp_code):
+            # SIEM: 2FA muvaffaqiyatsiz
+            try:
+                from app.services.siem import siem_service
+                await siem_service.send_security_event(
+                    event_type="LOGIN_2FA_FAILED",
+                    severity="high",
+                    ip_address=ip,
+                    user_id=str(user.id),
+                    details={"username": user.username},
+                )
+            except Exception:
+                pass
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="2FA code required or invalid",
@@ -80,9 +104,21 @@ async def login(
     db.add(AuditLog(
         user_id=user.id,
         action=AuditAction.LOGIN,
-        ip_address=request.client.host if request.client else None,
+        ip_address=ip,
     ))
     await db.commit()
+
+    # SIEM: muvaffaqiyatli login
+    try:
+        from app.services.siem import siem_service
+        await siem_service.send_audit_event(
+            action="LOGIN",
+            user_id=str(user.id),
+            ip_address=ip,
+            details={"username": user.username, "role": user.role},
+        )
+    except Exception:
+        pass
 
     token = create_access_token({"sub": str(user.id), "role": user.role})
     return TokenResponse(

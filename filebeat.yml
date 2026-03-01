@@ -1,0 +1,124 @@
+################################################################################
+# Filebeat konfiguratsiyasi — IntegrityBot
+# Docker container loglarini Elasticsearch / Splunk / Logstash ga yuboradi
+#
+# Ishlatish:
+#   docker compose --profile siem up -d
+#
+# Kerakli muhit o'zgaruvchilari (.env):
+#   ELASTICSEARCH_URL=https://elastic.company.uz:9200
+#   ELASTICSEARCH_TOKEN=your-api-key     # yoki ELASTIC_USER + ELASTIC_PASSWORD
+#   ELASTIC_USER=elastic
+#   ELASTIC_PASSWORD=changeme
+#   # Yoki Logstash:
+#   LOGSTASH_URL=logstash.company.uz:5044
+#   # Yoki Splunk:
+#   SPLUNK_HEC_URL=https://splunk.company.uz:8088/services/collector/raw
+#   SPLUNK_HEC_TOKEN=your-hec-token
+################################################################################
+
+filebeat.inputs:
+
+  # ── 1. Docker container loglar ──────────────────────────────────────────
+  - type: container
+    id: docker-containers
+    paths:
+      - '/var/lib/docker/containers/*/*.log'
+    processors:
+      - add_docker_metadata:
+          host: "unix:///var/run/docker.sock"
+      - decode_json_fields:
+          fields: ["message"]
+          target: ""
+          overwrite_keys: true
+          add_error_key: true
+      # Faqat IntegrityBot service loglarini olish
+      - drop_event:
+          when:
+            not:
+              or:
+                - contains:
+                    container.labels.com_docker_compose_service: "backend"
+                - contains:
+                    container.labels.com_docker_compose_service: "frontend"
+
+  # ── 2. Backend JSON log fayllari (ixtiyoriy, volume mounted bo'lsa) ─────
+  # - type: log
+  #   id: backend-logs
+  #   paths:
+  #     - /app/logs/*.jsonl
+  #   json.keys_under_root: true
+  #   json.add_error_key: true
+
+processors:
+  # ── Umumiy boyitish ──────────────────────────────────────────────────────
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_locale: ~
+
+  # ── Muhit o'zgaruvchisini qo'shish ───────────────────────────────────────
+  - add_fields:
+      target: ''
+      fields:
+        application: integritybot
+        log_type: application
+
+  # ── Sezgir ma'lumotlarni tozalash (GDPR / anonimlik) ────────────────────
+  - drop_fields:
+      fields: ["host.ip", "agent.ephemeral_id"]
+      ignore_missing: true
+
+################################################################################
+# OUTPUT — faqat bittasini aktiv qoldiring
+################################################################################
+
+# ── Elasticsearch output ─────────────────────────────────────────────────────
+output.elasticsearch:
+  enabled: ${ELASTICSEARCH_ENABLED:false}
+  hosts: ["${ELASTICSEARCH_URL:http://elasticsearch:9200}"]
+  api_key: "${ELASTICSEARCH_TOKEN:}"
+  username: "${ELASTIC_USER:}"
+  password: "${ELASTIC_PASSWORD:}"
+  index: "integritybot-logs-%{+yyyy.MM.dd}"
+  ssl.verification_mode: "${ELASTIC_SSL_VERIFY:full}"
+  template.name: "integritybot"
+  template.pattern: "integritybot-*"
+  setup.ilm.enabled: true
+  setup.ilm.rollover_alias: "integritybot-logs"
+  setup.ilm.policy_name: "integritybot-30d"
+
+# ── Logstash output (Splunk/SIEM pipeline uchun) ─────────────────────────────
+# output.logstash:
+#   enabled: ${LOGSTASH_ENABLED:false}
+#   hosts: ["${LOGSTASH_URL:logstash:5044}"]
+#   ssl.certificate_authorities: ["/etc/filebeat/ca.crt"]
+
+# ── Splunk HEC output ─────────────────────────────────────────────────────────
+# output.http:
+#   enabled: ${SPLUNK_ENABLED:false}
+#   url: "${SPLUNK_HEC_URL:}"
+#   headers:
+#     Authorization: "Splunk ${SPLUNK_HEC_TOKEN:}"
+#   content_type: "application/json"
+
+################################################################################
+# Monitoring va logging
+################################################################################
+
+monitoring.enabled: false   # Elasticsearch monitoring (enterprise)
+
+logging.level: info
+logging.to_files: false     # Docker stdout ga yozilsin
+logging.metrics.enabled: false
+
+# Queue sozlamalari — memory da vaqtinchalik saqlash
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout: 5s
+
+# Retry sozlamalari
+output.elasticsearch.bulk_max_size: 200
+output.elasticsearch.worker: 2
+

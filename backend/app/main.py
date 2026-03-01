@@ -9,13 +9,13 @@ import asyncio
 
 from app.core.config import settings
 from app.core.database import engine, Base
+from app.core.logging_config import setup_logging
 from app.models import *  # noqa - register all models
 from app.api.v1 import auth, cases, polls, telegram, audit, ws, tickets
 
-logging.basicConfig(
-    level=logging.INFO if not settings.DEBUG else logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+# ── Logging: JSON structured logging (structlog) ─────────────────────────────
+setup_logging()
+
 logger = logging.getLogger(__name__)
 
 _polling_task = None
@@ -97,9 +97,10 @@ async def lifespan(app: FastAPI):
 
     # Start bot — webhook/polling konfliktini oldini olish
     bot_mode = settings.effective_bot_mode
+    webhook_url_display = settings.WEBHOOK_URL or "(bosh)"
     logger.info(
         f"Bot rejimi: {bot_mode.upper()} "
-        f"(BOT_MODE='{settings.BOT_MODE}', WEBHOOK_URL='{settings.WEBHOOK_URL or '(bo'sh)'}')"
+        f"(BOT_MODE='{settings.BOT_MODE}', WEBHOOK_URL='{webhook_url_display}')"
     )
 
     if bot_mode == "polling":
@@ -274,13 +275,16 @@ if settings.ENVIRONMENT != "production":
 async def health():
     from app.services.storage import check_s3_connection, check_clamav_health
     from app.services.jira_integration import ticket_service
+    from app.services.siem import siem_service
     storage_info = await check_s3_connection()
     clamav_info = await check_clamav_health()
     ticket_info = await ticket_service.health_check()
+    siem_info = siem_service.status()   # health_check() SIEM ga test event yuboradi, status() yetarli
     return {
         "status": "ok",
         "version": "1.0.0",
         "storage": storage_info,
         "antivirus": clamav_info,
         "ticketing": ticket_info,
+        "siem": siem_info,
     }
