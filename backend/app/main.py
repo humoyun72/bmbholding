@@ -95,18 +95,51 @@ async def lifespan(app: FastAPI):
             "docker compose --profile production up -d clamav"
         )
 
-    # Start bot
-    if settings.BOT_MODE == "polling":
+    # Start bot — webhook/polling konfliktini oldini olish
+    bot_mode = settings.effective_bot_mode
+    logger.info(
+        f"Bot rejimi: {bot_mode.upper()} "
+        f"(BOT_MODE='{settings.BOT_MODE}', WEBHOOK_URL='{settings.WEBHOOK_URL or '(bo'sh)'}')"
+    )
+
+    if bot_mode == "polling":
+        # Polling rejimi — avval webhook o'chiramiz (409 Conflict oldini olish)
         logger.info("Starting bot in POLLING mode...")
         from app.api.v1.telegram import get_bot_app
         bot_app = get_bot_app()
         await bot_app.initialize()
-        await bot_app.bot.delete_webhook(drop_pending_updates=True)
+        try:
+            await bot_app.bot.delete_webhook(drop_pending_updates=True)
+            logger.info("Eski webhook o'chirildi (polling uchun) ✅")
+        except Exception as e:
+            logger.warning(f"Webhook o'chirishda xato (muhim emas): {e}")
         await bot_app.start()
         _polling_task = asyncio.create_task(_run_polling(bot_app))
         logger.info("Bot polling started ✅")
     else:
-        logger.info("Bot mode: WEBHOOK (set webhook URL via /api/telegram/set-webhook)")
+        # Webhook rejimi — polling ISHGA TUSHIRILMAYDI
+        logger.info(f"Bot WEBHOOK rejimida ishlaydi: {settings.WEBHOOK_URL}")
+        logger.info("Polling ishga tushirilmaydi — webhook orqali xabarlar qabul qilinadi")
+        # Webhook ni Telegram ga ro'yxatdan o'tkazish (agar allaqachon o'rnatilmagan bo'lsa)
+        try:
+            from app.api.v1.telegram import get_bot_app
+            bot_app = get_bot_app()
+            await bot_app.initialize()
+            webhook_info = await bot_app.bot.get_webhook_info()
+            if webhook_info.url != settings.WEBHOOK_URL:
+                await bot_app.bot.set_webhook(
+                    url=settings.WEBHOOK_URL,
+                    secret_token=settings.WEBHOOK_SECRET,
+                    allowed_updates=["message", "callback_query", "edited_message", "poll_answer", "poll"],
+                )
+                logger.info(f"Webhook yangilandi: {settings.WEBHOOK_URL} ✅")
+            else:
+                logger.info(f"Webhook allaqachon o'rnatilgan: {settings.WEBHOOK_URL} ✅")
+        except Exception as e:
+            logger.error(
+                f"⚠️  Webhook o'rnatishda xato: {e}. "
+                "Qo'lda o'rnatish uchun: POST /api/telegram/set-webhook"
+            )
 
     yield
 
@@ -130,7 +163,7 @@ async def lifespan(app: FastAPI):
             await _polling_task
         except asyncio.CancelledError:
             pass
-    if settings.BOT_MODE == "polling":
+    if settings.effective_bot_mode == "polling":
         from app.api.v1.telegram import get_bot_app
         bot_app = get_bot_app()
         await bot_app.stop()

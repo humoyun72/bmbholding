@@ -23,8 +23,26 @@ class Settings(BaseSettings):
     WEBHOOK_URL: str = ""
     ADMIN_CHAT_ID: int = 0
     POLL_CHAT_ID: int = 0   # guruh yoki kanal ID — so'rovnomalar shu yerga yuboriladi
-    # "webhook" yoki "polling"
-    BOT_MODE: str = "polling"
+    # "webhook" yoki "polling" — bo'sh qoldirilsa WEBHOOK_URL dan avtomatik aniqlanadi
+    BOT_MODE: str = "auto"
+
+    @property
+    def effective_bot_mode(self) -> str:
+        """
+        Haqiqiy bot rejimini qaytaradi.
+        - BOT_MODE="polling"  → har doim polling
+        - BOT_MODE="webhook"  → har doim webhook
+        - BOT_MODE="auto"     → WEBHOOK_URL to'ldirilgan va https:// bo'lsa webhook,
+                                 aks holda polling
+        """
+        if self.BOT_MODE == "polling":
+            return "polling"
+        if self.BOT_MODE == "webhook":
+            return "webhook"
+        # auto: WEBHOOK_URL dan aniqlash
+        if self.WEBHOOK_URL and self.WEBHOOK_URL.startswith("https://"):
+            return "webhook"
+        return "polling"
 
     # Security
     SECRET_KEY: str

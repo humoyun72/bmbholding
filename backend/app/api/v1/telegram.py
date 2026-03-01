@@ -40,14 +40,20 @@ async def set_webhook():
     """Set the webhook URL with Telegram"""
     if not settings.WEBHOOK_URL:
         raise HTTPException(status_code=400, detail="WEBHOOK_URL not set in .env")
+    if not settings.WEBHOOK_URL.startswith("https://"):
+        raise HTTPException(
+            status_code=400,
+            detail="WEBHOOK_URL https:// bilan boshlanishi kerak. "
+                   "Lokal dev uchun polling rejimini ishlating (WEBHOOK_URL=bo'sh)."
+        )
     app = get_bot_app()
     await app.initialize()
     await app.bot.set_webhook(
         url=settings.WEBHOOK_URL,
         secret_token=settings.WEBHOOK_SECRET,
-        allowed_updates=["message", "callback_query", "edited_message"],
+        allowed_updates=["message", "callback_query", "edited_message", "poll_answer", "poll"],
     )
-    return {"ok": True, "message": f"Webhook set to: {settings.WEBHOOK_URL}"}
+    return {"ok": True, "message": f"Webhook set to: {settings.WEBHOOK_URL}", "mode": "webhook"}
 
 
 @router.post("/delete-webhook")
@@ -75,7 +81,8 @@ async def bot_info():
                 "name": me.full_name,
                 "link": f"https://t.me/{me.username}",
             },
-            "mode": settings.BOT_MODE,
+            "mode": settings.effective_bot_mode,
+            "mode_config": settings.BOT_MODE,  # config dagi qiymat
             "webhook_url": webhook.url or "(none - polling mode)",
             "pending_updates": webhook.pending_update_count,
         }
