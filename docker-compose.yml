@@ -76,7 +76,7 @@ services:
     profiles:
       - vault
 
-  # ── Antivirus: ClamAV ────────────────────────────────────────────────────
+  # ── Antivirus: ClamAV ── (faqat production: --profile production) ────────
   clamav:
     image: clamav/clamav:stable
     restart: unless-stopped
@@ -90,8 +90,10 @@ services:
       timeout: 30s
       retries: 3
       start_period: 120s   # ClamAV DB yuklash uchun vaqt
+    profiles:
+      - production
 
-  # ── Avtomatik DB zaxira nusxalari (kunlik) ───────────────────────────────
+  # ── Avtomatik DB zaxira nusxalari ── (faqat production) ─────────────────
   db-backup:
     image: prodrigestivill/postgres-backup-local:16
     restart: unless-stopped
@@ -112,6 +114,8 @@ services:
       - db_backups:/backups
     networks:
       - internal
+    profiles:
+      - production
 
   # ── Monitoring: Prometheus ────────────────────────────────────────────────
   prometheus:
@@ -150,6 +154,7 @@ services:
     profiles:
       - monitoring
 
+  # ── Nginx reverse proxy ── (faqat production) ───────────────────────────
   nginx:
     image: nginx:1.25-alpine
     restart: unless-stopped
@@ -165,6 +170,8 @@ services:
     networks:
       - internal
       - external
+    profiles:
+      - production
 
 volumes:
   postgres_data:

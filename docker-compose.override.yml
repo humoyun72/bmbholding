@@ -1,0 +1,27 @@
+# ============================================================
+#  LOCAL DEVELOPMENT OVERRIDE
+#  Bu fayl faqat local ishlab chiqish uchun.
+#  docker-compose up -d  →  avtomatik o'qiladi
+#  Production uchun ishlatilmaydi.
+# ============================================================
+
+services:
+  backend:
+    ports:
+      - "8000:8000"   # API to'g'ridan-to'g'ri http://localhost:8000 da
+    environment:
+      - DEBUG=true
+      - ENVIRONMENT=development
+
+  frontend:
+    ports:
+      - "5173:80"     # Frontend http://localhost:5173 da
+
+  db:
+    ports:
+      - "5432:5432"   # DB ga to'g'ridan-to'g'ri ulanish (pgAdmin, DBeaver uchun)
+
+  redis:
+    ports:
+      - "6379:6379"   # Redis ga to'g'ridan-to'g'ri ulanish
+
