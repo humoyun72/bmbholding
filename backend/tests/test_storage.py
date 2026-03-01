@@ -108,6 +108,24 @@ class TestClamAVScan:
             settings.CLAMAV_ENABLED = original
 
     @pytest.mark.asyncio
+    async def test_scan_skipped_logs_warning(self):
+        """CLAMAV_ENABLED=False bo'lsa — WARNING log yozilishi kerak."""
+        import logging
+        from app.services import storage
+        from app.core.config import settings
+        original = settings.CLAMAV_ENABLED
+        settings.CLAMAV_ENABLED = False
+        try:
+            with patch.object(storage.logger, "warning") as mock_warn:
+                await storage.scan_with_clamav(b"data", "file.pdf")
+                mock_warn.assert_called_once()
+                warn_msg = mock_warn.call_args[0][0]
+                assert "ClamAV" in warn_msg
+                assert "O'CHIRILGAN" in warn_msg or "CLAMAV_ENABLED" in warn_msg
+        finally:
+            settings.CLAMAV_ENABLED = original
+
+    @pytest.mark.asyncio
     async def test_scan_virus_found_raises(self):
         """ClamAV virus topsa ValueError chiqarishi kerak."""
         from app.services import storage
@@ -145,6 +163,63 @@ class TestClamAVScan:
         try:
             with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
                 await storage.scan_with_clamav(b"clean file content", "clean.pdf")
+        finally:
+            settings.CLAMAV_ENABLED = original
+
+
+class TestClamavHealth:
+    """ClamAV health check testlari."""
+
+    @pytest.mark.asyncio
+    async def test_health_disabled_returns_warning(self):
+        """ClamAV o'chirilganda health 'disabled' qaytarishi kerak."""
+        from app.services.storage import check_clamav_health
+        from app.core.config import settings
+        original = settings.CLAMAV_ENABLED
+        settings.CLAMAV_ENABLED = False
+        try:
+            result = await check_clamav_health()
+            assert result["enabled"] is False
+            assert result["status"] == "disabled"
+            assert "warning" in result
+        finally:
+            settings.CLAMAV_ENABLED = original
+
+    @pytest.mark.asyncio
+    async def test_health_enabled_ok_when_pong(self):
+        """ClamAV yoqilgan va PONG javob kelsa — status 'ok' bo'lishi kerak."""
+        from app.services.storage import check_clamav_health
+        from app.core.config import settings
+        original = settings.CLAMAV_ENABLED
+        settings.CLAMAV_ENABLED = True
+
+        mock_reader = AsyncMock()
+        mock_reader.read = AsyncMock(return_value=b"PONG\0")
+        mock_writer = MagicMock()
+        mock_writer.drain = AsyncMock()
+        mock_writer.wait_closed = AsyncMock()
+
+        try:
+            with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
+                result = await check_clamav_health()
+            assert result["enabled"] is True
+            assert result["status"] == "ok"
+        finally:
+            settings.CLAMAV_ENABLED = original
+
+    @pytest.mark.asyncio
+    async def test_health_enabled_error_when_unreachable(self):
+        """ClamAV ulanmasa — status 'error' bo'lishi kerak."""
+        from app.services.storage import check_clamav_health
+        from app.core.config import settings
+        original = settings.CLAMAV_ENABLED
+        settings.CLAMAV_ENABLED = True
+        try:
+            with patch("asyncio.open_connection", side_effect=ConnectionRefusedError("refused")):
+                result = await check_clamav_health()
+            assert result["enabled"] is True
+            assert result["status"] == "error"
+            assert "error" in result
         finally:
             settings.CLAMAV_ENABLED = original
 

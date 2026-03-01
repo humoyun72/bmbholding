@@ -85,6 +85,16 @@ async def lifespan(app: FastAPI):
     _retention_task = asyncio.create_task(_run_retention_scheduler())
     logger.info("Data retention scheduler started ✅ (daily at 02:00 UTC)")
 
+    # ClamAV holati haqida startup logi
+    if settings.CLAMAV_ENABLED:
+        logger.info("🛡️  ClamAV antivirus YOQILGAN — fayllar skanlanadi")
+    else:
+        logger.warning(
+            "⚠️  ClamAV antivirus O'CHIRILGAN (CLAMAV_ENABLED=false). "
+            "Production muhitida yoqishni tavsiya qilamiz: "
+            "docker compose --profile production up -d clamav"
+        )
+
     # Start bot
     if settings.BOT_MODE == "polling":
         logger.info("Starting bot in POLLING mode...")
@@ -228,10 +238,12 @@ if settings.ENVIRONMENT != "production":
 
 @app.get("/api/health")
 async def health():
-    from app.services.storage import check_s3_connection
+    from app.services.storage import check_s3_connection, check_clamav_health
     storage_info = await check_s3_connection()
+    clamav_info = await check_clamav_health()
     return {
         "status": "ok",
         "version": "1.0.0",
         "storage": storage_info,
+        "antivirus": clamav_info,
     }

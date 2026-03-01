@@ -87,9 +87,12 @@ services:
       - vault
 
   # ── Antivirus: ClamAV ── (faqat production: --profile production) ────────
+  # ⚠️  Production da .env da CLAMAV_ENABLED=true qiling!
   clamav:
     image: clamav/clamav:stable
     restart: unless-stopped
+    environment:
+      CLAMAV_NO_FRESHCLAM: "false"   # DB avtomatik yangilansin
     volumes:
       - clamav_data:/var/lib/clamav
     networks:
@@ -99,7 +102,7 @@ services:
       interval: 60s
       timeout: 30s
       retries: 3
-      start_period: 120s   # ClamAV DB yuklash uchun vaqt
+      start_period: 180s   # ClamAV DB yuklash uchun vaqt (birinchi marta uzoq)
     profiles:
       - production
 

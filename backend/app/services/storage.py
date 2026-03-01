@@ -52,10 +52,14 @@ MAX_FILE_SIZE_BYTES = settings.MAX_FILE_SIZE_MB * 1024 * 1024
 async def scan_with_clamav(data: bytes, filename: str) -> None:
     """
     ClamAV bilan faylni skanerlaydi.
-    CLAMAV_ENABLED=False bo'lsa — o'tkazib yuboradi.
+    CLAMAV_ENABLED=False bo'lsa — skanerlash o'tkazib yuboriladi va WARNING log yoziladi.
     Virus topilsa — ValueError chiqaradi.
     """
     if not settings.CLAMAV_ENABLED:
+        logger.warning(
+            f"⚠️  ClamAV O'CHIRILGAN (CLAMAV_ENABLED=false) — '{filename}' skanlanmadi. "
+            "Production muhitida ClamAV yoqilishi tavsiya etiladi."
+        )
         return
 
     try:
@@ -288,3 +292,30 @@ async def check_s3_connection() -> dict:
         }
     except Exception as e:
         return {"type": "s3", "status": "error", "error": str(e)}
+
+
+async def check_clamav_health() -> dict:
+    """ClamAV ulanishini tekshiradi. Health check uchun."""
+    if not settings.CLAMAV_ENABLED:
+        return {
+            "enabled": False,
+            "status": "disabled",
+            "warning": "ClamAV o'chirilgan — yuklangan fayllar skanlanmaydi",
+        }
+    try:
+        import asyncio as _asyncio
+        reader, writer = await _asyncio.wait_for(
+            _asyncio.open_connection(settings.CLAMAV_HOST, settings.CLAMAV_PORT),
+            timeout=5,
+        )
+        writer.write(b"zPING\0")
+        await writer.drain()
+        response = await _asyncio.wait_for(reader.read(10), timeout=5)
+        writer.close()
+        await writer.wait_closed()
+        if b"PONG" in response:
+            return {"enabled": True, "status": "ok", "host": settings.CLAMAV_HOST}
+        return {"enabled": True, "status": "error", "error": "PONG kelmadi"}
+    except Exception as e:
+        return {"enabled": True, "status": "error", "error": str(e)}
+
