@@ -329,11 +329,6 @@ async def download_attachment(
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Biriktirilgan faylni yuklab beradi.
-    - S3 rejimida: vaqtinchalik presigned URL ga redirect qiladi
-    - Local rejimda: faylni stream qilib yuboradi
-    """
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
     if not case:
@@ -367,7 +362,6 @@ async def download_attachment(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found on disk")
 
-    # inline ko'rish uchun (rasm, video, audio, pdf) — Content-Disposition: inline
     mime = attachment.mime_type or "application/octet-stream"
     is_viewable = (
         mime.startswith("image/") or
@@ -376,13 +370,40 @@ async def download_attachment(
         mime == "application/pdf"
     )
     disposition = "inline" if is_viewable else f'attachment; filename="{attachment.original_filename}"'
+    total_size = len(content)
 
-    return StreamingResponse(
-        iter([content]),
+    # Video/Audio uchun Range request (streaming) qo'llab-quvvatlash
+    range_header = request.headers.get("range")
+    if range_header and (mime.startswith("video/") or mime.startswith("audio/")):
+        try:
+            range_val = range_header.strip().replace("bytes=", "")
+            start_str, end_str = range_val.split("-")
+            start = int(start_str)
+            end = int(end_str) if end_str else total_size - 1
+            end = min(end, total_size - 1)
+            chunk = content[start:end + 1]
+            return Response(
+                content=chunk,
+                status_code=206,
+                media_type=mime,
+                headers={
+                    "Content-Range": f"bytes {start}-{end}/{total_size}",
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": str(len(chunk)),
+                    "Content-Disposition": disposition,
+                    "Cache-Control": "private, max-age=3600",
+                },
+            )
+        except Exception:
+            pass  # Range parse xatosi — oddiy response qaytaramiz
+
+    return Response(
+        content=content,
+        status_code=200,
         media_type=mime,
         headers={
             "Content-Disposition": disposition,
-            "Content-Length": str(len(content)),
+            "Content-Length": str(total_size),
             "Accept-Ranges": "bytes",
             "Cache-Control": "private, max-age=3600",
         },
@@ -404,7 +425,9 @@ async def send_file_to_reporter(
         save_uploaded_file, ALLOWED_MIME_TYPES, BLOCKED_EXTENSIONS, MAX_FILE_SIZE_BYTES
     )
     from app.services.notification import send_reporter_file
+    from app.services.storage import sanitize_filename
     import os
+    import hashlib
 
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
@@ -420,30 +443,60 @@ async def send_file_to_reporter(
     if ext in BLOCKED_EXTENSIONS:
         raise HTTPException(400, detail=f"'{ext}' kengaytmali fayllar yuklash taqiqlangan")
 
+    # MIME aniqlash: brauzer noto'g'ri MIME yuborsa — kengaytmadan aniqlaymiz
+    import mimetypes
     mime = file.content_type or "application/octet-stream"
-    if mime not in ALLOWED_MIME_TYPES:
+    # Brauzer octet-stream yuborsa yoki video/quicktime ni mp4 sifatida yuborsa — kengaytmadan aniqlaymiz
+    if mime in ("application/octet-stream", "application/x-www-form-urlencoded"):
+        guessed, _ = mimetypes.guess_type(file.filename or "")
+        if guessed:
+            mime = guessed
+
+    # Video kengaytmalarini qo'shimcha tekshirish (brauzer har xil MIME yuborishi mumkin)
+    video_exts = {".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv"}
+    audio_exts = {".mp3", ".wav", ".ogg", ".aac", ".flac", ".m4a", ".opus", ".oga"}
+    image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+
+    if ext in video_exts and not mime.startswith("video/"):
+        mime = "video/mp4" if ext == ".mp4" else f"video/{ext.lstrip('.')}"
+    elif ext in audio_exts and not mime.startswith("audio/"):
+        mime = "audio/mpeg" if ext == ".mp3" else f"audio/{ext.lstrip('.')}"
+    elif ext in image_exts and not mime.startswith("image/"):
+        mime = f"image/{'jpeg' if ext in ('.jpg', '.jpeg') else ext.lstrip('.')}"
+
+    # Hali ham ruxsat etilmagan MIME bo'lsa — rad etamiz (lekin video/audio/image uchun o'tkazamiz)
+    if (mime not in ALLOWED_MIME_TYPES and
+            not mime.startswith("video/") and
+            not mime.startswith("audio/") and
+            not mime.startswith("image/")):
         raise HTTPException(400, detail=f"Bu fayl turi ruxsat etilmagan: {mime}")
 
     # Faylni storage ga saqlash
+    safe_filename = file.filename or f"file_{uuid.uuid4().hex[:8]}"
     storage_path = await save_uploaded_file(
         file_data=file_data,
-        original_filename=file.filename,
+        original_filename=safe_filename,
         mime_type=mime,
         case_id=str(case.id),
     )
 
-    # DB ga attachment saqlaymiz (admin yuborgan fayl ham case ga biriktiriladi)
+    # DB ga attachment saqlaymiz
+    safe_name = sanitize_filename(safe_filename)
+    checksum = hashlib.sha256(file_data).hexdigest()
     attachment = CaseAttachment(
         case_id=case.id,
         storage_path=storage_path,
-        original_filename=file.filename,
+        filename=safe_name,
+        original_filename=safe_filename,
         mime_type=mime,
         size_bytes=len(file_data),
+        checksum=checksum,
     )
     db.add(attachment)
+    await db.flush()  # attachment.id ni olish uchun
 
     # Comment yozamiz (chat ichida fayl ko'rinsin)
-    comment_text = f"📎 Fayl yuborildi: {file.filename}"
+    comment_text = f"📎 Fayl yuborildi: {safe_filename}"
     if caption:
         comment_text += f"\n{caption}"
     comment = CaseComment(
@@ -466,7 +519,7 @@ async def send_file_to_reporter(
                 telegram_chat_id=case.telegram_chat_id,
                 case_id=case.external_id,
                 file_data=file_data,
-                filename=file.filename,
+                filename=safe_filename,
                 mime_type=mime,
                 caption=caption,
             )
@@ -480,7 +533,7 @@ async def send_file_to_reporter(
         action=AuditAction.CASE_COMMENT,
         payload={
             "action": "admin_sent_file",
-            "filename": file.filename,
+            "filename": safe_filename,
             "mime_type": mime,
             "is_internal": is_internal,
             "telegram_sent": tg_sent,
@@ -493,7 +546,7 @@ async def send_file_to_reporter(
         "message": "Fayl yuborildi",
         "attachment_id": str(attachment.id),
         "telegram_sent": tg_sent,
-        "filename": file.filename,
+        "filename": safe_filename,
     }
 
 

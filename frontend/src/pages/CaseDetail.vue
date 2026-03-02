@@ -58,25 +58,41 @@
                     class="w-full h-full object-cover hover:opacity-90 transition-opacity" />
                 </div>
 
-                <!-- Video player -->
-                <div v-else-if="isVideo(att)" class="bg-black" style="height:180px">
-                  <div v-if="!attUrl(att)" class="w-full h-full flex items-center justify-center text-surface-600">
-                    <div class="w-6 h-6 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
+                <!-- Video player — lazy blob load -->
+                <div v-else-if="isVideo(att)" class="bg-black relative" style="height:180px">
+                  <!-- Blob yuklanmagan — play tugmasi ko'rsatamiz -->
+                  <div v-if="!attUrl(att)"
+                    class="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/5 transition-colors"
+                    @click="loadBlobUrl(att)">
+                    <div v-if="loadingBlobs[att.id]" class="w-8 h-8 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
+                    <template v-else>
+                      <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                      </div>
+                      <span class="text-surface-400 text-xs">Videoni yuklash uchun bosing</span>
+                    </template>
                   </div>
+                  <!-- Blob tayyor — video player -->
                   <video v-else controls class="w-full h-full object-contain">
                     <source :src="attUrl(att)" :type="att.mime_type" />
                   </video>
                 </div>
 
-                <!-- Audio player -->
+                <!-- Audio player — lazy blob load -->
                 <div v-else-if="isAudio(att)"
-                  class="bg-surface-800 flex flex-col items-center justify-center gap-3 p-4" style="height:120px">
-                  <div class="text-3xl">🎵</div>
-                  <div v-if="!attUrl(att)" class="w-5 h-5 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
+                  class="bg-surface-800 flex flex-col items-center justify-center gap-2 p-4" style="height:120px">
+                  <div class="text-2xl">🎵</div>
+                  <div v-if="!attUrl(att)"
+                    class="flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-surface-400 text-xs"
+                    @click="loadBlobUrl(att)">
+                    <div v-if="loadingBlobs[att.id]" class="w-4 h-4 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
+                    <span v-else>▶ Ovozni yuklash uchun bosing</span>
+                  </div>
                   <audio v-else controls class="w-full max-w-full" style="height:36px">
                     <source :src="attUrl(att)" :type="att.mime_type" />
                   </audio>
                 </div>
+
 
                 <!-- PDF -->
                 <div v-else-if="isPdf(att)" @click="openPreview(att)"
@@ -336,15 +352,20 @@
 
               <video v-else-if="isVideo(preview.att)" controls autoplay
                 class="max-w-full max-h-full rounded-lg">
-                <source :src="attUrl(preview.att)" :type="preview.att?.mime_type" />
+                <source v-if="attUrl(preview.att)" :src="attUrl(preview.att)" :type="preview.att?.mime_type" />
+                <div v-else class="text-surface-400 text-sm p-8">Video yuklanmoqda...</div>
               </video>
 
               <div v-else-if="isAudio(preview.att)" class="text-center py-12 space-y-4">
                 <div class="text-6xl">🎵</div>
                 <div class="text-white font-medium">{{ preview.att?.filename }}</div>
-                <audio controls autoplay class="w-80">
+                <audio v-if="attUrl(preview.att)" controls autoplay class="w-80">
                   <source :src="attUrl(preview.att)" :type="preview.att?.mime_type" />
                 </audio>
+                <div v-else class="flex items-center justify-center gap-2 text-surface-400 text-sm">
+                  <div class="w-5 h-5 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
+                  Yuklanmoqda...
+                </div>
               </div>
 
               <div v-else class="text-center py-16 space-y-4">
@@ -383,46 +404,43 @@ const fileInputRef = ref(null)
 const uploadFile = ref(null)
 
 // ── Blob URL cache — JWT bilan fayllarni olish ──────────────────────────────
-const blobCache = ref({})   // att.id → { url, mime }
-const loadingBlobs = ref({})
+const blobCache = reactive({})   // att.id → { url, mime }
+const loadingBlobs = reactive({})
 
 function attApiPath(att) {
   if (!att) return ''
   return `/v1/cases/${caseData.value?.external_id}/attachments/${att.id}`
 }
 
-// img/video/audio uchun blob URL — token bilan yuklanadi
 async function loadBlobUrl(att) {
   if (!att?.id) return
-  if (blobCache.value[att.id]) return          // allaqachon yuklangan
-  if (loadingBlobs.value[att.id]) return       // yuklanmoqda
-  loadingBlobs.value[att.id] = true
+  if (blobCache[att.id]) return
+  if (loadingBlobs[att.id]) return
+  loadingBlobs[att.id] = true
   try {
     const resp = await api.get(attApiPath(att), { responseType: 'blob' })
     const url = URL.createObjectURL(resp.data)
-    blobCache.value[att.id] = { url, mime: att.mime_type }
+    blobCache[att.id] = { url, mime: att.mime_type }
   } catch (e) {
     console.warn('Attachment yuklab bo\'lmadi:', att.filename, e)
   } finally {
-    delete loadingBlobs.value[att.id]
+    delete loadingBlobs[att.id]
   }
 }
 
 function attUrl(att) {
   if (!att?.id) return ''
-  return blobCache.value[att.id]?.url || ''
+  return blobCache[att.id]?.url || ''
 }
 
-
-// Barcha attachmentlar uchun blob URL larni yuklash
 async function loadAllBlobs() {
   const atts = caseData.value?.attachments || []
-  await Promise.all(atts.map(a => loadBlobUrl(a)))
+  const eager = atts.filter(a => isImage(a) || isPdf(a))
+  await Promise.all(eager.map(a => loadBlobUrl(a)))
 }
 
-// Component unmount bo'lganda blob URL larni tozalash (memory leak oldini olish)
 onUnmounted(() => {
-  Object.values(blobCache.value).forEach(({ url }) => URL.revokeObjectURL(url))
+  Object.values(blobCache).forEach(({ url }) => URL.revokeObjectURL(url))
 })
 function isImage(att) { return att?.mime_type?.startsWith('image/') }
 function isVideo(att) { return att?.mime_type?.startsWith('video/') }
@@ -457,6 +475,10 @@ const reporterAttachments = computed(() => {
 function openPreview(att) {
   preview.att = att
   preview.open = true
+  // Video/audio uchun blob yuklaymiz (modal ochilganda)
+  if ((isVideo(att) || isAudio(att)) && !attUrl(att)) {
+    loadBlobUrl(att)
+  }
 }
 
 // ── Data loading ─────────────────────────────────────────────────────────────
@@ -518,9 +540,8 @@ async function sendMessage() {
       fd.append('file', uploadFile.value)
       fd.append('caption', newComment.content.trim())
       fd.append('is_internal', newComment.is_internal ? 'true' : 'false')
-      await api.post(`/v1/cases/${caseData.value.external_id}/send-file`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
+      await api.post(`/v1/cases/${caseData.value.external_id}/send-file`, fd)
+      // Content-Type headerini bermaymiz — axios FormData uchun o'zi boundary bilan belgilaydi
       uploadFile.value = null
       newComment.content = ''
     } else {
@@ -544,7 +565,7 @@ async function sendMessage() {
 // Blob URL yo'q bo'lsa — yuklab olib download qilish
 async function downloadAtt(att) {
   await loadBlobUrl(att)
-  const url = blobCache.value[att.id]?.url
+  const url = blobCache[att.id]?.url
   if (!url) return
   const a = document.createElement('a')
   a.href = url
