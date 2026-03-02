@@ -1,5 +1,27 @@
+# ================================================================
+#  IntegrityBot — Docker Compose
+#
+#  ASOSIY (har doim):
+#    docker-compose up -d
+#    → db, redis, backend, frontend
+#
+#  QO'SHIMCHA SERVISLAR (kerak bo'lganda):
+#    --profile monitoring  → Prometheus + Grafana
+#    --profile production  → Nginx + ClamAV + DB-backup
+#    --profile vault       → HashiCorp Vault
+#    --profile siem        → Filebeat (log yig'ish)
+#
+#  Misol:
+#    docker-compose --profile monitoring up -d
+#    docker-compose --profile production --profile monitoring up -d
+# ================================================================
 
 services:
+
+  # ════════════════════════════════════════════════════════════
+  #  ASOSIY SERVISLAR — har doim ishlaydi
+  # ════════════════════════════════════════════════════════════
+
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -7,7 +29,6 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-integritybot}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD required}
-    # ── WAL arxivlash: Point-in-Time Recovery (PITR) uchun ──────────────
     command: >
       postgres
       -c wal_level=replica
@@ -45,6 +66,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: integrity-bot-backend:latest
     restart: unless-stopped
     env_file: .env
     depends_on:
@@ -64,74 +86,20 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-/api}
-    restart: unless-stopped
-    networks:
-      - internal
-
-  # ── HashiCorp Vault (SECRETS_BACKEND=vault bo'lganda) ───────────────────
-  vault:
-    image: hashicorp/vault:1.17
-    restart: unless-stopped
-    cap_add:
-      - IPC_LOCK
-    environment:
-      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TOKEN:-dev-root-token}
-      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-      VAULT_ADDR: "http://0.0.0.0:8200"
-    volumes:
-      - vault_data:/vault/data
-      - ./vault/config:/vault/config:ro
-    command: vault server -dev
-    networks:
-      - internal
-    profiles:
-      - vault
-
-  # ── Antivirus: ClamAV ── (faqat production: --profile production) ────────
-  # ⚠️  Production da .env da CLAMAV_ENABLED=true qiling!
-  clamav:
-    image: clamav/clamav:stable
-    restart: unless-stopped
-    environment:
-      CLAMAV_NO_FRESHCLAM: "false"   # DB avtomatik yangilansin
-    volumes:
-      - clamav_data:/var/lib/clamav
-    networks:
-      - internal
-    healthcheck:
-      test: ["CMD", "clamdcheck.sh"]
-      interval: 60s
-      timeout: 30s
-      retries: 3
-      start_period: 180s   # ClamAV DB yuklash uchun vaqt (birinchi marta uzoq)
-    profiles:
-      - production
-
-  # ── Avtomatik DB zaxira nusxalari ── (faqat production) ─────────────────
-  db-backup:
-    image: prodrigestivill/postgres-backup-local:16
+    image: integrity-bot-frontend:latest
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      POSTGRES_HOST: db
-      POSTGRES_DB: ${POSTGRES_DB:-integritybot}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      SCHEDULE: "@daily"          # har kuni yarim tunda
-      BACKUP_KEEP_DAYS: 7         # 7 kunlik nusxa saqlanadi
-      BACKUP_KEEP_WEEKS: 4        # 4 haftalik nusxa
-      BACKUP_KEEP_MONTHS: 6       # 6 oylik nusxa
-      HEALTHCHECK_PORT: 8080
-    volumes:
-      - db_backups:/backups
+      - backend
     networks:
       - internal
-    profiles:
-      - production
 
-  # ── Monitoring: Prometheus ────────────────────────────────────────────────
+  # ════════════════════════════════════════════════════════════
+  #  MONITORING — ixtiyoriy
+  #  Yoqish: docker-compose --profile monitoring up -d
+  #  Prometheus: http://localhost:9090
+  #  Grafana:    http://localhost:3000  (admin / ${GRAFANA_PASSWORD})
+  # ════════════════════════════════════════════════════════════
+
   prometheus:
     image: prom/prometheus:v2.51.0
     restart: unless-stopped
@@ -143,12 +111,13 @@ services:
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
     networks:
       - internal
     profiles:
       - monitoring
 
-  # ── Monitoring: Grafana ───────────────────────────────────────────────────────
   grafana:
     image: grafana/grafana:10.4.0
     restart: unless-stopped
@@ -163,37 +132,18 @@ services:
       - ./monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
     depends_on:
       - prometheus
+    ports:
+      - "3000:3000"
     networks:
       - internal
     profiles:
       - monitoring
 
-  # ── SIEM: Filebeat (Docker loglarini Elastic/Splunk ga yuboradi) ─────────
-  # Ishlatish: docker compose --profile siem up -d
-  # .env da SIEM_ENABLED=true va ELASTICSEARCH_URL/SPLUNK_HEC_URL ni sozlang
-  filebeat:
-    image: docker.elastic.co/beats/filebeat:8.12.0
-    restart: unless-stopped
-    user: root                          # Docker socket o'qish uchun
-    command: filebeat -e -strict.perms=false
-    volumes:
-      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - filebeat_data:/usr/share/filebeat/data
-    environment:
-      ELASTICSEARCH_ENABLED: ${ELASTICSEARCH_ENABLED:-false}
-      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://localhost:9200}
-      ELASTICSEARCH_TOKEN: ${ELASTICSEARCH_TOKEN:-}
-      ELASTIC_USER: ${ELASTIC_USER:-}
-      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
-      ELASTIC_SSL_VERIFY: ${ELASTIC_SSL_VERIFY:-full}
-    networks:
-      - internal
-    profiles:
-      - siem
+  # ════════════════════════════════════════════════════════════
+  #  PRODUCTION — nginx + antivirus + backup
+  #  Yoqish: docker-compose --profile production up -d
+  # ════════════════════════════════════════════════════════════
 
-  # ── Nginx reverse proxy ── (faqat production) ───────────────────────────
   nginx:
     image: nginx:1.25-alpine
     restart: unless-stopped
@@ -212,18 +162,120 @@ services:
     profiles:
       - production
 
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    environment:
+      CLAMAV_NO_FRESHCLAM: "false"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 60s
+      timeout: 30s
+      retries: 3
+      start_period: 180s
+    profiles:
+      - production
+
+  db-backup:
+    image: prodrigestivill/postgres-backup-local:16
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_DB: ${POSTGRES_DB:-integritybot}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      SCHEDULE: "@daily"
+      BACKUP_KEEP_DAYS: 7
+      BACKUP_KEEP_WEEKS: 4
+      BACKUP_KEEP_MONTHS: 6
+      HEALTHCHECK_PORT: 8080
+    volumes:
+      - db_backups:/backups
+    networks:
+      - internal
+    profiles:
+      - production
+
+  # ════════════════════════════════════════════════════════════
+  #  VAULT — secrets management
+  #  Yoqish: docker-compose --profile vault up -d
+  #  UI: http://localhost:8200  (token: ${VAULT_TOKEN})
+  # ════════════════════════════════════════════════════════════
+
+  vault:
+    image: hashicorp/vault:1.17
+    restart: unless-stopped
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: ${VAULT_TOKEN:-dev-root-token}
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      VAULT_ADDR: "http://0.0.0.0:8200"
+    volumes:
+      - vault_data:/vault/data
+      - ./vault/config:/vault/config:ro
+    ports:
+      - "8200:8200"
+    command: vault server -dev
+    networks:
+      - internal
+    profiles:
+      - vault
+
+  # ════════════════════════════════════════════════════════════
+  #  SIEM — log yig'ish (Elasticsearch / Splunk)
+  #  Yoqish: docker-compose --profile siem up -d
+  #  .env da ELASTICSEARCH_URL sozlang
+  # ════════════════════════════════════════════════════════════
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.12.0
+    restart: unless-stopped
+    user: root
+    command: filebeat -e -strict.perms=false
+    volumes:
+      - ./filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeat_data:/usr/share/filebeat/data
+    environment:
+      ELASTICSEARCH_ENABLED: ${ELASTICSEARCH_ENABLED:-false}
+      ELASTICSEARCH_URL: ${ELASTICSEARCH_URL:-http://localhost:9200}
+      ELASTICSEARCH_TOKEN: ${ELASTICSEARCH_TOKEN:-}
+      ELASTIC_USER: ${ELASTIC_USER:-}
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD:-}
+      ELASTIC_SSL_VERIFY: ${ELASTIC_SSL_VERIFY:-full}
+    networks:
+      - internal
+    profiles:
+      - siem
+
+# ════════════════════════════════════════════════════════════
+#  VOLUMES
+# ════════════════════════════════════════════════════════════
 volumes:
   postgres_data:
-  wal_archive:       # WAL arxiv fayllari (PITR uchun)
+  wal_archive:
   redis_data:
   uploads_data:
+  # Quyidagilar faqat tegishli profile ishlatilganda yaratiladi:
   db_backups:
   prometheus_data:
   grafana_data:
   clamav_data:
   vault_data:
-  filebeat_data:     # Filebeat registry (qayta o'qilmasligi uchun)
+  filebeat_data:
 
+# ════════════════════════════════════════════════════════════
+#  NETWORKS
+# ════════════════════════════════════════════════════════════
 networks:
   internal:
     driver: bridge
