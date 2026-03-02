@@ -232,6 +232,95 @@
         Holati tekshirish uchun yuqoridagi tugmani bosing
       </div>
     </div>
+
+    <!-- LDAP / SSO Integration -->
+    <div class="card p-6">
+      <div class="flex items-start justify-between mb-4">
+        <div>
+          <h3 class="font-semibold text-white">🏢 LDAP / Active Directory SSO</h3>
+          <p class="text-surface-400 text-sm mt-1">Korporativ login integratsiya holati</p>
+        </div>
+        <button @click="checkLdapStatus" :disabled="ldapLoading"
+          class="btn-ghost text-xs px-3 py-1.5">
+          {{ ldapLoading ? '...' : '🔄 Tekshirish' }}
+        </button>
+      </div>
+
+      <div v-if="ldapStatus" class="space-y-3">
+        <!-- Disabled -->
+        <div v-if="!ldapStatus.enabled"
+          class="flex items-center gap-3 p-3 bg-surface-800 rounded-xl text-sm">
+          <span class="text-surface-500">⚪</span>
+          <div>
+            <div class="text-surface-400">LDAP o'chirilgan</div>
+            <div class="text-surface-600 text-xs mt-0.5">
+              .env da <code>LDAP_ENABLED=true</code> va <code>LDAP_URL</code> ni sozlang
+            </div>
+          </div>
+        </div>
+
+        <!-- Configured -->
+        <div v-else-if="ldapStatus.configured"
+          class="flex items-center gap-3 p-3 bg-green-500/10 border border-green-500/20 rounded-xl text-sm">
+          <span class="text-green-400">✅</span>
+          <div>
+            <div class="text-green-300 font-medium">LDAP ulangan</div>
+            <div class="text-green-500/70 text-xs mt-0.5">
+              {{ ldapStatus.url }} {{ ldapStatus.use_ssl ? '(SSL)' : '' }}
+            </div>
+          </div>
+        </div>
+
+        <!-- Not configured -->
+        <div v-else
+          class="flex items-center gap-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl text-sm">
+          <span class="text-yellow-400">⚠️</span>
+          <div>
+            <div class="text-yellow-300 font-medium">LDAP sozlanmagan</div>
+            <div class="text-yellow-500/70 text-xs mt-0.5">LDAP_URL ni .env da o'rnating</div>
+          </div>
+        </div>
+
+        <!-- Config details -->
+        <div v-if="ldapStatus.enabled && ldapStatus.configured"
+          class="bg-surface-800 rounded-xl p-3 space-y-1.5 text-xs">
+          <div class="flex justify-between">
+            <span class="text-surface-500">Domain:</span>
+            <span class="text-surface-300">{{ ldapStatus.domain || '—' }}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-surface-500">Filter:</span>
+            <code class="text-surface-400">{{ ldapStatus.user_filter }}</code>
+          </div>
+        </div>
+
+        <!-- Test form -->
+        <div v-if="ldapStatus.enabled && ldapStatus.configured" class="space-y-2">
+          <p class="text-surface-500 text-xs">Test foydalanuvchi bilan ulanishni tekshirish:</p>
+          <div class="flex gap-2">
+            <input v-model="ldapTestUsername" type="text" placeholder="username"
+              class="input text-sm flex-1" />
+            <input v-model="ldapTestPassword" type="password" placeholder="parol"
+              class="input text-sm flex-1" />
+            <button @click="testLdap" :disabled="ldapTesting || !ldapTestUsername"
+              class="btn-ghost text-xs px-3 whitespace-nowrap">
+              {{ ldapTesting ? '...' : 'Test' }}
+            </button>
+          </div>
+          <div v-if="ldapTestResult" class="text-xs p-2 rounded-lg"
+            :class="ldapTestResult.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'">
+            {{ ldapTestResult.ok ? '✅ ' : '❌ ' }}{{ ldapTestResult.message }}
+            <div v-if="ldapTestResult.user" class="mt-1 text-green-500/70">
+              {{ ldapTestResult.user.full_name }} ({{ ldapTestResult.user.assigned_role }})
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-else class="text-surface-500 text-sm">
+        Holati tekshirish uchun yuqoridagi tugmani bosing
+      </div>
+    </div>
   </div>
 </template>
 
@@ -256,6 +345,12 @@ const ticketStatus = ref(null)
 const ticketStatusLoading = ref(false)
 const siemStatus = ref(null)
 const siemStatusLoading = ref(false)
+const ldapStatus = ref(null)
+const ldapLoading = ref(false)
+const ldapTestUsername = ref('')
+const ldapTestPassword = ref('')
+const ldapTesting = ref(false)
+const ldapTestResult = ref(null)
 
 const initials = computed(() => {
   const name = auth.user?.fullName || auth.user?.username || 'U'
@@ -339,14 +434,39 @@ async function checkSiemStatus() {
     const { data } = await api.get('/health')
     siemStatus.value = data.siem || { enabled: false, backend: 'splunk' }
   } catch (e) {
-    siemStatus.value = {
-      enabled: false,
-      status: 'error',
-      backend: 'unknown',
-      message: e.response?.data?.detail || 'Ulanish xatosi',
-    }
+    siemStatus.value = { enabled: false, status: 'error', backend: 'unknown', message: e.response?.data?.detail || 'Ulanish xatosi' }
   } finally {
     siemStatusLoading.value = false
+  }
+}
+
+async function checkLdapStatus() {
+  ldapLoading.value = true
+  ldapTestResult.value = null
+  try {
+    const { data } = await api.get('/v1/auth/ldap/status')
+    ldapStatus.value = data
+  } catch (e) {
+    ldapStatus.value = { enabled: false, configured: false, message: e.response?.data?.detail || 'Xato' }
+  } finally {
+    ldapLoading.value = false
+  }
+}
+
+async function testLdap() {
+  ldapTesting.value = true
+  ldapTestResult.value = null
+  try {
+    const { data } = await api.post('/v1/auth/ldap/test', {
+      username: ldapTestUsername.value,
+      password: ldapTestPassword.value,
+    })
+    ldapTestResult.value = data
+  } catch (e) {
+    ldapTestResult.value = { ok: false, message: e.response?.data?.detail || 'Xato' }
+  } finally {
+    ldapTesting.value = false
+    ldapTestPassword.value = ''
   }
 }
 </script>

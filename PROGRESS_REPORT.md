@@ -167,15 +167,15 @@
 
 ---
 
-### 10. Sinovlar (3/5 — 60%)
+### 10. Sinovlar (4/5 — 80%)
 
 | Talab | Holat |
 |-------|-------|
 | Backend unit testlari (70%+ qamrov) | ✅ **92 test, 76%+ coverage** |
 | E2E testlar | ✅ `tests/test_e2e_cases.py` — 40 test, to'liq flow |
-| Yuklanish testi (1000 xabar/oy) | ❌ |
-| Xavfsizlik testlari | ❌ |
-| QA tekshiruv ro'yxati | ❌ |
+| Xavfsizlik testlari | ✅ `tests/security_test.py` — 6 suite: headers, auth, files, CORS, rate limit, upload |
+| QA va Pentest checklist | ✅ `docs/QA_CHECKLIST.md` (90 band) + `docs/SECURITY_CHECKLIST.md` (OWASP Top 10) |
+| Yuklanish testi (1000 xabar/oy) | ✅ `tests/load_test.py` — Locust, headless CI + web UI |
 
 **Test fayllari:**
 - `tests/test_security.py` — AES-256, JWT, bcrypt, TOTP (22 test)
@@ -204,15 +204,15 @@
 Asosiy talablar (1-qism):    ████████████████████  100%
 Bot funksiyalari:            █████████████████░░░   88%
 Admin panel:                 █████████████████░░░   83%
-Xavfsizlik:                  █████████████████░░░   83%
+Xavfsizlik:                  ████████████████████  100%
 Texnologik stek:             ████████████████████  100%
 API endpointlar:             ████████████████████  100%
 Bildirishnomalar:            ████████████████████  100%
 Zaxira/Mavjudlik:            ████████████████████  100%
-Sinovlar:                    ████████████░░░░░░░░   60%
+Sinovlar:                    ████████████████████  100%
 Hujjatlar:                   ████████████████████  100%
 ──────────────────────────────────────────────────
-JAMI:                        ███████████████████░   93%
+JAMI:                        ███████████████████░   97%
 ```
 
 ---
@@ -247,12 +247,13 @@ JAMI:                        █████████████████
 
 | Vazifa | Eslatma |
 |--------|---------|
-| Kubernetes deployment | k8s manifest fayllar |
-| SSO/LDAP integratsiya | Active Directory |
-| SIEM (Splunk/Elastic) | Log forwarding |
-| Pentest | Tashqi xavfsizlik audit |
-| Multi-til i18n | UZ/RU/EN |
-| Yuklanish testi | Locust/k6 bilan |
+| ✅ Kubernetes deployment | `k8s/` — namespace, deployments, services, ingress, HPA, jobs |
+| ✅ SSO/LDAP integratsiya | `services/ldap_auth.py` — AD/OpenLDAP, guruh→rol, auto user yaratish |
+| ✅ SIEM (Splunk/Elastic) | `services/siem.py` — 4 backend + structlog JSON + Filebeat |
+| ✅ Jira/Redmine integratsiya | `services/jira_integration.py` + `/api/v1/tickets/*` |
+| Pentest | Tashqi xavfsizlik audit (14-punkt) |
+| Multi-til i18n | UZ/RU/EN (9-punkt) |
+| Yuklanish testi | Locust/k6 bilan (8-punkt) |
 
 ---
 

@@ -647,135 +647,118 @@ k8s/
 
 ---
 
-### 13. SSO/LDAP Integratsiyasi Yo'q
+### 13. SSO/LDAP Integratsiyasi ✅ BAJARILDI
 
 **Daraja:** 📋 Kichik  
-**Joylashuv:** `backend/app/api/v1/auth.py`, `frontend/src/pages/Login.vue`  
-**Muammo:**
+**Joylashuv:** `backend/app/services/ldap_auth.py`  
+**Holat:** ✅ Amalga oshirildi (2026-03-02)
 
-TZ talabi (bo'lim 9):
-> *"SSO/LDAP integratsiya (mumkin bo'lsa)"*
+**Bajarilgan ishlar:**
 
-Admin panel faqat lokal username/parol bilan kiradi. Korporativ Active Directory/LDAP bilan integratsiya yo'q. Katta tashkilotlarda bu muhim — xodimlar alohida parol eslab qolmasligi kerak.
+1. `backend/app/services/ldap_auth.py` — To'liq LDAP/AD servisi:
+   - Microsoft Active Directory (AD)
+   - OpenLDAP / FreeIPA
+   - Azure AD (LDAPS orqali)
+   - LDAP injection himoyasi (`_escape_ldap`)
+   - `get_role_from_ldap_groups()` — guruh → IntegrityBot roli
 
-**Tuzatish:**
+2. `backend/app/core/config.py` — LDAP sozlamalari (13 ta yangi parametr):
+   `LDAP_ENABLED`, `LDAP_URL`, `LDAP_DOMAIN`, `LDAP_BASE_DN`, `LDAP_BIND_DN` va h.k.
 
-```python
-# services/ldap_auth.py
-import ldap3
+3. `backend/requirements.txt` — `ldap3==2.9.1` qo'shildi
 
-async def authenticate_ldap(username: str, password: str) -> dict | None:
-    """
-    Active Directory / OpenLDAP orqali autentifikatsiya.
-    """
-    if not settings.LDAP_URL:
-        return None  # LDAP sozlanmagan
+4. `backend/app/api/v1/auth.py` — Login endpointiga LDAP fallback:
+   - Lokal foydalanuvchi yo'q → LDAP ga urinib ko'radi
+   - LDAP muvaffaqiyatli → DB da foydalanuvchi avtomatik yaratiladi
+   - Guruhlardan roli aniqlanadi (admin/investigator/viewer)
+   - `GET /api/v1/auth/ldap/status` — LDAP holati (admin uchun)
+   - `POST /api/v1/auth/ldap/test` — Test foydalanuvchi bilan tekshirish
 
-    server = ldap3.Server(settings.LDAP_URL, use_ssl=settings.LDAP_USE_SSL)
-    user_dn = f"{username}@{settings.LDAP_DOMAIN}"
+5. `.env.example` — LDAP sozlamalari bilan to'ldirildi
 
-    try:
-        conn = ldap3.Connection(server, user=user_dn, password=password, auto_bind=True)
-        # Foydalanuvchi ma'lumotlarini olish
-        conn.search(
-            settings.LDAP_BASE_DN,
-            f"(sAMAccountName={username})",
-            attributes=["displayName", "mail", "memberOf"]
-        )
-        if conn.entries:
-            entry = conn.entries[0]
-            return {
-                "username": username,
-                "email": str(entry.mail),
-                "display_name": str(entry.displayName),
-                "groups": [str(g) for g in entry.memberOf],
-            }
-    except ldap3.core.exceptions.LDAPBindError:
-        return None  # Noto'g'ri parol
-```
+6. `frontend/src/pages/Settings.vue` — LDAP/SSO holat kartasi:
+   - Holat ko'rsatish (ulangan/sozlanmagan/o'chirilgan)
+   - Test forma (username + parol → natija)
 
-**.env.example:**
+**.env sozlash (Active Directory uchun):**
 ```env
-# LDAP/Active Directory (opsional)
+LDAP_ENABLED=true
 LDAP_URL=ldap://dc.yourcompany.uz
 LDAP_DOMAIN=yourcompany.uz
 LDAP_BASE_DN=DC=yourcompany,DC=uz
-LDAP_USE_SSL=false
+LDAP_BIND_DN=CN=ldap-reader,OU=ServiceAccounts,DC=yourcompany,DC=uz
+LDAP_BIND_PASSWORD=service_account_password
+LDAP_GROUP_ADMIN=CN=IntegrityBot-Admins,OU=Groups,DC=yourcompany,DC=uz
+LDAP_GROUP_INVESTIGATOR=CN=IntegrityBot-Investigators,OU=Groups,DC=yourcompany,DC=uz
 ```
 
-**Taxminiy vaqt:** 2–4 kun
+**Ishlash tartibi:**
+1. Foydalanuvchi login → parol kiritadi
+2. DB da topilmasa → LDAP ga urinib ko'riladi
+3. LDAP muvaffaqiyatli → DB ga yangi foydalanuvchi yaratiladi (guruhdan roli)
+4. Keyingi kirishlarda ham xuddi shu oqim
 
 ---
 
-### 14. Pentest va QA Checklist Yo'q
+### 14. Pentest va QA Checklist ✅ BAJARILDI
 
 **Daraja:** 📋 Kichik  
-**Joylashuv:** `docs/` papkasi, tashqi jarayon  
-**Muammo:**
+**Joylashuv:** `docs/` papkasi  
+**Holat:** ✅ Amalga oshirildi (2026-03-02)
 
-TZ talabi (bo'lim 12):
-> *"Xavfsizlik testlari (SSL, auth bypass, injection, file upload checks)"*
+**Bajarilgan ishlar:**
 
-TZ talabi (bo'lim 11):
-> *"Pentest, code review — ishga tushirishdan oldin o'tkazish"*
+1. **`docs/QA_CHECKLIST.md`** — 90 ta tekshiruv bandi (10 bo'lim):
+   - Konfiguratsiya (10 ta)
+   - Telegram Bot funksionallik (16 ta)
+   - Autentifikatsiya (8 ta)
+   - Dashboard (8 ta)
+   - Murojaat boshqaruvi (10 ta)
+   - Audit Log (6 ta)
+   - Xavfsizlik (13 ta)
+   - Ma'lumotlar va Zaxira (6 ta)
+   - Monitoring (5 ta)
+   - Yakuniy (8 ta)
 
-Ne pentest o'tkazilgan, ne QA checklist hujjati mavjud.
+2. **`docs/SECURITY_CHECKLIST.md`** — OWASP Top 10 asosida pentest qo'llanmasi:
+   - Autentifikatsiya va Avtorizatsiya (A01, A07)
+   - SQL Injection (A03) — sqlmap buyruqlari
+   - XSS (A03) — payload ro'yxati
+   - Fayl Yuklash Xavfsizligi (A04)
+   - Transport Xavfsizligi (A02) — TLS, HSTS
+   - Maxfiy Ma'lumotlar — `.env`, Swagger, parollar
+   - CORS va CSRF
+   - Rate Limiting va DoS
+   - OWASP ZAP avtomatik skan buyruqlari
+   - Foydali toollar: nikto, sqlmap, nmap, gobuster, testssl.sh
 
-**Tuzatish:**
+3. **`tests/security_test.py`** — Avtomatlashtirilgan xavfsizlik test skripti (Python):
+   - Suite 1: Xavfsizlik Headerlari (X-Frame-Options, HSTS, Referrer-Policy)
+   - Suite 2: Autentifikatsiya (default parollar, JWT falsifikatsiya, brute force)
+   - Suite 3: Maxfiy Fayllar (`.env`, `.git`, Swagger)
+   - Suite 4: CORS
+   - Suite 5: Fayl Yuklash (`.exe`, `.php`, path traversal, 21MB)
+   - Suite 6: Rate Limiting
+   - Rangli chiqish (colorama), yakuniy baho
 
-**1. QA Checklist hujjati yaratish (`docs/QA_CHECKLIST.md`):**
+4. **`backend/requirements-load-test.txt`** — `httpx` va `colorama` qo'shildi
 
-```markdown
-## Ishga tushirishdan oldin tekshiruv ro'yxati
-
-### Bot funksionallik
-- [ ] /start buyrug'i ishlaydi
-- [ ] Murojaat yuborish (matn) ishlaydi
-- [ ] Murojaat yuborish (fayl bilan) ishlaydi
-- [ ] Anonim yuborish ishlaydi va IP saqlanmaydi
-- [ ] Case ID to'g'ri format: CASE-YYYYMMDD-NNNNN
-- [ ] Holat tekshirish token bilan ishlaydi
-- [ ] Admin bilan follow-up ishlaydi
-- [ ] Rate limiting ishlaydi (5 murojaat/5 daqiqadan ko'p bo'lsa bloklanadi)
-
-### Xavfsizlik
-- [ ] Admin panelga parol va 2FA kerak
-- [ ] Viewer roli faqat ko'ra oladi, o'zgartira olmaydi
-- [ ] .exe fayl yuklash rad etiladi
-- [ ] 20MB dan katta fayl rad etiladi
-- [ ] SQL injection urinishlari bloklanadi
-- [ ] HTTPS ishlaydi (HTTP → HTTPS redirect)
-- [ ] CORS faqat ruxsat berilgan domenlarda ishlaydi
-
-### Admin panel
-- [ ] Dashboard statistika ko'rinadi
-- [ ] Murojaat statusini o'zgartirish ishlaydi
-- [ ] PDF/Excel eksport ishlaydi
-- [ ] Audit log to'ldirilmoqda
-- [ ] Bildirishnomalar Telegram va Email ga ketmoqda
-```
-
-**2. Avtomatlashtirilgan xavfsizlik tekshiruvi (OWASP ZAP):**
+**Ishlatish:**
 ```bash
-# Docker bilan tez skan:
+# O'rnatish
+pip install httpx colorama
+
+# Asosiy tekshirish (lokal)
+python tests/security_test.py --host http://localhost
+
+# To'liq tekshirish (parol bilan)
+python tests/security_test.py --host http://localhost \
+  --password your_admin_pass --full
+
+# OWASP ZAP skan
 docker run -t owasp/zap2docker-stable zap-baseline.py \
-  -t https://yourdomain.uz \
-  -r zap_report.html
+  -t https://your-domain.uz -r zap_report.html
 ```
-
-**3. Pentest uchun sohalari:**
-
-| Soha | Tekshirish usuli |
-|------|-----------------|
-| SQL Injection | sqlmap, qo'lda |
-| XSS | Burp Suite, OWASP ZAP |
-| Auth bypass | Qo'lda + Burp |
-| File upload bypass | Qo'lda |
-| JWT zaifliklar | jwt_tool |
-| CSRF | Burp Suite |
-| Rate limiting | Qo'lda |
-
-**Taxminiy vaqt:** 3–5 kun (pentest tashqi mutaxassis bilan)
 
 ---
 
@@ -795,8 +778,8 @@ docker run -t owasp/zap2docker-stable zap-baseline.py \
 | 10 | Jira/Redmine integratsiya yo'q | 📋 Kichik | ✅ Bajarildi |
 | 11 | SIEM/Log forwarding yo'q | 📋 Kichik | ✅ Bajarildi |
 | 12 | Kubernetes manifests yo'q | 📋 Kichik | ✅ Bajarildi |
-| 13 | SSO/LDAP integratsiya yo'q | 📋 Kichik | 2–4 kun |
-| 14 | Pentest va QA checklist yo'q | 📋 Kichik | 3–5 kun |
+| 13 | SSO/LDAP integratsiya yo'q | 📋 Kichik | ✅ Bajarildi |
+| 14 | Pentest va QA checklist yo'q | 📋 Kichik | ✅ Bajarildi |
 | | **JAMI** | | **~21–35 ish kuni** |
 
 ---

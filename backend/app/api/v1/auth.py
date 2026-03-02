@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import uuid
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import (
     verify_password, hash_password, create_access_token, decode_token,
     generate_totp_secret, get_totp_uri, generate_qr_code, verify_totp
@@ -61,8 +62,71 @@ async def login(
     result = await db.execute(select(User).where(User.username == form_data.username))
     user = result.scalar_one_or_none()
 
+    # ── LDAP autentifikatsiya (lokal foydalanuvchi topilmasa yoki LDAP yoqilgan bo'lsa) ──
+    from app.services.ldap_auth import is_ldap_enabled, authenticate_ldap, get_role_from_ldap_groups
+    if is_ldap_enabled() and (not user or not user.hashed_password):
+        ldap_user = await authenticate_ldap(form_data.username, form_data.password)
+        if ldap_user:
+            # DB da foydalanuvchi yo'q bo'lsa — avtomatik yaratish
+            if not user:
+                from app.core.security import hash_password as _hp
+                role = get_role_from_ldap_groups(ldap_user.groups)
+                user = User(
+                    username=ldap_user.username,
+                    email=ldap_user.email,
+                    full_name=ldap_user.full_name,
+                    hashed_password=_hp("__ldap__"),   # LDAP foydalanuvchilar lokal parolsiz
+                    role=role,
+                    is_active=True,
+                )
+                db.add(user)
+                db.add(AuditLog(
+                    action=AuditAction.USER_CREATE,
+                    entity_type="user",
+                    payload={"username": ldap_user.username, "source": "ldap", "role": role},
+                ))
+            else:
+                # Mavjud foydalanuvchini yangilash (ism, email)
+                user.full_name = ldap_user.full_name
+                user.email = ldap_user.email
+
+            user.last_login = datetime.now(timezone.utc)
+            db.add(AuditLog(
+                user_id=user.id if user.id else None,
+                action=AuditAction.LOGIN,
+                ip_address=ip,
+                payload={"source": "ldap"},
+            ))
+            await db.commit()
+            if not user.id:
+                await db.refresh(user)
+
+            token = create_access_token({"sub": str(user.id), "role": user.role})
+            return TokenResponse(
+                access_token=token,
+                token_type="bearer",
+                role=user.role,
+                username=user.username,
+                full_name=user.full_name,
+                totp_enabled=user.totp_enabled,
+                force_password_change=user.force_password_change,
+            )
+        else:
+            # LDAP ham muvaffaqiyatsiz
+            try:
+                from app.services.siem import siem_service
+                await siem_service.send_security_event(
+                    event_type="LOGIN_FAILED",
+                    severity="medium",
+                    ip_address=ip,
+                    details={"username": form_data.username, "reason": "ldap_failed"},
+                )
+            except Exception:
+                pass
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+
+    # ── Lokal autentifikatsiya ────────────────────────────────────────────
     if not user or not verify_password(form_data.password, user.hashed_password):
-        # SIEM: login muvaffaqiyatsiz
         try:
             from app.services.siem import siem_service
             await siem_service.send_security_event(
@@ -82,7 +146,6 @@ async def login(
     if user.totp_enabled:
         totp_code = form_data.scopes[0] if form_data.scopes else None
         if not totp_code or not verify_totp(user.totp_secret, totp_code):
-            # SIEM: 2FA muvaffaqiyatsiz
             try:
                 from app.services.siem import siem_service
                 await siem_service.send_security_event(
@@ -108,7 +171,6 @@ async def login(
     ))
     await db.commit()
 
-    # SIEM: muvaffaqiyatli login
     try:
         from app.services.siem import siem_service
         await siem_service.send_audit_event(
@@ -224,9 +286,61 @@ async def list_users(
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
 
 
-@router.post("/change-password")
-async def change_password(
+@router.get("/ldap/status")
+async def ldap_status(_: User = Depends(require_admin)):
+    """LDAP/SSO ulanish holati — faqat admin ko'ra oladi."""
+    from app.services.ldap_auth import is_ldap_enabled
+    enabled = is_ldap_enabled()
+    ldap_url = getattr(settings, "LDAP_URL", None)
+    ldap_domain = getattr(settings, "LDAP_DOMAIN", None)
+    return {
+        "enabled": enabled,
+        "configured": bool(ldap_url),
+        "url": ldap_url if enabled else None,
+        "domain": ldap_domain if enabled else None,
+        "user_filter": getattr(settings, "LDAP_USER_FILTER", "(sAMAccountName={username})"),
+        "use_ssl": getattr(settings, "LDAP_USE_SSL", False),
+    }
+
+
+@router.post("/ldap/test")
+async def ldap_test(
     body: dict,
+    _: User = Depends(require_admin),
+):
+    """LDAP ulanishini test qiladi — test foydalanuvchi bilan."""
+    from app.services.ldap_auth import is_ldap_enabled, authenticate_ldap
+    if not is_ldap_enabled():
+        return {"ok": False, "message": "LDAP o'chirilgan (LDAP_ENABLED=false)"}
+
+    test_username = body.get("username", "")
+    test_password = body.get("password", "")
+    if not test_username or not test_password:
+        return {"ok": False, "message": "username va password kerak"}
+
+    try:
+        ldap_user = await authenticate_ldap(test_username, test_password)
+        if ldap_user:
+            from app.services.ldap_auth import get_role_from_ldap_groups
+            role = get_role_from_ldap_groups(ldap_user.groups)
+            return {
+                "ok": True,
+                "message": "LDAP ulanish muvaffaqiyatli",
+                "user": {
+                    "username": ldap_user.username,
+                    "email": ldap_user.email,
+                    "full_name": ldap_user.full_name,
+                    "groups_count": len(ldap_user.groups),
+                    "assigned_role": role,
+                },
+            }
+        return {"ok": False, "message": "Autentifikatsiya muvaffaqiyatsiz (noto'g'ri login/parol)"}
+    except Exception as e:
+        return {"ok": False, "message": f"Xato: {str(e)}"}
+
+
+@router.post("/change-password")
+async def change_password(    body: dict,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):

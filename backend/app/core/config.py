@@ -119,12 +119,27 @@ class Settings(BaseSettings):
     SIEM_ENABLED: bool = False
     # splunk | elastic | graylog | webhook
     SIEM_BACKEND: str = "splunk"
-    SIEM_URL: Optional[str] = None            # Splunk HEC URL / ES URL / Graylog URL
-    SIEM_TOKEN: Optional[str] = None          # Splunk HEC token / ES API key / Bearer
-    SIEM_INDEX: str = "integritybot-logs"     # Splunk index / ES index
-    SIEM_VERIFY_SSL: bool = True              # SSL sertifikatini tekshirish
-    # JSON structured logging (json | text)
-    SIEM_LOG_FORMAT: str = "json"             # Production: json, Dev: text
+    SIEM_URL: Optional[str] = None
+    SIEM_TOKEN: Optional[str] = None
+    SIEM_INDEX: str = "integritybot-logs"
+    SIEM_VERIFY_SSL: bool = True
+    SIEM_LOG_FORMAT: str = "json"
+
+    # ── LDAP / Active Directory SSO (opsional) ───────────────────────────
+    LDAP_ENABLED: bool = False
+    LDAP_URL: Optional[str] = None            # ldap://dc.company.uz  yoki  ldaps://...
+    LDAP_DOMAIN: Optional[str] = None         # company.uz  (AD domain)
+    LDAP_BASE_DN: Optional[str] = None        # DC=company,DC=uz
+    # Service account (foydalanuvchilarni qidirish uchun, read-only)
+    LDAP_BIND_DN: Optional[str] = None        # CN=ldap-reader,OU=ServiceAccounts,...
+    LDAP_BIND_PASSWORD: Optional[str] = None
+    # Foydalanuvchi qidiruv filtri ({username} o'rniga kiritilgan login qo'yiladi)
+    LDAP_USER_FILTER: str = "(sAMAccountName={username})"
+    # Roli aniqlaydigan guruh DN lar
+    LDAP_GROUP_ADMIN: Optional[str] = None        # CN=IntegrityBot-Admins,...
+    LDAP_GROUP_INVESTIGATOR: Optional[str] = None # CN=IntegrityBot-Investigators,...
+    LDAP_USE_SSL: bool = False                # ldaps:// uchun True
+    LDAP_TLS_VALIDATE: bool = True            # SSL sertifikat tekshirish
 
     @property
     def encryption_key_bytes(self) -> bytes:
