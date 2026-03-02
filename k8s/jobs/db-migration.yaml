@@ -1,0 +1,84 @@
+# IntegrityBot — DB Migration Job
+# Har deploy dan oldin alembic migrate ishga tushiradi
+# Ishlatish: kubectl apply -f k8s/jobs/db-migration.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: integritybot-db-migrate
+  namespace: integritybot
+  labels:
+    app: db-migration
+  annotations:
+    # Helm bilan deploy qilinayotganda: "helm.sh/hook": pre-upgrade,pre-install
+spec:
+  ttlSecondsAfterFinished: 3600    # 1 soatdan keyin Job o'chadi
+  backoffLimit: 3                  # 3 marta urinib ko'radi
+  template:
+    metadata:
+      labels:
+        app: db-migration
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+
+      initContainers:
+        # DB tayyor bo'lishini kutish
+        - name: wait-for-db
+          image: postgres:16-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h db -U postgres -d integritybot; do
+                echo "Waiting for PostgreSQL..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: integritybot-secrets
+                  key: POSTGRES_PASSWORD
+
+      containers:
+        - name: migrate
+          image: integritybot/backend:latest
+          command:
+            - sh
+            - -c
+            - |
+              echo "Running DB migrations..."
+              # Alembic migration (agar sozlangan bo'lsa)
+              if [ -d "migrations" ]; then
+                alembic upgrade head
+              fi
+              # SQL migration fayllarini ham qo'llab quvvatlaymiz
+              if [ -d "/app/migrations" ]; then
+                for f in /app/migrations/*.sql; do
+                  echo "Applying $f..."
+                  psql "$DATABASE_URL" -f "$f" || true
+                done
+              fi
+              echo "Migrations completed!"
+          envFrom:
+            - configMapRef:
+                name: integritybot-config
+            - secretRef:
+                name: integritybot-secrets
+
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m"
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+

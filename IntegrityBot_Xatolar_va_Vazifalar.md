@@ -609,77 +609,41 @@ docker compose --profile siem up -d
 
 ---
 
-### 12. Kubernetes Manifests Yo'q
+### 12. Kubernetes Manifests ✅ BAJARILDI
 
 **Daraja:** 📋 Kichik  
-**Joylashuv:** Loyiha ildizi  
-**Muammo:**
+**Joylashuv:** `k8s/` papkasi  
+**Holat:** ✅ Amalga oshirildi (2026-03-02)
 
-TZ talabi (bo'lim 5):
-> *"Docker + Kubernetes — tavsiya etiladi"*
-
-Hozirda faqat `docker-compose.yml` bor. Kubernetes uchun manifest fayllar yo'q.
-
-**Tuzatish — `k8s/` papkasi tuzilmasi:**
+**Bajarilgan ishlar:**
 
 ```
 k8s/
-├── namespace.yaml
-├── configmap.yaml
-├── secrets.yaml          # (External Secrets Operator bilan)
+├── namespace.yaml               — integritybot namespace
+├── configmap.yaml               — Maxfiy bo'lmagan sozlamalar
+├── secrets.yaml                 — Maxfiy qiymatlar (git da yo'q: .gitignore da)
+├── README.md                    — Deploy qo'llanmasi
 ├── deployments/
-│   ├── backend.yaml
-│   ├── frontend.yaml     # nginx + static
-│   └── redis.yaml
+│   ├── backend.yaml             — FastAPI (2 replica, zero-downtime, PVC)
+│   ├── frontend.yaml            — Vue.js+nginx (2 replica)
+│   └── redis.yaml               — Redis 7 + PVC 2Gi
 ├── services/
-│   ├── backend-svc.yaml
-│   └── redis-svc.yaml
+│   └── services.yaml            — Backend, Frontend, Redis ClusterIP
 ├── ingress/
-│   └── nginx-ingress.yaml
+│   └── ingress.yaml             — NGINX Ingress + cert-manager (Let's Encrypt)
 ├── hpa/
-│   └── backend-hpa.yaml  # Horizontal Pod Autoscaler
+│   └── hpa.yaml                 — HPA: backend 2→10, frontend 2→5
 └── jobs/
-    └── db-migration.yaml
+    └── db-migration.yaml        — DB migration Job (deploy oldidan)
 ```
 
-**Backend deployment namunasi (`k8s/deployments/backend.yaml`):**
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: integritybot-backend
-  namespace: integritybot
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: backend
-  template:
-    spec:
-      containers:
-        - name: backend
-          image: integritybot/backend:latest
-          ports:
-            - containerPort: 8000
-          envFrom:
-            - secretRef:
-                name: integritybot-secrets
-          resources:
-            requests:
-              memory: "256Mi"
-              cpu: "250m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
-          livenessProbe:
-            httpGet:
-              path: /api/health
-              port: 8000
-            initialDelaySeconds: 30
-            periodSeconds: 10
-```
-
-**Taxminiy vaqt:** 2–3 kun
+**Xususiyatlar:**
+- Zero-downtime rolling update
+- Pod anti-affinity (podlar turli nodlarda)
+- Security context (non-root user, capabilities drop)
+- Liveness + Readiness + Startup probes
+- Resource limits/requests
+- HPA: CPU 70%, Memory 80% da avtomatik scale
 
 ---
 
@@ -830,7 +794,7 @@ docker run -t owasp/zap2docker-stable zap-baseline.py \
 | 9 | Bot i18n (ko'p-tillilik) yo'q | 📋 Kichik | 2–3 kun |
 | 10 | Jira/Redmine integratsiya yo'q | 📋 Kichik | ✅ Bajarildi |
 | 11 | SIEM/Log forwarding yo'q | 📋 Kichik | ✅ Bajarildi |
-| 12 | Kubernetes manifests yo'q | 📋 Kichik | 2–3 kun |
+| 12 | Kubernetes manifests yo'q | 📋 Kichik | ✅ Bajarildi |
 | 13 | SSO/LDAP integratsiya yo'q | 📋 Kichik | 2–4 kun |
 | 14 | Pentest va QA checklist yo'q | 📋 Kichik | 3–5 kun |
 | | **JAMI** | | **~21–35 ish kuni** |

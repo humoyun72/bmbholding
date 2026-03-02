@@ -1,0 +1,31 @@
+# IntegrityBot — ConfigMap (maxfiy bo'lmagan sozlamalar)
+# Maxfiy qiymatlar (parollar, tokenlar) secrets.yaml da!
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: integritybot-config
+  namespace: integritybot
+data:
+  ENVIRONMENT: "production"
+  DEBUG: "false"
+  BOT_MODE: "webhook"
+  STORAGE_TYPE: "s3"
+  UPLOADS_DIR: "/app/uploads"
+  MAX_FILE_SIZE_MB: "20"
+  CLAMAV_ENABLED: "false"
+  CLAMAV_HOST: "clamav"
+  CLAMAV_PORT: "3310"
+  SMTP_HOST: "smtp.gmail.com"
+  SMTP_PORT: "587"
+  SMTP_TLS: "true"
+  AWS_REGION: "us-east-1"
+  REDIS_URL: "redis://redis:6379/0"
+  LOG_LEVEL: "INFO"
+  SIEM_ENABLED: "false"
+  SIEM_BACKEND: "splunk"
+  SIEM_LOG_FORMAT: "json"
+  JIRA_PROJECT_KEY: "COMP"
+  JIRA_ISSUE_TYPE: "Task"
+  JIRA_MIN_PRIORITY: "critical"
+  ACCESS_TOKEN_EXPIRE_MINUTES: "1440"
+  SECRETS_BACKEND: "env"

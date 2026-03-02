@@ -1,0 +1,57 @@
+# IntegrityBot — Services
+# Backend ClusterIP service
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: integritybot
+  labels:
+    app: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
+      protocol: TCP
+
+---
+# Frontend ClusterIP service
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: integritybot
+  labels:
+    app: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+
+---
+# Redis ClusterIP service (faqat ichki tarmoq)
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: integritybot
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+      protocol: TCP
+

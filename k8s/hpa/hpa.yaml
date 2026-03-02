@@ -1,0 +1,67 @@
+# IntegrityBot — Horizontal Pod Autoscaler
+# Backend — CPU/Memory asosida avtomatik scale
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: backend-hpa
+  namespace: integritybot
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: integritybot-backend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    # CPU asosida scale
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70    # CPU 70% ga yetsa — yangi pod qo'shiladi
+
+    # Memory asosida scale
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80    # Memory 80% ga yetsa — yangi pod
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60     # 1 daqiqa kutib scale up
+      policies:
+        - type: Pods
+          value: 2                        # Bir vaqtda max 2 pod qo'shilsin
+          periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300    # 5 daqiqa kutib scale down (tez-tez o'zgarmaslik uchun)
+      policies:
+        - type: Pods
+          value: 1                        # Bir vaqtda max 1 pod o'chirilsin
+          periodSeconds: 120
+
+---
+# Frontend HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-hpa
+  namespace: integritybot
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: integritybot-frontend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+

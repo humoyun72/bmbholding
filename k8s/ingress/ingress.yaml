@@ -1,0 +1,93 @@
+# IntegrityBot — Ingress (NGINX Ingress Controller)
+# Talab: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/cloud/deploy.yaml
+#
+# cert-manager bilan TLS (Let's Encrypt):
+#   kubectl apply -f https://github.com/cert-manager/cert-manager/releases/latest/download/cert-manager.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: integritybot-ingress
+  namespace: integritybot
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    # TLS — cert-manager bilan (Let's Encrypt)
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+      more_set_headers "Referrer-Policy: strict-origin-when-cross-origin";
+    # Rate limiting (login endpoint uchun)
+    nginx.ingress.kubernetes.io/limit-rps: "10"
+    # Proxy settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"     # Max file upload: 25MB
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    # SSL redirect
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - your-domain.com                     # ← O'zgartiring
+      secretName: integritybot-tls
+
+  rules:
+    - host: your-domain.com                   # ← O'zgartiring
+      http:
+        paths:
+          # API (backend)
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          # Telegram webhook (backend)
+          - path: /telegram
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          # WebSocket (backend)
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+
+          # Frontend (barcha qolgan yo'llar)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+
+---
+# Let's Encrypt ClusterIssuer (cert-manager kerak)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@your-domain.com              # ← O'zgartiring
+    privateKeySecretRef:
+      name: letsencrypt-prod-key
+    solvers:
+      - http01:
+          ingress:
+            class: nginx
+

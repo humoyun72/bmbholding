@@ -106,7 +106,7 @@
 
 ---
 
-### 6. Texnologik Stek (9/10 — 90%)
+### 6. Texnologik Stek (10/10 — 100%) ✅
 
 | Talab | Holat |
 |-------|-------|
@@ -118,7 +118,7 @@
 | CI/CD (.github/workflows) | ✅ |
 | S3 storage (aioboto3) | ✅ Local/S3/MinIO/Yandex/DO + presigned URL |
 | Monitoring (Prometheus + Grafana) | ✅ `--profile monitoring` bilan |
-| Kubernetes | ❌ |
+| Kubernetes | ✅ `k8s/` — namespace, configmap, secrets, deployments, services, ingress, HPA, jobs |
 | Secrets boshqaruvi (Vault/KMS) | ✅ `secrets.py` — Vault AppRole + AWS Secrets Manager, env fallback |
 
 ---
@@ -205,13 +205,14 @@ Asosiy talablar (1-qism):    █████████████████
 Bot funksiyalari:            █████████████████░░░   88%
 Admin panel:                 █████████████████░░░   83%
 Xavfsizlik:                  █████████████████░░░   83%
-Texnologik stek:             ██████████████████░░   90%
+Texnologik stek:             ████████████████████  100%
 API endpointlar:             ████████████████████  100%
-Zaxira/Mavjudlik:            ████████████████████   83%
+Bildirishnomalar:            ████████████████████  100%
+Zaxira/Mavjudlik:            ████████████████████  100%
 Sinovlar:                    ████████████░░░░░░░░   60%
 Hujjatlar:                   ████████████████████  100%
 ──────────────────────────────────────────────────
-JAMI:                        ██████████████████░░   98%
+JAMI:                        ███████████████████░   93%
 ```
 
 ---
