@@ -280,38 +280,66 @@ JAMI:                        █████████████████
 
 ## 🚀 ISHGA TUSHIRISH BUYRUQLARI
 
-```bash
-# Asosiy servislar (lokal — nginx/clamav/db-backup production profileda)
-docker compose up -d
+> 📖 **To'liq yo'riqnoma:** `SETUP_GUIDE.md` faylini o'qing.
 
-# Production (hammasi bilan)
+### Windows PowerShell (manage.ps1 — tavsiya)
+```powershell
+.\manage.ps1 up              # Dev rejimda ishga tushirish
+.\manage.ps1 down            # To'xtatish
+.\manage.ps1 down -Clean     # Volumelar bilan to'xtatish
+.\manage.ps1 logs            # Loglar
+.\manage.ps1 logs -Service backend  # Faqat backend loglari
+.\manage.ps1 status          # Holat + resurslar
+.\manage.ps1 shell           # Backend shelliga kirish
+.\manage.ps1 migrate         # DB migratsiyalari
+.\manage.ps1 prod            # Production rejimi
+.\manage.ps1 monitoring      # Prometheus + Grafana
+.\manage.ps1 help            # Barcha buyruqlar
+```
+
+### Linux/macOS (manage.sh)
+```bash
+./manage.sh up
+./manage.sh down --clean
+./manage.sh logs --service backend
+./manage.sh prod
+```
+
+### To'g'ridan docker-compose
+```bash
+# Dev
+docker compose up -d
+docker compose down
+
+# Production (nginx + clamav + db-backup)
 docker compose --profile production up -d
 
-# ClamAV bilan (antivirus faollashtirish uchun .env da CLAMAV_ENABLED=true)
-docker compose --profile production up -d clamav
-
-# Monitoring bilan
+# Monitoring
 docker compose --profile monitoring up -d
 
-# Unit testlarni ishga tushirish
-cd backend && python -m pytest tests/ -v --tb=short
-
-# Coverage hisoboti
-cd backend && python -m pytest tests/ --cov=app --cov-report=term-missing
-
-# Data retention qo'lda ishga tushirish
-curl -X POST http://localhost/api/v1/audit/retention/run -H "Authorization: Bearer <token>"
-
-# Retention statistikasi
-curl http://localhost/api/v1/audit/retention/stats -H "Authorization: Bearer <token>"
-
-# Zaxira nusxani qo'lda olish
-docker compose exec db-backup /backup.sh
+# Testlar
+cd backend && python -m pytest tests/ -v --cov=app
 
 # Health check
-curl http://localhost/api/health
+curl http://localhost:8000/api/health
 ```
 
 ---
 
-*Hujjat yangilandi: 2026-yil 1-mart*
+## 🌐 URL MANZILLAR (Dev rejim)
+
+| Servis | URL |
+|--------|-----|
+| Frontend (Admin panel) | http://localhost:5173 |
+| Backend API | http://localhost:8000 |
+| API Docs (Swagger) | http://localhost:8000/docs |
+| DB (pgAdmin/DBeaver) | localhost:5432 |
+| Redis | localhost:6379 |
+
+**Admin kirish:**
+- Username: `admin`
+- Parol: `.env` dagi `ADMIN_DEFAULT_PASSWORD` qiymati
+
+---
+
+*Hujjat yangilandi: 2026-yil 3-mart*

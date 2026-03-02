@@ -1,7 +1,7 @@
 # ============================================================
 #  LOCAL DEVELOPMENT OVERRIDE
 #  Bu fayl faqat local ishlab chiqish uchun.
-#  docker-compose up -d  →  avtomatik o'qiladi
+#  docker-compose up -d -  avtomatik o'qiladi
 #  Production uchun ishlatilmaydi.
 # ============================================================
 
@@ -15,7 +15,9 @@ services:
 
   frontend:
     ports:
-      - "5173:80"     # Frontend http://localhost:5173 da
+      - "5173:80"     # Frontend http://localhost:5173 da — nginx proxy /api → backend:8000
+    depends_on:
+      - backend
 
   db:
     ports:

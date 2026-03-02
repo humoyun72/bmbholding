@@ -15,6 +15,9 @@ services:
 
   frontend:
     restart: always
+    build:
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api}
 
   db:
     restart: always

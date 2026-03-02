@@ -36,11 +36,15 @@
   }
 
   .input {
-    @apply w-full bg-surface-800 text-white placeholder:text-surface-400
+    @apply w-full bg-surface-800 text-white
     rounded-xl px-4 py-2.5 text-sm
     focus:outline-none focus:ring-2 focus:ring-brand-500
     transition-all duration-200;
     border: 1px solid #334155;
+  }
+
+  .input::placeholder {
+    color: #94a3b8;
   }
 
   .input:focus {
