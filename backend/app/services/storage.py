@@ -195,6 +195,35 @@ async def _generate_presigned_url(s3_key: str, expires_in: int = 3600) -> str:
 
 # ── Asosiy public funksiyalar ────────────────────────────────────────────────
 
+import uuid as _uuid
+
+async def save_uploaded_file(
+    file_data: bytes,
+    original_filename: str,
+    mime_type: str,
+    case_id: str,
+) -> str:
+    """
+    HTTP multipart upload dan kelgan faylni saqlaydi (admin upload uchun).
+    Returns: storage_path (local path yoki S3 key)
+    """
+    safe_name = sanitize_filename(original_filename)
+    await scan_with_clamav(file_data, safe_name)
+    short_id = _uuid.uuid4().hex[:8]
+
+    if settings.STORAGE_TYPE == "s3":
+        s3_key = f"cases/{case_id}/{short_id}_{safe_name}"
+        await _upload_to_s3(file_data, s3_key, mime_type)
+        return s3_key
+    else:
+        case_dir = Path(settings.UPLOADS_DIR) / case_id
+        case_dir.mkdir(parents=True, exist_ok=True)
+        file_path = case_dir / f"{short_id}_{safe_name}"
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(file_data)
+        return str(file_path)
+
+
 async def save_telegram_file(
     bot: Bot,
     file_id: str,
@@ -318,4 +347,3 @@ async def check_clamav_health() -> dict:
         return {"enabled": True, "status": "error", "error": "PONG kelmadi"}
     except Exception as e:
         return {"enabled": True, "status": "error", "error": str(e)}
-

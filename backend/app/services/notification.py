@@ -107,3 +107,65 @@ async def send_reporter_message(bot: Bot, telegram_chat_id: int, case_id: str, m
         )
     except Exception as e:
         logger.error(f"Failed to send reporter message to {telegram_chat_id}: {e}")
+
+
+async def send_reporter_file(
+    bot: Bot,
+    telegram_chat_id: int,
+    case_id: str,
+    file_data: bytes,
+    filename: str,
+    mime_type: str,
+    caption: str = "",
+):
+    """Send file/media from admin to reporter via Telegram"""
+    import io
+    caption_text = (
+        f"📎 *Murojaat {case_id} bo'yicha fayl*"
+        + (f"\n\n{caption}" if caption else "")
+        + "\n\n_Compliance departamenti_"
+    )
+    try:
+        buf = io.BytesIO(file_data)
+        buf.name = filename
+
+        if mime_type.startswith("image/"):
+            await bot.send_photo(
+                chat_id=telegram_chat_id,
+                photo=buf,
+                caption=caption_text,
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        elif mime_type.startswith("video/"):
+            await bot.send_video(
+                chat_id=telegram_chat_id,
+                video=buf,
+                caption=caption_text,
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        elif mime_type.startswith("audio/"):
+            await bot.send_audio(
+                chat_id=telegram_chat_id,
+                audio=buf,
+                caption=caption_text,
+                parse_mode=ParseMode.MARKDOWN,
+                filename=filename,
+            )
+        elif mime_type == "audio/ogg" or filename.endswith(".oga") or filename.endswith(".opus"):
+            await bot.send_voice(
+                chat_id=telegram_chat_id,
+                voice=buf,
+                caption=caption_text,
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        else:
+            await bot.send_document(
+                chat_id=telegram_chat_id,
+                document=buf,
+                filename=filename,
+                caption=caption_text,
+                parse_mode=ParseMode.MARKDOWN,
+            )
+    except Exception as e:
+        logger.error(f"Failed to send file to reporter {telegram_chat_id}: {e}")
+

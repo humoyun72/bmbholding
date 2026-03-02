@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, File, Form
 from fastapi.responses import StreamingResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List
 import uuid
 import logging
 
@@ -334,13 +334,11 @@ async def download_attachment(
     - S3 rejimida: vaqtinchalik presigned URL ga redirect qiladi
     - Local rejimda: faylni stream qilib yuboradi
     """
-    # Case mavjudligini tekshirish
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
 
-    # Attachment topish
     att_result = await db.execute(
         select(CaseAttachment).where(
             CaseAttachment.id == uuid.UUID(attachment_id),
@@ -351,7 +349,6 @@ async def download_attachment(
     if not attachment:
         raise HTTPException(status_code=404, detail="Attachment not found")
 
-    # Audit log
     db.add(AuditLog(
         user_id=current_user.id,
         case_id=case.id,
@@ -361,24 +358,142 @@ async def download_attachment(
     ))
     await db.commit()
 
-    # S3 — presigned URL ga redirect
     if settings.STORAGE_TYPE == "s3":
-        presigned_url = await get_download_url(attachment.storage_path, expires_in=300)  # 5 daqiqa
+        presigned_url = await get_download_url(attachment.storage_path, expires_in=300)
         return RedirectResponse(url=presigned_url, status_code=302)
 
-    # Local — stream
     try:
         content = await get_file_content(attachment.storage_path)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="File not found on disk")
 
+    # inline ko'rish uchun (rasm, video, audio, pdf) — Content-Disposition: inline
+    mime = attachment.mime_type or "application/octet-stream"
+    is_viewable = (
+        mime.startswith("image/") or
+        mime.startswith("video/") or
+        mime.startswith("audio/") or
+        mime == "application/pdf"
+    )
+    disposition = "inline" if is_viewable else f'attachment; filename="{attachment.original_filename}"'
+
     return StreamingResponse(
         iter([content]),
-        media_type=attachment.mime_type or "application/octet-stream",
+        media_type=mime,
         headers={
-            "Content-Disposition": f'attachment; filename="{attachment.original_filename}"',
+            "Content-Disposition": disposition,
             "Content-Length": str(len(content)),
+            "Accept-Ranges": "bytes",
+            "Cache-Control": "private, max-age=3600",
         },
     )
+
+
+@router.post("/{case_id}/send-file")
+async def send_file_to_reporter(
+    case_id: str,
+    request: Request,
+    file: UploadFile = File(...),
+    caption: str = Form(default=""),
+    is_internal: bool = Form(default=False),
+    current_user: User = Depends(require_investigator_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin reporter ga fayl/rasm/video/audio yuboradi (Telegram orqali)"""
+    from app.services.storage import (
+        save_uploaded_file, ALLOWED_MIME_TYPES, BLOCKED_EXTENSIONS, MAX_FILE_SIZE_BYTES
+    )
+    from app.services.notification import send_reporter_file
+    import os
+
+    result = await db.execute(select(Case).where(Case.external_id == case_id))
+    case = result.scalar_one_or_none()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Fayl validatsiya
+    file_data = await file.read()
+    if len(file_data) > MAX_FILE_SIZE_BYTES:
+        raise HTTPException(400, detail=f"Fayl hajmi {settings.MAX_FILE_SIZE_MB}MB dan oshmasligi kerak")
+
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext in BLOCKED_EXTENSIONS:
+        raise HTTPException(400, detail=f"'{ext}' kengaytmali fayllar yuklash taqiqlangan")
+
+    mime = file.content_type or "application/octet-stream"
+    if mime not in ALLOWED_MIME_TYPES:
+        raise HTTPException(400, detail=f"Bu fayl turi ruxsat etilmagan: {mime}")
+
+    # Faylni storage ga saqlash
+    storage_path = await save_uploaded_file(
+        file_data=file_data,
+        original_filename=file.filename,
+        mime_type=mime,
+        case_id=str(case.id),
+    )
+
+    # DB ga attachment saqlaymiz (admin yuborgan fayl ham case ga biriktiriladi)
+    attachment = CaseAttachment(
+        case_id=case.id,
+        storage_path=storage_path,
+        original_filename=file.filename,
+        mime_type=mime,
+        size_bytes=len(file_data),
+    )
+    db.add(attachment)
+
+    # Comment yozamiz (chat ichida fayl ko'rinsin)
+    comment_text = f"📎 Fayl yuborildi: {file.filename}"
+    if caption:
+        comment_text += f"\n{caption}"
+    comment = CaseComment(
+        case_id=case.id,
+        author_id=current_user.id,
+        is_from_reporter=False,
+        is_internal=is_internal,
+        content_encrypted=encrypt_comment_content(comment_text),
+    )
+    db.add(comment)
+
+    # Ichki eslatma bo'lmasa — reporter ga Telegram orqali fayl yuboramiz
+    tg_sent = False
+    if not is_internal and case.telegram_chat_id:
+        try:
+            from app.api.v1.telegram import get_bot_app
+            bot_app = get_bot_app()
+            await send_reporter_file(
+                bot=bot_app.bot,
+                telegram_chat_id=case.telegram_chat_id,
+                case_id=case.external_id,
+                file_data=file_data,
+                filename=file.filename,
+                mime_type=mime,
+                caption=caption,
+            )
+            tg_sent = True
+        except Exception as e:
+            logger.warning(f"Telegram file send failed for {case_id}: {e}")
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        case_id=case.id,
+        action=AuditAction.CASE_COMMENT,
+        payload={
+            "action": "admin_sent_file",
+            "filename": file.filename,
+            "mime_type": mime,
+            "is_internal": is_internal,
+            "telegram_sent": tg_sent,
+        },
+        ip_address=request.client.host if request.client else None,
+    ))
+    await db.commit()
+
+    return {
+        "message": "Fayl yuborildi",
+        "attachment_id": str(attachment.id),
+        "telegram_sent": tg_sent,
+        "filename": file.filename,
+    }
 
 
