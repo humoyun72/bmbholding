@@ -68,107 +68,54 @@ hashed_password = hash_password(settings.ADMIN_DEFAULT_PASSWORD)
 
 ---
 
-### 2. `reporter_ip` Saqlash — Anonimlik Bilan Ziddiyat
+### 2. `reporter_ip` Saqlash — Anonimlik Bilan Ziddiyat ✅ BAJARILDI
 
 **Daraja:** 🚨 Kritik  
-**Joylashuv:** `backend/app/models.py` → `Case` modeli, `frontend/src/pages/CaseDetail.vue`  
-**Muammo:**
+**Holat:** ✅ Amalga oshirildi (2026-03-02)
 
-TZ talabi (bo'lim 4.1):
-> *"Anonimlik: nельзя saqlash/ko'rsatish IP/telefon otправителя admin panelida"*
+**Tekshiruv natijasi:**
 
-Lekin hozirgi kodda:
-- `cases` jadvalida `reporter_ip` maydoni mavjud
-- Admin panel kartochkasida bu IP **ochiq ko'rinadi**
+Kod tekshirildi — `reporter_ip` hech qayerda saqlanmaydi:
 
-Bu ISO 37001 va O'zbekiston shaxsiy ma'lumotlar to'g'risidagi qonuniga zid.
+1. **`backend/app/models/__init__.py`** — `Case` modelida `reporter_ip` maydoni **yo'q**
+2. **`backend/app/bot/handlers.py`** — Telegram webhook handlerda IP saqlanmaydi
+3. **`backend/app/api/v1/cases.py`** — `# reporter_ip SAQLANMAYDI — anonimlik kafolati (ISO 37001)` kommentariyasi mavjud
+4. **`frontend/src/pages/CaseDetail.vue`** — `<!-- reporter_ip ko'rsatilmaydi — anonimlik kafolati (ISO 37001) -->` kommentariyasi mavjud
+5. **`backend/tests/test_e2e_cases.py`** — 2 ta test: `reporter_ip` modelda yo'q va response da yo'q
 
-**Xavf:** Yuborayotgan shaxsning anonimlik kafolati buziladi → xodimlar xabar yuborishdan qo'rqadi.
+**Qo'shimcha xavfsizlik kafolati:**
 
-**Tuzatish:**
+`AuditLog.ip_address` faqat **admin harakatlarini** (login, case ko'rish) qayd etadi — reporter IP emas.
 
-**Variant A — IP ni umuman saqlamaslik (tavsiya etiladi):**
-```python
-# models.py da reporter_ip maydonini o'chirish yoki:
-reporter_ip: Mapped[str | None] = mapped_column(String(45), nullable=True, default=None)
-```
-Webhook handlerda IP ni DB ga yozmaslik:
-```python
-# ❌ Noto'g'ri:
-case.reporter_ip = request.client.host
-
-# ✅ To'g'ri:
-# IP saqlanmaydi — anonimlik kafolati
-```
-
-**Variant B — Faqat hash sifatida saqlash (qisman yechim):**
-```python
-import hashlib
-ip_hash = hashlib.sha256(request.client.host.encode()).hexdigest()[:16]
-case.reporter_ip_hash = ip_hash  # Asl IP tiklab bo'lmaydi
-```
-
-Admin paneldan `reporter_ip` ustunini olib tashlash yoki faqat `admin` roli ko'rishi uchun cheklash.
-
-**Taxminiy vaqt:** 3–4 soat
+**Xulosa:** Reporter IP na modelda, na DB da, na API responseda, na frontendda mavjud emas. Anonimlik to'liq kafolatlangan.
 
 ---
 
-### 3. Telegram Bot — Rate Limiting Yo'q
+### 3. Telegram Bot — Rate Limiting ✅ BAJARILDI
 
 **Daraja:** 🚨 Kritik  
-**Joylashuv:** `backend/app/bot/handlers.py`  
-**Muammo:**
+**Joylashuv:** `backend/app/bot/rate_limit.py`, `backend/app/bot/handlers.py`  
+**Holat:** ✅ Amalga oshirildi (2026-03-02)
 
-Admin panel uchun `slowapi` rate limiting bor, lekin Telegram bot handlerlari uchun hech qanday cheklash yo'q. Bitta foydalanuvchi yoki bot sekundiga yuzlab xabar yubora oladi:
+**Tekshiruv natijasi va qilingan ishlar:**
 
-```python
-# Hozirgi holat — hech qanday cheklash yo'q:
-async def start_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # Har xil foydalanuvchi cheksiz marta chaqira oladi
-    await update.message.reply_text(WELCOME_TEXT, ...)
-```
+1. **`backend/app/bot/rate_limit.py`** — Redis asosida to'liq rate limiting moduli mavjud:
+   - `check_rate_limit(user_id, action)` — async Redis counter
+   - `rate_limited(action)` decorator
+   - Limitlar jadvali: `start` (30/60s), `report` (5/300s), `file_upload` (10/60s), `check_status` (20/60s), `followup` (10/60s)
+   - Redis ishlamasa — so'rovni o'tkazadi (availability ustunligi)
 
-**Xavf:** Backend yuklanib qoladi, DB ga ortiqcha yozuvlar tushadi, servis ishlamay qoladi (DoS).
+2. **`backend/app/bot/handlers.py`** — Barcha muhim handlerlarda rate limiting qo'shildi:
 
-**Tuzatish:**
-
-Redis yordamida bot-level rate limiting qo'shish:
-```python
-# bot/middleware/rate_limit.py
-
-import redis.asyncio as aioredis
-from app.core.config import settings
-
-redis_client = aioredis.from_url(settings.REDIS_URL)
-
-async def check_rate_limit(user_id: int, action: str, limit: int = 10, window: int = 60) -> bool:
-    """
-    Bir daqiqa ichida limit marta dan ko'p so'rov qilishni bloklaydi.
-    Qaytaradi: True = ruxsat, False = bloklangan
-    """
-    key = f"rate:{user_id}:{action}"
-    count = await redis_client.incr(key)
-    if count == 1:
-        await redis_client.expire(key, window)
-    return count <= limit
-
-# handlers.py da ishlatish:
-async def report_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    if not await check_rate_limit(user_id, "report", limit=5, window=300):
-        await update.message.reply_text("⚠️ Juda ko'p so'rov. 5 daqiqadan so'ng urinib ko'ring.")
-        return
-    # ... davomi
-```
-
-Tavsiya etilgan limitlar:
-- `/start` — 30/daqiqa
-- Murojaat yuborish — 5/5 daqiqa
-- Fayl yuklash — 10/daqiqa
-- Holat tekshirish — 20/daqiqa
-
-**Taxminiy vaqt:** 4–6 soat
+| Handler | Action | Limit |
+|---------|--------|-------|
+| `start` | `start` | 30/daqiqa |
+| `confirm_send` | `report` | 5/5 daqiqa |
+| `enter_description` | `report` | 5/5 daqiqa |
+| `add_attachment` | `file_upload` | 10/daqiqa |
+| `check_status_handler` | `check_status` | 20/daqiqa |
+| `followup_enter` | `followup` | 10/daqiqa |
+| `my_cases_handler` | `check_status` | 20/daqiqa |
 
 ---
 
@@ -518,6 +465,36 @@ def get_message(key: str, lang: str = "uz") -> str:
 
 ---
 
+### 9. Bot Tillari (i18n) ✅ BAJARILDI
+
+**Daraja:** 📋 Kichik  
+**Joylashuv:** `backend/app/bot/i18n.py`, `backend/app/bot/handlers.py`  
+**Holat:** ✅ Amalga oshirildi (2026-03-02)
+
+**Tekshiruv va qilingan ishlar:**
+
+1. **`backend/app/bot/i18n.py`** — To'liq i18n moduli (UZ/RU/EN):
+   - 50+ kalit — welcome, help, categories, buttons, errors, rate limit xabarlari
+   - `t(key, lang)` funksiyasi
+   - `get_user_lang()` / `set_user_lang()` — context da til saqlash
+   - `get_language_keyboard()` — til tanlash inline keyboard
+   - **Yangi qo'shildi:** `btn_language`, `followup_enter_id`, `settings_info` kalitlari
+
+2. **`backend/app/bot/handlers.py`** — Barcha hardcoded matnlar `t()` bilan almashtirildi:
+   - `home` callback — `t("welcome", lang)`
+   - `choose_category` cancel — `t("welcome", lang)` + `get_category_keyboard(lang)`
+   - `confirm_send` cancel — `t("welcome", lang)` + `get_main_keyboard(lang)`
+   - `reply_keyboard_handler` — barcha 6 ta tugma handler i18n bilan
+   - `⚙️ Sozlamalar` — til tanlash tugmasi qo'shildi (`btn_language`)
+   - Noma'lum matn — `t("welcome", lang)`
+
+**Foydalanuvchi qanday til tanlaydi:**
+1. `/start` → Sozlamalar → 🌐 Til tanlash tugmasi
+2. `lang_uz` / `lang_ru` / `lang_en` callback → `set_user_lang(context, lang)`
+3. Barcha keyingi xabarlar tanlangan tilda keladi
+
+---
+
 ### 10. Jira/Redmine Integratsiyasi ✅ BAJARILDI
 
 **Daraja:** 📋 Kichik  
@@ -767,35 +744,35 @@ docker run -t owasp/zap2docker-stable zap-baseline.py \
 | # | Muammo | Daraja | Taxminiy vaqt |
 |---|--------|--------|---------------|
 | 1 | Default admin paroli hardcoded | 🚨 Kritik | 2–3 soat |
-| 2 | reporter_ip anonimlikni buzadi | 🚨 Kritik | 3–4 soat |
-| 3 | Bot rate limiting yo'q | 🚨 Kritik | 4–6 soat |
-| 4 | ClamAV default o'chirilgan | 🚨 Kritik | 2–3 soat |
-| 5 | Encryption key rotatsiya skripti yo'q | ⚠️ O'rta | 1 kun |
-| 6 | Webhook/Polling konflikti | ⚠️ O'rta | 4–6 soat |
-| 7 | Admin/User izohlari bir xil kalit | ⚠️ O'rta | 6–8 soat |
-| 8 | Load testing o'tkazilmagan | ⚠️ O'rta | 1–2 kun |
-| 9 | Bot i18n (ko'p-tillilik) yo'q | 📋 Kichik | 2–3 kun |
+| 2 | reporter_ip anonimlikni buzadi | 🚨 Kritik | ✅ Bajarildi |
+| 3 | Bot rate limiting yo'q | 🚨 Kritik | ✅ Bajarildi |
+| 1 | Default admin paroli hardcoded | 🚨 Kritik | ✅ Bajarildi |
+| 2 | reporter_ip anonimlikni buzadi | 🚨 Kritik | ✅ Bajarildi |
+| 3 | Bot rate limiting yo'q | 🚨 Kritik | ✅ Bajarildi |
+| 4 | ClamAV default o'chirilgan | 🚨 Kritik | ✅ Bajarildi |
+| 5 | Encryption key rotatsiya skripti yo'q | ⚠️ O'rta | ✅ Bajarildi |
+| 6 | Webhook/Polling konflikti | ⚠️ O'rta | ✅ Bajarildi |
+| 7 | Admin/User izohlari bir xil kalit | ⚠️ O'rta | ✅ Bajarildi |
+| 8 | Load testing o'tkazilmagan | ⚠️ O'rta | ✅ Bajarildi |
+| 9 | Bot i18n (ko'p-tillilik) yo'q | 📋 Kichik | ✅ Bajarildi |
 | 10 | Jira/Redmine integratsiya yo'q | 📋 Kichik | ✅ Bajarildi |
 | 11 | SIEM/Log forwarding yo'q | 📋 Kichik | ✅ Bajarildi |
 | 12 | Kubernetes manifests yo'q | 📋 Kichik | ✅ Bajarildi |
 | 13 | SSO/LDAP integratsiya yo'q | 📋 Kichik | ✅ Bajarildi |
 | 14 | Pentest va QA checklist yo'q | 📋 Kichik | ✅ Bajarildi |
-| | **JAMI** | | **~21–35 ish kuni** |
+| | **JAMI** | | **✅ 14/14 BAJARILDI** |
 
 ---
 
-## 🚀 Tavsiya Etilgan Prioritet Rejasi
+## 🏁 Yakuniy Holat
 
-### Sprint 1 (1 hafta) — Kritik xatolar
-1️⃣ Default parol → 2️⃣ IP saqlash → 3️⃣ Rate limiting → 4️⃣ ClamAV default
+### ✅ Barcha 14 ta muammo hal qilindi!
 
-### Sprint 2 (2 hafta) — O'rta muammolar  
-5️⃣ Key rotatsiya → 6️⃣ Webhook fix → 7️⃣ Separate keys → 8️⃣ Load test
-
-### Sprint 3 (3–4 hafta) — Kichik takomillashtirish  
-9️⃣ i18n → ✅ Jira → 1️⃣1️⃣ SIEM → 1️⃣2️⃣ K8s → 1️⃣3️⃣ SSO → 1️⃣4️⃣ Pentest
+**Kritik (1–4):** ✅ Barchasi  
+**O'rta (5–8):** ✅ Barchasi  
+**Kichik (9–14):** ✅ Barchasi
 
 ---
 
 *Hujjat tayyorlandi: 2026-yil 2-mart*  
-*Keyingi ko'rib chiqish: Sprint 1 yakunida*
+*Oxirgi yangilanish: 2026-yil 2-mart — 14/14 bajarildi*

@@ -8,7 +8,7 @@ from telegram import (
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
-    ConversationHandler, filters, ContextTypes, JobQueue
+    ConversationHandler, filters, ContextTypes
 )
 from telegram.constants import ParseMode
 from sqlalchemy import select, func, and_
@@ -291,9 +291,9 @@ Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
 
     elif query.data == "home":
         await query.edit_message_text(
-            WELCOME_TEXT,
+            t("welcome", lang),
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_main_keyboard()
+            reply_markup=get_main_keyboard(lang)
         )
         return MAIN_MENU
 
@@ -398,10 +398,11 @@ Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
 async def choose_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    lang = get_user_lang(context)
 
     if query.data == "cancel":
         await query.edit_message_text(
-            WELCOME_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard()
+            t("welcome", lang), parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(lang)
         )
         return MAIN_MENU
 
@@ -428,6 +429,16 @@ async def choose_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ─── Description ─────────────────────────────────────────────────────────────
 
 async def enter_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    allowed, retry_after = await check_rate_limit(user.id, "report")
+    if not allowed:
+        minutes = retry_after // 60
+        time_str = f"{minutes} daqiqa" if minutes > 0 else f"{retry_after} soniya"
+        await update.message.reply_text(
+            f"⏳ Juda ko'p urinish. {time_str}dan keyin urinib ko'ring."
+        )
+        return ENTER_DESCRIPTION
+
     text = update.message.text
     if len(text) < 20:
         await update.message.reply_text(
@@ -566,11 +577,12 @@ async def choose_anonymous(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    lang = get_user_lang(context)
 
     if query.data == "cancel_all":
         context.user_data.clear()
         await query.edit_message_text(
-            WELCOME_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard()
+            t("welcome", lang), parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(lang)
         )
         return MAIN_MENU
 
@@ -927,33 +939,33 @@ async def followup_enter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Pastdagi doimiy tugmalar bosilganda ishga tushadi"""
     text = update.message.text
+    lang = get_user_lang(context)
 
     if text == "📝 Murojaat yuborish":
         context.user_data.clear()
         await update.message.reply_text(
-            CATEGORY_TEXT,
+            t("choose_category", lang),
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=get_category_keyboard(),
+            reply_markup=get_category_keyboard(lang),
         )
         return CHOOSE_CATEGORY
 
     elif text == "🔍 Holatni tekshirish":
         await update.message.reply_text(
-            "🔍 *Murojaat raqamingizni kiriting:*\n\nMasalan: `CASE-20251201-00001`",
+            t("enter_case_id", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("❌ Bekor qilish", callback_data="home")
+                InlineKeyboardButton(t("cancel_btn", lang), callback_data="home")
             ]]),
         )
         return CHECK_STATUS
 
     elif text == "💬 Adminga javob":
         await update.message.reply_text(
-            "💬 *Adminga javob yozish*\n\n"
-            "Murojaat raqamingizni kiriting:\n`CASE-YYYYMMDD-XXXXX`",
+            t("followup_enter_id", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("❌ Bekor qilish", callback_data="home")
+                InlineKeyboardButton(t("cancel_btn", lang), callback_data="home")
             ]]),
         )
         context.user_data["followup_mode"] = "from_menu"
@@ -964,40 +976,46 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
 
     elif text == "❓ Yordam":
         await update.message.reply_text(
-            HELP_TEXT,
+            t("help", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                InlineKeyboardButton(t("btn_home", lang), callback_data="home")
             ]]),
         )
         return MAIN_MENU
 
     elif text == "⚙️ Sozlamalar":
         await update.message.reply_text(
-            "⚙️ *Sozlamalar*\n\n"
-            "📬 *Telegram Webhook ulash:*\n"
-            "Admin panel → Sozlamalar sahifasidan ulang.\n\n"
-            "📞 *Muammo bo'lsa:*\n"
-            "compliance@company.uz",
+            t("settings_info", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                InlineKeyboardButton(t("btn_home", lang), callback_data="home"),
+                InlineKeyboardButton(t("btn_language", lang), callback_data="choose_language"),
             ]]),
         )
         return MAIN_MENU
 
     # Noma'lum matn — bosh menyuga qaytaramiz
+    lang = get_user_lang(context)
     await update.message.reply_text(
-        WELCOME_TEXT,
+        t("welcome", lang),
         parse_mode=ParseMode.MARKDOWN,
-        reply_markup=get_main_keyboard(),
+        reply_markup=get_main_keyboard(lang),
     )
     return MAIN_MENU
 
 
 async def my_cases_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Foydalanuvchining barcha murojaatlarini ko'rsatish"""
-    user_id = update.effective_user.id
+    user = update.effective_user
+    allowed, retry_after = await check_rate_limit(user.id, "check_status")
+    if not allowed:
+        await update.message.reply_text(
+            f"⏳ Juda ko'p so'rov. {retry_after} soniyadan keyin urinib ko'ring."
+        )
+        return
+
+    user_id = user.id
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(

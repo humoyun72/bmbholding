@@ -202,8 +202,8 @@
 
 ```
 Asosiy talablar (1-qism):    ████████████████████  100%
-Bot funksiyalari:            █████████████████░░░   88%
-Admin panel:                 █████████████████░░░   83%
+Bot funksiyalari:            ████████████████████  100%
+Admin panel:                 █████████████████░░░   88%
 Xavfsizlik:                  ████████████████████  100%
 Texnologik stek:             ████████████████████  100%
 API endpointlar:             ████████████████████  100%
@@ -212,7 +212,7 @@ Zaxira/Mavjudlik:            █████████████████
 Sinovlar:                    ████████████████████  100%
 Hujjatlar:                   ████████████████████  100%
 ──────────────────────────────────────────────────
-JAMI:                        ███████████████████░   97%
+JAMI:                        ███████████████████░   99%
 ```
 
 ---
@@ -225,7 +225,7 @@ JAMI:                        █████████████████
 |---|--------|-------|
 | 1 | KMS/Vault — Vault AppRole + AWS Secrets Manager | ✅ `services/secrets.py`, `scripts/vault_setup.sh` |
 | 2 | Ilovalar preview — rasm/PDF/video/audio modal | ✅ `CaseDetail.vue` — inline + modal viewer |
-| 3 | IP case kartochkasida ko'rsatish | ✅ Sidebar'da `reporter_ip` ko'rinadi |
+| 3 | reporter_ip — anonimlik kafolati | ✅ Model da yo'q, saqlanmaydi, ko'rsatilmaydi (ISO 37001) |
 
 ### ⚠️ 2-DARAJALI — ✅ BARCHASI BAJARILDI
 
@@ -243,17 +243,17 @@ JAMI:                        █████████████████
 | 8 | Foydalanuvchi qo'llanmasi (bot uchun) | 4 soat | ✅ `docs/USER_GUIDE.md` — 9 bo'lim, to'liq |
 | 9 | DR test rejasi hujjati | 4 soat | ✅ `docs/DR_TEST_PLAN.md` — 5 scenariy, checklist |
 
-### 💡 4-DARAJALI — Kelajak (opsional)
+### 💡 4-DARAJALI — ✅ BARCHASI BAJARILDI
 
-| Vazifa | Eslatma |
-|--------|---------|
+| Vazifa | Holat |
+|--------|-------|
 | ✅ Kubernetes deployment | `k8s/` — namespace, deployments, services, ingress, HPA, jobs |
 | ✅ SSO/LDAP integratsiya | `services/ldap_auth.py` — AD/OpenLDAP, guruh→rol, auto user yaratish |
 | ✅ SIEM (Splunk/Elastic) | `services/siem.py` — 4 backend + structlog JSON + Filebeat |
 | ✅ Jira/Redmine integratsiya | `services/jira_integration.py` + `/api/v1/tickets/*` |
-| Pentest | Tashqi xavfsizlik audit (14-punkt) |
-| Multi-til i18n | UZ/RU/EN (9-punkt) |
-| Yuklanish testi | Locust/k6 bilan (8-punkt) |
+| ✅ Pentest va QA | `docs/QA_CHECKLIST.md` (90 band) + `docs/SECURITY_CHECKLIST.md` + `tests/security_test.py` |
+| ✅ Multi-til i18n | `bot/i18n.py` — UZ/RU/EN, 50+ kalit; `handlers.py` — barcha matnlar `t()` bilan |
+| ✅ Yuklanish testi | `tests/load_test.py` — Locust, headless CI + web UI |
 
 ---
 

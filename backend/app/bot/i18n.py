@@ -436,6 +436,43 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "ru": "❓ Другое",
         "en": "❓ Other",
     },
+
+    # ── Qo'shimcha kalitlar (settings, language) ──────────────────────────────
+    "btn_language": {
+        "uz": "🌐 Til tanlash",
+        "ru": "🌐 Выбор языка",
+        "en": "🌐 Choose language",
+    },
+
+    "followup_enter_id": {
+        "uz": "💬 *Adminga javob yozish*\n\nMurojaat raqamingizni kiriting:\n`CASE-YYYYMMDD-XXXXX`",
+        "ru": "💬 *Написать ответ администратору*\n\nВведите номер обращения:\n`CASE-YYYYMMDD-XXXXX`",
+        "en": "💬 *Reply to admin*\n\nEnter your report number:\n`CASE-YYYYMMDD-XXXXX`",
+    },
+
+    "settings_info": {
+        "uz": (
+            "⚙️ *Sozlamalar*\n\n"
+            "🌐 *Til:* Quyidagi tugma orqali tilni o'zgartiring.\n\n"
+            "📬 *Telegram Webhook ulash:*\n"
+            "Admin panel → Sozlamalar sahifasidan ulang.\n\n"
+            "📞 *Muammo bo'lsa:*\ncompliance@company.uz"
+        ),
+        "ru": (
+            "⚙️ *Настройки*\n\n"
+            "🌐 *Язык:* Измените язык с помощью кнопки ниже.\n\n"
+            "📬 *Подключение Telegram Webhook:*\n"
+            "Панель администратора → страница Настройки.\n\n"
+            "📞 *Возникли проблемы?*\ncompliance@company.uz"
+        ),
+        "en": (
+            "⚙️ *Settings*\n\n"
+            "🌐 *Language:* Change language using the button below.\n\n"
+            "📬 *Telegram Webhook setup:*\n"
+            "Admin panel → Settings page.\n\n"
+            "📞 *Need help?*\ncompliance@company.uz"
+        ),
+    },
 }
 
 
