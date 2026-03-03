@@ -35,8 +35,34 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
-          <!-- Bell desktop (inside sidebar) -->
-          <div class="hidden lg:block">
+          <!-- Bell + Lang desktop (inside sidebar header) -->
+          <div class="hidden lg:flex items-center gap-1">
+            <!-- Language dropdown (desktop) -->
+            <div class="lang-dropdown relative">
+              <button @click.stop="langDropdownOpen = !langDropdownOpen"
+                class="h-7 px-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800 text-xs font-medium flex items-center gap-1 transition-colors">
+                {{ langLabels[currentLang] }}
+                <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
+              <Transition name="dropdown">
+                <div v-if="langDropdownOpen"
+                  class="absolute right-0 top-full mt-1 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-50 overflow-hidden min-w-[120px]">
+                  <button v-for="lang in supportedLangs" :key="lang"
+                    @click="selectLang(lang)"
+                    :class="['w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2',
+                      currentLang === lang
+                        ? 'bg-brand-600/20 text-brand-400'
+                        : 'text-surface-300 hover:bg-surface-700 hover:text-white']">
+                    {{ langLabels[lang] }}
+                    <svg v-if="currentLang === lang" class="w-3 h-3 ml-auto text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                  </button>
+                </div>
+              </Transition>
+            </div>
             <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
           </div>
         </div>
@@ -94,7 +120,35 @@
           </div>
           <span class="text-white font-semibold text-sm">IntegrityBot</span>
         </div>
-        <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
+        <div class="flex items-center gap-2">
+          <!-- Language switcher (mobile) -->
+          <div class="lang-dropdown relative">
+            <button @click.stop="langDropdownOpen = !langDropdownOpen"
+              class="h-8 px-2 rounded-lg text-surface-300 hover:text-white hover:bg-surface-800 text-xs font-medium flex items-center gap-1 transition-colors">
+              {{ langLabels[currentLang] }}
+              <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+              </svg>
+            </button>
+            <Transition name="dropdown">
+              <div v-if="langDropdownOpen"
+                class="absolute right-0 top-full mt-1 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-50 overflow-hidden min-w-[120px]">
+                <button v-for="lang in supportedLangs" :key="lang"
+                  @click="selectLang(lang)"
+                  :class="['w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2',
+                    currentLang === lang
+                      ? 'bg-brand-600/20 text-brand-400'
+                      : 'text-surface-300 hover:bg-surface-700 hover:text-white']">
+                  {{ langLabels[lang] }}
+                  <svg v-if="currentLang === lang" class="w-3 h-3 ml-auto text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                  </svg>
+                </button>
+              </div>
+            </Transition>
+          </div>
+          <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
+        </div>
       </header>
 
       <!-- Page content -->
@@ -115,6 +169,9 @@ import { RouterLink, RouterView, useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
 import NotificationBell from '@/components/ui/NotificationBell.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t, currentLang, setLang, supportedLangs } = useI18n()
 
 const auth = useAuthStore()
 const notif = useNotificationStore()
@@ -122,15 +179,40 @@ const route = useRoute()
 const router = useRouter()
 
 const sidebarOpen = ref(false)
+const langDropdownOpen = ref(false)
+
 watch(() => route.path, () => { sidebarOpen.value = false })
 
-onMounted(() => notif.connect())
-onUnmounted(() => notif.disconnect())
+onMounted(() => {
+  notif.connect()
+  window.addEventListener('click', closeLangDropdown)
+})
+onUnmounted(() => {
+  notif.disconnect()
+  window.removeEventListener('click', closeLangDropdown)
+})
 
 const userInitials = computed(() => {
   const name = auth.user?.fullName || auth.user?.username || 'U'
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 })
+
+const langLabels = {
+  uz: '🇺🇿 UZ',
+  ru: '🇷🇺 RU',
+  en: '🇬🇧 EN',
+}
+
+function selectLang(lang) {
+  setLang(lang)
+  langDropdownOpen.value = false
+}
+
+function closeLangDropdown(e) {
+  if (!e.target.closest('.lang-dropdown')) {
+    langDropdownOpen.value = false
+  }
+}
 
 const icons = {
   dashboard: { render: () => h('svg', { fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
@@ -160,12 +242,12 @@ const icons = {
 }
 
 const navItems = computed(() => [
-  { path: '/dashboard', label: 'Bosh sahifa', icon: icons.dashboard },
-  { path: '/cases', label: 'Murojaatlar', icon: icons.cases },
-  { path: '/polls', label: "So'rovnomalar", icon: icons.polls },
-  ...(auth.isAdmin ? [{ path: '/users', label: 'Foydalanuvchilar', icon: icons.users }] : []),
-  ...(auth.isAdmin ? [{ path: '/audit', label: 'Audit jurnali', icon: icons.audit }] : []),
-  { path: '/settings', label: 'Sozlamalar', icon: icons.settings },
+  { path: '/dashboard', label: t('nav.dashboard'), icon: icons.dashboard },
+  { path: '/cases', label: t('nav.cases'), icon: icons.cases },
+  { path: '/polls', label: t('nav.polls'), icon: icons.polls },
+  ...(auth.isAdmin ? [{ path: '/users', label: t('nav.users'), icon: icons.users }] : []),
+  ...(auth.isAdmin ? [{ path: '/audit', label: t('nav.audit'), icon: icons.audit }] : []),
+  { path: '/settings', label: t('nav.settings'), icon: icons.settings },
 ])
 
 function isActive(path) {
@@ -181,4 +263,8 @@ function handleLogout() {
 <style scoped>
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+.dropdown-enter-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.dropdown-leave-active { transition: opacity 0.1s ease, transform 0.1s ease; }
+.dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px); }
 </style>

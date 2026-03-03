@@ -245,3 +245,15 @@ class SystemSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
+class BotUser(Base):
+    """Telegram bot foydalanuvchilari — til va sessiya ma'lumotlari DB da saqlanadi."""
+    __tablename__ = "bot_users"
+
+    telegram_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
+    lang: Mapped[str] = mapped_column(String(8), default="uz", nullable=False)
+    first_seen: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    last_active: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
+    )
+
+

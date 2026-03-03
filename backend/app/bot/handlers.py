@@ -24,6 +24,7 @@ from app.models import (
 )
 from app.services.storage import save_telegram_file
 from app.services.notification import notify_admins
+from app.services.bot_users import get_or_create_bot_user, update_bot_user_lang, get_bot_user_lang as db_get_user_lang
 from app.bot.rate_limit import check_rate_limit, rate_limited
 from app.bot.i18n import t, get_user_lang, set_user_lang, get_language_keyboard, SUPPORTED_LANGS
 
@@ -167,7 +168,18 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return MAIN_MENU
 
     context.user_data.clear()
-    lang = get_user_lang(context)
+
+    # DB dan foydalanuvchi tilini o'qi (yoki yangi yozuv yarat)
+    try:
+        bot_user = await get_or_create_bot_user(user.id)
+        lang = bot_user.lang
+    except Exception as e:
+        logger.warning(f"BotUser DB xatosi (start): {e}")
+        lang = get_user_lang(context)
+
+    # context ga ham set qilamiz — keyingi callbacklar uchun
+    set_user_lang(context, lang)
+
     # Avval persistent menyu tugmalarini ko'rsatamiz
     await update.message.reply_text(
         "👇 Quyidagi tugmalardan foydalaning:",
@@ -1092,7 +1104,7 @@ async def lang_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """lang_{code} callback — tilni o'zgartiradi."""
+    """lang_{code} callback — tilni o'zgartiradi va DB ga yozadi."""
     query = update.callback_query
     await query.answer()
 
@@ -1100,7 +1112,15 @@ async def lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if lang_code not in SUPPORTED_LANGS:
         lang_code = "uz"
 
+    # context ga saqlash
     set_user_lang(context, lang_code)
+
+    # DB ga yozish
+    try:
+        await update_bot_user_lang(query.from_user.id, lang_code)
+    except Exception as e:
+        logger.warning(f"BotUser lang DB yozish xatosi: {e}")
+
     await query.edit_message_text(
         t("language_changed", lang_code),
         parse_mode=ParseMode.MARKDOWN,
