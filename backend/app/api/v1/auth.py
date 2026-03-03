@@ -189,6 +189,7 @@ async def login(
         role=user.role,
         username=user.username,
         full_name=user.full_name,
+        email=user.email,
         totp_enabled=user.totp_enabled,
         force_password_change=user.force_password_change,
     )
@@ -359,7 +360,7 @@ async def change_password(    body: dict,
             raise HTTPException(status_code=400, detail="Joriy parol noto'g'ri")
 
     current_user.hashed_password = hash_password(new_password)
-    current_user.force_password_change = False  # Majburiy o'zgartirish bajarildi
+    current_user.force_password_change = False
 
     db.add(AuditLog(
         user_id=current_user.id,
@@ -370,4 +371,48 @@ async def change_password(    body: dict,
     ))
     await db.commit()
     return {"message": "Parol muvaffaqiyatli o'zgartirildi"}
+
+
+@router.put("/profile")
+async def update_profile(
+    body: dict,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Foydalanuvchi o'z profilini (full_name, email) yangilaydi."""
+    from sqlalchemy import select as sa_select
+
+    full_name = body.get("full_name", "").strip()
+    email = body.get("email", "").strip().lower()
+
+    if full_name:
+        current_user.full_name = full_name
+
+    if email:
+        # Email uniqueness tekshirish
+        existing = await db.execute(
+            sa_select(User).where(User.email == email, User.id != current_user.id)
+        )
+        if existing.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Bu email allaqachon ishlatilmoqda")
+        current_user.email = email
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action=AuditAction.USER_UPDATE,
+        entity_type="user",
+        entity_id=str(current_user.id),
+        payload={"action": "profile_updated", "fields": list(body.keys())},
+    ))
+    await db.commit()
+    await db.refresh(current_user)
+    return {
+        "id": str(current_user.id),
+        "username": current_user.username,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role,
+        "totp_enabled": current_user.totp_enabled,
+    }
+
 

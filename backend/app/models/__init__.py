@@ -234,3 +234,14 @@ class PollOption(Base):
     order: Mapped[int] = mapped_column(Integer, default=0)
 
     question: Mapped[PollQuestion] = relationship("PollQuestion", back_populates="options")
+
+
+class SystemSettings(Base):
+    """Tizim va bot sozlamalari — DB da saqlanadi, UI orqali o'zgartiriladi."""
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+

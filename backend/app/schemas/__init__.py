@@ -19,8 +19,9 @@ class TokenResponse(BaseModel):
     role: UserRole
     username: str
     full_name: Optional[str]
+    email: Optional[str] = None
     totp_enabled: bool
-    force_password_change: bool = False  # True bo'lsa frontend majburiy o'zgartirish oynasini ko'rsatadi
+    force_password_change: bool = False
 
 
 class UserCreate(BaseModel):

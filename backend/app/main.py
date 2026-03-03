@@ -12,6 +12,7 @@ from app.core.database import engine, Base
 from app.core.logging_config import setup_logging
 from app.models import *  # noqa - register all models
 from app.api.v1 import auth, cases, polls, telegram, audit, ws, tickets
+from app.api.v1 import settings as settings_api
 
 # ── Logging: JSON structured logging (structlog) ─────────────────────────────
 setup_logging()
@@ -262,6 +263,7 @@ app.include_router(cases.router, prefix="/api/v1")
 app.include_router(polls.router, prefix="/api/v1")
 app.include_router(audit.router, prefix="/api/v1")
 app.include_router(tickets.router, prefix="/api/v1")
+app.include_router(settings_api.router, prefix="/api/v1")
 app.include_router(ws.router, prefix="/api")
 app.include_router(telegram.router, prefix="/api")
 

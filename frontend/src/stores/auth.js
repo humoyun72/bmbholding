@@ -26,6 +26,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = {
       username: data.username,
       fullName: data.full_name,
+      email: data.email || '',
       role: data.role,
       totpEnabled: data.totp_enabled,
       forcePasswordChange: data.force_password_change,
