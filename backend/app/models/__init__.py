@@ -146,6 +146,7 @@ class CaseAttachment(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     checksum: Mapped[str] = mapped_column(String(64), nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    uploaded_by_admin: Mapped[bool] = mapped_column(Boolean, default=False)
 
     case: Mapped[Case] = relationship("Case", back_populates="attachments")
 

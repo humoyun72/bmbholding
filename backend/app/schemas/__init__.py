@@ -93,6 +93,7 @@ class AssignCaseRequest(BaseModel):
 
 class ChangeStatusRequest(BaseModel):
     status: CaseStatus
+    reason: Optional[str] = None
 
 
 class AddCommentRequest(BaseModel):

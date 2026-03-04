@@ -20,6 +20,46 @@ CATEGORY_LABELS = {
 }
 
 
+PRIORITY_LABELS = {
+    "critical": "🔴 Kritik",
+    "high":     "🟠 Yuqori",
+    "medium":   "🟡 O'rta",
+    "low":      "🟢 Past",
+}
+
+
+async def notify_assignee(
+    bot: Bot,
+    case_id: str,
+    category,
+    priority,
+    due_date: str,
+    assignee_telegram_id: int,
+):
+    """Tayinlangan ijrochiga Telegram orqali xabarnoma yuborish"""
+    cat_label = CATEGORY_LABELS.get(category, str(category))
+    pri_label = PRIORITY_LABELS.get(
+        priority.value if hasattr(priority, "value") else str(priority),
+        str(priority)
+    )
+    message = (
+        f"📋 *Sizga yangi murojaat tayinlandi!*\n\n"
+        f"🔖 *Raqam:* `{case_id}`\n"
+        f"📂 *Kategoriya:* {cat_label}\n"
+        f"⚠️ *Ustuvorlik:* {pri_label}\n"
+        f"⏰ *Deadline:* {due_date}\n\n"
+        f"👉 Admin panelda ko'ring"
+    )
+    try:
+        await bot.send_message(
+            chat_id=assignee_telegram_id,
+            text=message,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception as e:
+        logger.warning(f"notify_assignee failed (chat_id={assignee_telegram_id}): {e}")
+
+
 async def notify_admins(
     bot: Bot,
     case_id: str,

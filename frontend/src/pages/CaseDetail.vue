@@ -19,9 +19,7 @@
           <p class="text-surface-400 text-sm">{{ formatDate(caseData.created_at) }} da yuborilgan</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-          <select v-model="newStatus" @change="updateStatus" class="input text-sm">
-            <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
-          </select>
+          <button @click="openStatusModal" class="btn-ghost text-sm whitespace-nowrap">🔄 Status o'zgartirish</button>
           <button @click="exportCase" class="btn-ghost text-sm whitespace-nowrap">📄 Eksport</button>
         </div>
       </div>
@@ -35,101 +33,29 @@
             <p class="text-surface-200 leading-relaxed whitespace-pre-wrap">{{ caseData.description }}</p>
           </div>
 
-          <!-- Attachments — foydalanuvchi yuborgan fayllar -->
+          <!-- Reporter fayllari -->
           <div v-if="reporterAttachments.length" class="card p-6">
             <h3 class="font-semibold text-white mb-4">
-              📎 Yuboruvchi yuborgan fayllar
+              {{ caseData.is_anonymous ? '📸 Reporter fayllari' : '📸 Yuboruvchi fayllari' }}
               <span class="text-surface-500 text-sm font-normal ml-2">({{ reporterAttachments.length }} ta)</span>
             </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div v-for="att in reporterAttachments" :key="att.id"
-                class="border border-surface-700 rounded-xl overflow-hidden bg-surface-900 hover:border-surface-600 transition-colors">
+              <AttachmentCard v-for="att in reporterAttachments" :key="att.id"
+                :att="att" :blob-url="attUrl(att)" :loading="loadingBlobs[att.id]"
+                @preview="openPreview" @load="loadBlobUrl" @download="downloadAtt" />
+            </div>
+          </div>
 
-                <!-- Rasm thumbnail -->
-                <div v-if="isImage(att)" @click="attUrl(att) && openPreview(att)"
-                  class="bg-surface-950 flex items-center justify-center overflow-hidden"
-                  :class="attUrl(att) ? 'cursor-pointer' : 'cursor-wait'"
-                  style="height:180px">
-                  <div v-if="!attUrl(att)" class="flex flex-col items-center gap-2 text-surface-600">
-                    <div class="w-6 h-6 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
-                    <span class="text-xs">Yuklanmoqda...</span>
-                  </div>
-                  <img v-else :src="attUrl(att)" :alt="att.filename"
-                    class="w-full h-full object-cover hover:opacity-90 transition-opacity" />
-                </div>
-
-                <!-- Video player — lazy blob load -->
-                <div v-else-if="isVideo(att)" class="bg-black relative" style="height:180px">
-                  <!-- Blob yuklanmagan — play tugmasi ko'rsatamiz -->
-                  <div v-if="!attUrl(att)"
-                    class="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/5 transition-colors"
-                    @click="loadBlobUrl(att)">
-                    <div v-if="loadingBlobs[att.id]" class="w-8 h-8 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
-                    <template v-else>
-                      <div class="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center">
-                        <svg class="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-                      </div>
-                      <span class="text-surface-400 text-xs">Videoni yuklash uchun bosing</span>
-                    </template>
-                  </div>
-                  <!-- Blob tayyor — video player -->
-                  <video v-else controls class="w-full h-full object-contain">
-                    <source :src="attUrl(att)" :type="att.mime_type" />
-                  </video>
-                </div>
-
-                <!-- Audio player — lazy blob load -->
-                <div v-else-if="isAudio(att)"
-                  class="bg-surface-800 flex flex-col items-center justify-center gap-2 p-4" style="height:120px">
-                  <div class="text-2xl">🎵</div>
-                  <div v-if="!attUrl(att)"
-                    class="flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-surface-400 text-xs"
-                    @click="loadBlobUrl(att)">
-                    <div v-if="loadingBlobs[att.id]" class="w-4 h-4 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin"></div>
-                    <span v-else>▶ Ovozni yuklash uchun bosing</span>
-                  </div>
-                  <audio v-else controls class="w-full max-w-full" style="height:36px">
-                    <source :src="attUrl(att)" :type="att.mime_type" />
-                  </audio>
-                </div>
-
-
-                <!-- PDF -->
-                <div v-else-if="isPdf(att)" @click="openPreview(att)"
-                  class="cursor-pointer bg-red-900/20 flex items-center justify-center gap-3 p-4" style="height:100px">
-                  <span class="text-4xl">📄</span>
-                  <span class="text-red-300 text-sm">PDF — ko'rish uchun bosing</span>
-                </div>
-
-                <!-- Boshqa fayllar -->
-                <div v-else class="bg-surface-800 flex items-center justify-center gap-2 p-4" style="height:80px">
-                  <span class="text-3xl">{{ getFileIcon(att.mime_type) }}</span>
-                  <span class="text-surface-400 text-sm">{{ att.mime_type }}</span>
-                </div>
-
-                <!-- Footer -->
-                <div class="flex items-center justify-between p-3 bg-surface-800 border-t border-surface-700">
-                  <div class="min-w-0 flex-1">
-                    <div class="text-white text-xs font-medium truncate">{{ att.filename }}</div>
-                    <div class="text-surface-500 text-xs">{{ formatSize(att.size_bytes) }}</div>
-                  </div>
-                  <div class="flex items-center gap-1 ml-2 flex-shrink-0">
-                    <button v-if="isPreviewable(att)" @click="openPreview(att)"
-                      class="p-1.5 rounded-lg hover:bg-surface-700 text-surface-400 hover:text-white transition-colors" title="Ko'rish">
-                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                    </button>
-                    <!-- Blob URL bor bo'lsa — to'g'ri download, yo'q bo'lsa — API orqali yuklab olish -->
-                    <a v-if="attUrl(att)" :href="attUrl(att)" :download="att.filename"
-                      class="p-1.5 rounded-lg hover:bg-surface-700 text-surface-400 hover:text-white transition-colors" title="Yuklab olish">
-                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    </a>
-                    <button v-else @click="downloadAtt(att)"
-                      class="p-1.5 rounded-lg hover:bg-surface-700 text-surface-400 hover:text-white transition-colors" title="Yuklab olish">
-                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
+          <!-- Admin (tekshiruv) fayllari -->
+          <div v-if="adminAttachments.length" class="card p-6">
+            <h3 class="font-semibold text-white mb-4">
+              📎 Tekshiruv fayllari
+              <span class="text-surface-500 text-sm font-normal ml-2">({{ adminAttachments.length }} ta)</span>
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <AttachmentCard v-for="att in adminAttachments" :key="att.id"
+                :att="att" :blob-url="attUrl(att)" :loading="loadingBlobs[att.id]"
+                @preview="openPreview" @load="loadBlobUrl" @download="downloadAtt" />
             </div>
           </div>
 
@@ -280,10 +206,10 @@
           <div class="card p-5">
             <h3 class="font-semibold text-white mb-4 text-sm">Tezkor amallar</h3>
             <div class="space-y-2">
-              <button @click="setStatus('in_progress')" class="btn-ghost w-full text-sm justify-start">🔄 Ko'rib chiqishni boshlash</button>
-              <button @click="setStatus('needs_info')" class="btn-ghost w-full text-sm justify-start">❓ Qo'shimcha ma'lumot so'rash</button>
-              <button @click="setStatus('completed')" class="btn-ghost w-full text-sm justify-start text-green-400 hover:text-green-300">✅ Yakunlash</button>
-              <button @click="setStatus('rejected')" class="btn-ghost w-full text-sm justify-start text-red-400 hover:text-red-300">❌ Rad etish</button>
+              <button @click="openStatusModalWith('in_progress')" class="btn-ghost w-full text-sm justify-start">🔄 Ko'rib chiqishni boshlash</button>
+              <button @click="openStatusModalWith('needs_info')" class="btn-ghost w-full text-sm justify-start">❓ Qo'shimcha ma'lumot so'rash</button>
+              <button @click="openStatusModalWith('completed')" class="btn-ghost w-full text-sm justify-start text-green-400 hover:text-green-300">✅ Yakunlash</button>
+              <button @click="openStatusModalWith('rejected')" class="btn-ghost w-full text-sm justify-start text-red-400 hover:text-red-300">❌ Rad etish</button>
             </div>
           </div>
 
@@ -316,6 +242,80 @@
         </div>
       </div>
     </template>
+
+    <!-- ── Status O'zgartirish Modal ── -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="statusModal.open" class="fixed inset-0 z-[99998] flex items-center justify-center p-4"
+          @click.self="statusModal.open = false">
+          <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
+          <div class="relative z-10 bg-surface-900 rounded-2xl border border-surface-700 shadow-2xl w-full max-w-md">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-surface-800">
+              <h3 class="font-semibold text-white">🔄 Status o'zgartirish</h3>
+              <button @click="statusModal.open = false"
+                class="w-8 h-8 rounded-lg hover:bg-surface-700 flex items-center justify-center text-surface-400 hover:text-white transition-colors">✕</button>
+            </div>
+            <div class="p-5 space-y-4">
+              <!-- Joriy holat -->
+              <div class="flex items-center gap-3 bg-surface-800 rounded-xl p-3">
+                <span class="text-surface-400 text-sm">Joriy holat:</span>
+                <StatusBadge :status="caseData.status" />
+              </div>
+
+              <!-- Yangi holat tanlash -->
+              <div>
+                <label class="text-surface-400 text-xs mb-2 block">Yangi holat</label>
+                <div class="grid grid-cols-2 gap-2">
+                  <button v-for="opt in allowedStatusOptions" :key="opt.value"
+                    @click="statusModal.selected = opt.value"
+                    :class="[
+                      'px-3 py-2 rounded-xl text-sm font-medium border transition-all text-left',
+                      statusModal.selected === opt.value
+                        ? 'border-brand-500 bg-brand-500/15 text-brand-300'
+                        : 'border-surface-700 bg-surface-800 text-surface-300 hover:border-surface-600'
+                    ]">
+                    {{ opt.label }}
+                  </button>
+                </div>
+                <p v-if="!allowedStatusOptions.length" class="text-surface-500 text-sm text-center py-3">
+                  Bu holatdan o'tish mumkin emas
+                </p>
+              </div>
+
+              <!-- Izoh maydoni -->
+              <div>
+                <label class="text-surface-400 text-xs mb-2 block">
+                  Izoh
+                  <span v-if="statusModal.selected === 'rejected'" class="text-red-400 ml-1">* (majburiy)</span>
+                  <span v-else class="text-surface-600 ml-1">(ixtiyoriy)</span>
+                </label>
+                <textarea v-model="statusModal.reason" rows="3"
+                  class="input w-full resize-none text-sm"
+                  :placeholder="statusModal.selected === 'rejected' ? 'Rad etish sababini kiriting...' : 'Izoh yozing (ixtiyoriy)...'"
+                ></textarea>
+              </div>
+
+              <!-- Xato xabari -->
+              <p v-if="statusModal.error" class="text-red-400 text-sm bg-red-500/10 rounded-lg px-3 py-2">
+                {{ statusModal.error }}
+              </p>
+            </div>
+            <div class="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-800">
+              <button @click="statusModal.open = false" class="btn-ghost text-sm">Bekor qilish</button>
+              <button @click="submitStatusChange"
+                :disabled="!statusModal.selected || statusModal.saving || (statusModal.selected === 'rejected' && !statusModal.reason.trim())"
+                class="btn-primary text-sm disabled:opacity-40">
+                <svg v-if="statusModal.saving" class="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                Tasdiqlash
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- ── Preview Modal ── -->
     <Teleport to="body">
@@ -392,7 +392,6 @@ const loading = ref(true)
 const sending = ref(false)
 const caseData = ref(null)
 const users = ref([])
-const newStatus = ref('')
 const assignedTo = ref('')
 const newComment = reactive({ content: '', is_internal: false })
 const ticketCreating = ref(false)
@@ -402,6 +401,58 @@ const preview = reactive({ open: false, att: null })
 const chatEl = ref(null)
 const fileInputRef = ref(null)
 const uploadFile = ref(null)
+
+// ── Status Modal ──────────────────────────────────────────────────────────────
+const statusModal = reactive({ open: false, selected: '', reason: '', error: '', saving: false })
+
+const TRANSITIONS = {
+  new:         ['in_progress', 'rejected', 'needs_info'],
+  in_progress: ['completed', 'rejected', 'needs_info', 'new'],
+  needs_info:  ['in_progress', 'rejected'],
+  completed:   ['archived'],
+  rejected:    ['archived'],
+  archived:    [],
+}
+const ALL_STATUS_OPTIONS = [
+  { value: 'new',         label: '🔵 Yangi' },
+  { value: 'in_progress', label: "🟡 Ko'rib chiqilmoqda" },
+  { value: 'needs_info',  label: "🟠 Ma'lumot kerak" },
+  { value: 'completed',   label: '✅ Yakunlandi' },
+  { value: 'rejected',    label: '❌ Rad etildi' },
+  { value: 'archived',    label: '🗄️ Arxivlandi' },
+]
+const allowedStatusOptions = computed(() => {
+  if (!caseData.value) return []
+  const allowed = TRANSITIONS[caseData.value.status] || []
+  return ALL_STATUS_OPTIONS.filter(o => allowed.includes(o.value))
+})
+function openStatusModal() {
+  statusModal.selected = ''; statusModal.reason = ''; statusModal.error = ''; statusModal.open = true
+}
+function openStatusModalWith(status) {
+  const allowed = TRANSITIONS[caseData.value?.status] || []
+  if (!allowed.includes(status)) return
+  statusModal.selected = status; statusModal.reason = ''; statusModal.error = ''; statusModal.open = true
+}
+async function submitStatusChange() {
+  if (!statusModal.selected) return
+  if (statusModal.selected === 'rejected' && !statusModal.reason.trim()) {
+    statusModal.error = 'Rad etish uchun sabab majburiy'; return
+  }
+  statusModal.saving = true; statusModal.error = ''
+  try {
+    await api.post(`/v1/cases/${caseData.value.external_id}/status`, {
+      status: statusModal.selected,
+      reason: statusModal.reason.trim() || null,
+    })
+    statusModal.open = false
+    await loadCase()
+  } catch (e) {
+    statusModal.error = e.response?.data?.detail || 'Xatolik yuz berdi'
+  } finally {
+    statusModal.saving = false
+  }
+}
 
 // ── Blob URL cache — JWT bilan fayllarni olish ──────────────────────────────
 const blobCache = reactive({})   // att.id → { url, mime }
@@ -446,7 +497,6 @@ function isImage(att) { return att?.mime_type?.startsWith('image/') }
 function isVideo(att) { return att?.mime_type?.startsWith('video/') }
 function isAudio(att) { return att?.mime_type?.startsWith('audio/') }
 function isPdf(att)   { return att?.mime_type === 'application/pdf' }
-function isPreviewable(att) { return isImage(att) || isVideo(att) || isAudio(att) || isPdf(att) }
 
 function getFileIcon(mime) {
   if (!mime) return '📎'
@@ -460,16 +510,14 @@ function getFileIcon(mime) {
   return '📎'
 }
 
-// Reporter yuborgan fayllar (is_from_reporter ga asoslanib yoki admin attachment bo'lmagan)
+// Reporter va admin fayllarini ajratish (uploaded_by_admin maydoniga qarab)
 const reporterAttachments = computed(() => {
   if (!caseData.value?.attachments) return []
-  // Comment bilan bog'liq attachment ID larni chiqaramiz
-  const commentAttIds = new Set(
-    (caseData.value.comments || [])
-      .filter(c => c._attachment)
-      .map(c => c._attachment.id)
-  )
-  return caseData.value.attachments.filter(a => !commentAttIds.has(a.id))
+  return caseData.value.attachments.filter(a => !a.uploaded_by_admin)
+})
+const adminAttachments = computed(() => {
+  if (!caseData.value?.attachments) return []
+  return caseData.value.attachments.filter(a => a.uploaded_by_admin)
 })
 
 function openPreview(att) {
@@ -487,9 +535,7 @@ async function loadCase() {
   try {
     const { data } = await api.get(`/v1/cases/${route.params.id}`)
     caseData.value = data
-    newStatus.value = data.status
     assignedTo.value = data.assigned_to || ''
-    // Blob URL larni yuklash (JWT token bilan, 401 muammosini hal qiladi)
     await loadAllBlobs()
   } finally {
     loading.value = false
@@ -510,13 +556,6 @@ function scrollChatBottom() {
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
-async function updateStatus() {
-  try {
-    await api.post(`/v1/cases/${caseData.value.external_id}/status`, { status: newStatus.value })
-    caseData.value.status = newStatus.value
-  } catch {}
-}
-async function setStatus(status) { newStatus.value = status; await updateStatus() }
 async function assignCase() {
   try { await api.post(`/v1/cases/${caseData.value.external_id}/assign`, { user_id: assignedTo.value || null }) } catch {}
 }
@@ -603,13 +642,6 @@ function formatSize(b) {
   return (b / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
-const statusOptions = [
-  { value: 'new', label: 'Yangi' },
-  { value: 'in_progress', label: "Ko'rib chiqilmoqda" },
-  { value: 'needs_info', label: "Ma'lumot kerak" },
-  { value: 'completed', label: 'Yakunlandi' },
-  { value: 'rejected', label: 'Rad etildi' },
-]
 const catLabels = {
   corruption: '🔴 Korrupsiya / Pora',
   conflict_of_interest: "⚖️ Manfaatlar to'qnashuvi",
@@ -626,11 +658,12 @@ const StatusBadge = defineComponent({
   props: ['status'],
   setup(props) {
     const map = {
-      new: { text: 'Yangi', cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
+      new:         { text: 'Yangi',              cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
       in_progress: { text: "Ko'rib chiqilmoqda", cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20' },
-      needs_info: { text: "Ma'lumot kerak", cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/20' },
-      completed: { text: 'Yakunlandi', cls: 'bg-green-500/15 text-green-400 border border-green-500/20' },
-      rejected: { text: 'Rad etildi', cls: 'bg-red-500/15 text-red-400 border border-red-500/20' },
+      needs_info:  { text: "Ma'lumot kerak",     cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/20' },
+      completed:   { text: 'Yakunlandi',         cls: 'bg-green-500/15 text-green-400 border border-green-500/20' },
+      rejected:    { text: 'Rad etildi',         cls: 'bg-red-500/15 text-red-400 border border-red-500/20' },
+      archived:    { text: 'Arxivlandi',         cls: 'bg-surface-700 text-surface-400 border border-surface-600' },
     }
     return () => {
       const s = map[props.status] || { text: props.status, cls: 'bg-surface-700 text-surface-400' }
@@ -656,6 +689,91 @@ const PriorityBadge = defineComponent({
 })
 
 onMounted(() => { loadCase(); loadUsers() })
+
+// ── AttachmentCard inline component ──────────────────────────────────────────
+const AttachmentCard = defineComponent({
+  props: ['att', 'blobUrl', 'loading'],
+  emits: ['preview', 'load', 'download'],
+  setup(props, { emit }) {
+    return () => {
+      const att = props.att
+      const url = props.blobUrl
+      const isImg = att?.mime_type?.startsWith('image/')
+      const isVid = att?.mime_type?.startsWith('video/')
+      const isAud = att?.mime_type?.startsWith('audio/')
+      const isPdfFile = att?.mime_type === 'application/pdf'
+      const fmt = (b) => !b ? '—' : b < 1024 ? b+' B' : b < 1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'
+      const icon = isImg ? '🖼️' : isVid ? '🎬' : isAud ? '🎵' : isPdfFile ? '📄'
+        : att?.mime_type?.includes('word') ? '📝' : att?.mime_type?.includes('excel') ? '📊'
+        : att?.mime_type?.includes('zip') ? '🗜️' : '📎'
+
+      let previewEl
+      if (isImg) {
+        previewEl = url
+          ? h('div', { class: 'bg-surface-950 overflow-hidden cursor-pointer group', style: 'height:180px',
+              title: `${att.mime_type} • ${fmt(att.size_bytes)}`, onClick: () => emit('preview', att) },
+              [h('img', { src: url, alt: att.filename, class: 'w-full h-full object-cover group-hover:opacity-90 transition-opacity' })])
+          : h('div', { class: 'bg-surface-950 flex flex-col items-center justify-center gap-2 text-surface-600', style: 'height:180px' },
+              [h('div', { class: 'w-6 h-6 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin' }),
+               h('span', { class: 'text-xs' }, 'Yuklanmoqda...')])
+      } else if (isVid) {
+        previewEl = url
+          ? h('div', { class: 'bg-black', style: 'height:180px' },
+              [h('video', { controls: true, class: 'w-full h-full object-contain' }, [h('source', { src: url, type: att.mime_type })])])
+          : h('div', { class: 'bg-black flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-white/5 transition-colors',
+              style: 'height:180px', onClick: () => emit('load', att) },
+              props.loading
+                ? [h('div', { class: 'w-8 h-8 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin' })]
+                : [h('div', { class: 'w-12 h-12 rounded-full bg-white/20 flex items-center justify-center' },
+                    [h('svg', { class: 'w-6 h-6 text-white ml-1', fill: 'currentColor', viewBox: '0 0 24 24' }, [h('path', { d: 'M8 5v14l11-7z' })])]),
+                   h('span', { class: 'text-surface-400 text-xs' }, 'Videoni yuklash uchun bosing')])
+      } else if (isAud) {
+        previewEl = h('div', { class: 'bg-surface-800 flex flex-col items-center justify-center gap-2 p-4', style: 'height:100px' },
+          [h('div', { class: 'text-2xl' }, '🎵'),
+           url
+             ? h('audio', { controls: true, class: 'w-full', style: 'height:36px' }, [h('source', { src: url, type: att.mime_type })])
+             : h('div', { class: 'flex items-center gap-2 cursor-pointer hover:text-white transition-colors text-surface-400 text-xs', onClick: () => emit('load', att) },
+                 props.loading
+                   ? [h('div', { class: 'w-4 h-4 border-2 border-surface-600 border-t-brand-500 rounded-full animate-spin' })]
+                   : [h('span', {}, '▶ Yuklash uchun bosing')])])
+      } else if (isPdfFile) {
+        previewEl = h('div', { class: 'cursor-pointer bg-red-900/20 flex items-center justify-center gap-3 p-4',
+            style: 'height:90px', title: `${att.mime_type} • ${fmt(att.size_bytes)}`, onClick: () => emit('preview', att) },
+          [h('span', { class: 'text-4xl' }, '📄'), h('span', { class: 'text-red-300 text-sm' }, "PDF — ko'rish uchun bosing")])
+      } else {
+        previewEl = h('div', { class: 'bg-surface-800 flex items-center justify-center gap-2 p-4', style: 'height:80px',
+            title: `${att.mime_type} • ${fmt(att.size_bytes)}` },
+          [h('span', { class: 'text-3xl' }, icon), h('span', { class: 'text-surface-400 text-xs' }, att.mime_type)])
+      }
+
+      const dlIcon = h('svg', { class: 'w-4 h-4', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+        [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4' })])
+      const eyeIcon = h('svg', { class: 'w-4 h-4', fill: 'none', viewBox: '0 0 24 24', stroke: 'currentColor' },
+        [h('path', { 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'stroke-width': '2', d: 'M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z' })])
+
+      const dlBtn = url
+        ? h('a', { href: url, download: att.filename, class: 'p-1.5 rounded-lg hover:bg-surface-700 text-surface-400 hover:text-white transition-colors', title: 'Yuklab olish' }, [dlIcon])
+        : h('button', { class: 'p-1.5 rounded-lg hover:bg-surface-700 text-surface-400 hover:text-white transition-colors', title: 'Yuklab olish', onClick: () => emit('download', att) }, [dlIcon])
+
+      return h('div', { class: 'border border-surface-700 rounded-xl overflow-hidden bg-surface-900 hover:border-surface-600 transition-colors' }, [
+        previewEl,
+        h('div', { class: 'flex items-center justify-between p-3 bg-surface-800 border-t border-surface-700' }, [
+          h('div', { class: 'min-w-0 flex-1' }, [
+            h('div', { class: 'text-white text-xs font-medium truncate', title: att.filename }, att.filename),
+            h('div', { class: 'text-surface-500 text-xs' }, fmt(att.size_bytes)),
+          ]),
+          h('div', { class: 'flex items-center gap-1 ml-2 flex-shrink-0' }, [
+            (isImg || isPdfFile || isVid || isAud) && h('button', {
+              class: 'p-1.5 rounded-lg hover:bg-surface-700 text-surface-400 hover:text-white transition-colors',
+              title: "Ko'rish", onClick: () => emit('preview', att)
+            }, [eyeIcon]),
+            dlBtn
+          ])
+        ])
+      ])
+    }
+  }
+})
 </script>
 
 <style scoped>

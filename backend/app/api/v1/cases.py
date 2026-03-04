@@ -33,6 +33,21 @@ from app.core.config import settings
 router = APIRouter(prefix="/cases", tags=["cases"])
 logger = logging.getLogger(__name__)
 
+# ─── Status holat mashinasi ──────────────────────────────────────────────────
+ALLOWED_TRANSITIONS: dict[CaseStatus, list[CaseStatus]] = {
+    CaseStatus.NEW:         [CaseStatus.IN_PROGRESS, CaseStatus.REJECTED, CaseStatus.NEEDS_INFO],
+    CaseStatus.IN_PROGRESS: [CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.NEEDS_INFO, CaseStatus.NEW],
+    CaseStatus.NEEDS_INFO:  [CaseStatus.IN_PROGRESS, CaseStatus.REJECTED],
+    CaseStatus.COMPLETED:   [],   # faqat admin → archived
+    CaseStatus.REJECTED:    [],   # faqat admin → archived
+    CaseStatus.ARCHIVED:    [],
+}
+# Admin faqat yakunlangan/rad etilgan → arxivga o'tkaza oladi
+ADMIN_ONLY_TRANSITIONS: dict[CaseStatus, list[CaseStatus]] = {
+    CaseStatus.COMPLETED: [CaseStatus.ARCHIVED],
+    CaseStatus.REJECTED:  [CaseStatus.ARCHIVED],
+}
+
 
 def decrypt_case(case: Case) -> dict:
     base = {
@@ -201,6 +216,7 @@ async def get_case(
             "mime_type": a.mime_type,
             "size_bytes": a.size_bytes,
             "uploaded_at": a.uploaded_at,
+            "uploaded_by_admin": getattr(a, "uploaded_by_admin", False),
         }
         for a in case.attachments
     ]
@@ -232,6 +248,30 @@ async def assign_case(
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
+
+    # ── Ijrochiga Telegram bildirishnoma ──────────────────────────────────
+    if body.user_id:
+        try:
+            assignee_result = await db.execute(
+                select(User).where(User.id == uuid.UUID(body.user_id))
+            )
+            assignee = assignee_result.scalar_one_or_none()
+            if assignee and assignee.telegram_chat_id:
+                from app.api.v1.telegram import get_bot_app
+                from app.services.notification import notify_assignee
+                bot_app = get_bot_app()
+                due_date = case.due_at.strftime("%d.%m.%Y") if case.due_at else "Belgilanmagan"
+                await notify_assignee(
+                    bot=bot_app.bot,
+                    case_id=case.external_id,
+                    category=case.category,
+                    priority=case.priority,
+                    due_date=due_date,
+                    assignee_telegram_id=assignee.telegram_chat_id,
+                )
+        except Exception as e:
+            logger.warning(f"Assignee notification failed for {case_id}: {e}")
+
     return {"message": "Case assigned"}
 
 
@@ -249,33 +289,77 @@ async def change_status(
         raise HTTPException(status_code=404, detail="Case not found")
 
     old_status = case.status
-    case.status = body.status
-    if body.status in (CaseStatus.COMPLETED, CaseStatus.REJECTED):
+    new_status = body.status
+
+    # ── Holat mashinasi validatsiyasi ──────────────────────────────────────
+    is_admin = current_user.role == UserRole.ADMIN
+    allowed = list(ALLOWED_TRANSITIONS.get(old_status, []))
+    if is_admin:
+        allowed += ADMIN_ONLY_TRANSITIONS.get(old_status, [])
+
+    if new_status not in allowed:
+        allowed_vals = [s.value for s in allowed] or []
+        raise HTTPException(
+            status_code=400,
+            detail=f"'{old_status.value}' → '{new_status.value}' o'tish ruxsat etilmagan. "
+                   f"Ruxsat etilganlar: {allowed_vals if allowed_vals else 'yoq'}",
+        )
+
+    # ── Rad etishda izoh majburiy ──────────────────────────────────────────
+    if new_status == CaseStatus.REJECTED and not (body.reason or "").strip():
+        raise HTTPException(
+            status_code=422,
+            detail="Rad etish uchun sabab (reason) majburiy",
+        )
+
+    # ── Holat yangilash ────────────────────────────────────────────────────
+    case.status = new_status
+    if new_status in (CaseStatus.COMPLETED, CaseStatus.REJECTED):
         case.closed_at = datetime.now(timezone.utc)
+    elif new_status == CaseStatus.ARCHIVED:
+        pass  # closed_at saqlanadi
+
+    # ── Izohni comment jadvaliga yoz (agar reason berilgan bo'lsa) ─────────
+    reason_text = (body.reason or "").strip()
+    if reason_text:
+        status_label = new_status.value.replace("_", " ").title()
+        comment = CaseComment(
+            case_id=case.id,
+            author_id=current_user.id,
+            is_from_reporter=False,
+            is_internal=True,
+            content_encrypted=encrypt_comment_content(
+                f"[Holat o'zgartirildi: {old_status.value} → {new_status.value}]\n\n{reason_text}"
+            ),
+        )
+        db.add(comment)
 
     db.add(AuditLog(
         user_id=current_user.id,
         case_id=case.id,
         action=AuditAction.CASE_UPDATE,
-        payload={"old_status": old_status.value if hasattr(old_status, 'value') else str(old_status), "new_status": body.status.value if hasattr(body.status, 'value') else str(body.status)},
+        payload={
+            "old_status": old_status.value,
+            "new_status": new_status.value,
+            "reason": reason_text or None,
+        },
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
 
-    # Jira / Redmine tiketini yangilash (agar tiket ID saqlangan bo'lsa)
-    jira_ticket_id = getattr(case, "jira_ticket_id", None)
-    if jira_ticket_id:
+    # ── Jira tiket yangilash ───────────────────────────────────────────────
+    if getattr(case, "jira_ticket_id", None):
         try:
             from app.services.jira_integration import ticket_service
             await ticket_service.update_ticket_on_case_status_change(
-                ticket_id=jira_ticket_id,
-                new_status=body.status.value if hasattr(body.status, "value") else str(body.status),
+                ticket_id=case.jira_ticket_id,
+                new_status=new_status.value,
                 case_id=case_id,
             )
         except Exception as e:
             logger.warning(f"Tiket yangilashda xato ({case_id}): {e}")
 
-    return {"message": "Status updated"}
+    return {"message": "Status updated", "status": new_status.value}
 
 
 @router.post("/{case_id}/comment")
@@ -480,7 +564,7 @@ async def send_file_to_reporter(
         case_id=str(case.id),
     )
 
-    # DB ga attachment saqlaymiz
+    # DB ga attachment saqlaymiz (admin yuklagan deb belgilanadi)
     safe_name = sanitize_filename(safe_filename)
     checksum = hashlib.sha256(file_data).hexdigest()
     attachment = CaseAttachment(
@@ -491,6 +575,7 @@ async def send_file_to_reporter(
         mime_type=mime,
         size_bytes=len(file_data),
         checksum=checksum,
+        uploaded_by_admin=True,
     )
     db.add(attachment)
     await db.flush()  # attachment.id ni olish uchun
