@@ -4,7 +4,7 @@ import warnings
 from datetime import datetime, timezone, timedelta
 from telegram import (
     Update, InlineKeyboardButton, InlineKeyboardMarkup,
-    ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove
+    ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, ForceReply
 )
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
@@ -20,7 +20,8 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import encrypt_text, decrypt_text, encrypt_case_content, encrypt_comment_content
 from app.models import (
     Case, CaseAttachment, CaseComment, CaseCategory,
-    CasePriority, CaseStatus, PollQuestion, PollOption, PollStatus
+    CasePriority, CaseStatus, PollQuestion, PollOption, PollStatus,
+    User, UserRole, AuditLog, AuditAction,
 )
 from app.services.storage import save_telegram_file
 from app.services.notification import notify_admins
@@ -40,7 +41,8 @@ logger = logging.getLogger(__name__)
     CONFIRM,
     CHECK_STATUS,
     FOLLOWUP_ENTER,
-) = range(8)
+    REJECT_REASON,
+) = range(9)
 
 CATEGORY_MAP = {
     "🔴 Korrupsiya / Pora": CaseCategory.CORRUPTION,
@@ -715,7 +717,11 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     logger.error(f"Failed to save attachment: {e}")
 
             await db.commit()
-            await notify_admins(context.bot, case_id, category, description, is_anonymous)
+            admin_msg = await notify_admins(context.bot, case_id, category, description, is_anonymous)
+
+            # Admin guruh xabar ID sini bot_data da saqlash (keyinchalik tahrirlash uchun)
+            if admin_msg:
+                context.bot_data.setdefault("admin_messages", {})[case_id] = admin_msg.message_id
 
             # Real-time WebSocket notification to admin panel
             try:
@@ -1539,6 +1545,437 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
             logger.error(f"handle_poll_answer error: {e}")
 
 
+# ─── Admin guruh: ruxsat tekshiruvi helper ───────────────────────────────────
+
+CATEGORY_LABELS_DISPLAY = {
+    CaseCategory.CORRUPTION: "🔴 Korrupsiya / Pora",
+    CaseCategory.CONFLICT_OF_INTEREST: "⚖️ Manfaatlar to'qnashuvi",
+    CaseCategory.FRAUD: "💸 Firibgarlik / O'g'irlik",
+    CaseCategory.SAFETY: "⚠️ Xavfsizlik buzilishi",
+    CaseCategory.DISCRIMINATION: "🚫 Kamsitish / Bezovtalik",
+    CaseCategory.PROCUREMENT: "📋 Tender buzilishi",
+    CaseCategory.OTHER: "❓ Boshqa",
+}
+
+PRIORITY_LABELS_DISPLAY = {
+    CasePriority.CRITICAL: "🔴 Kritik",
+    CasePriority.HIGH: "🟠 Yuqori",
+    CasePriority.MEDIUM: "🟡 O'rta",
+    CasePriority.LOW: "🟢 Past",
+}
+
+
+async def _check_admin_permission(query) -> bool:
+    """Foydalanuvchi admin yoki investigator ekanligini DB dan tekshirish."""
+    telegram_id = query.from_user.id
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(User).where(
+                User.telegram_chat_id == telegram_id,
+                User.is_active == True,
+                User.role.in_([UserRole.ADMIN, UserRole.INVESTIGATOR]),
+            )
+        )
+        user = result.scalar_one_or_none()
+    return user is not None
+
+
+async def _get_admin_user(telegram_id: int):
+    """DB dan admin/investigator foydalanuvchini qaytaradi."""
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(User).where(
+                User.telegram_chat_id == telegram_id,
+                User.is_active == True,
+                User.role.in_([UserRole.ADMIN, UserRole.INVESTIGATOR]),
+            )
+        )
+        return result.scalar_one_or_none()
+
+
+# ─── 1. Tayinlash callback handleri ──────────────────────────────────────────
+
+async def handle_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """assign_{case_external_id} — barcha faol admin/investigator larni tanlash menyusi ko'rsatadi."""
+    query = update.callback_query
+    await query.answer()
+
+    if not await _check_admin_permission(query):
+        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        return
+
+    case_external_id = query.data.replace("assign_", "", 1)
+
+    async with AsyncSessionLocal() as db:
+        # Faol admin va investigator foydalanuvchilar
+        result = await db.execute(
+            select(User).where(
+                User.is_active == True,
+                User.role.in_([UserRole.ADMIN, UserRole.INVESTIGATOR]),
+            ).order_by(User.full_name)
+        )
+        users = result.scalars().all()
+
+    if not users:
+        await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("⬅️ Orqaga", callback_data=f"back_case_{case_external_id}")]
+        ]))
+        await query.message.reply_text("⚠️ Tayinlash uchun faol admin/investigator topilmadi.")
+        return
+
+    buttons = []
+    for u in users:
+        label = u.full_name or u.username
+        username_part = f" (@{u.username})" if u.username else ""
+        buttons.append([
+            InlineKeyboardButton(
+                f"{label}{username_part}",
+                callback_data=f"do_assign_{case_external_id}_{u.id}",
+            )
+        ])
+    buttons.append([InlineKeyboardButton("❌ Bekor qilish", callback_data=f"back_case_{case_external_id}")])
+
+    try:
+        await query.edit_message_reply_markup(
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+    except Exception as e:
+        logger.warning(f"handle_assign_callback edit failed: {e}")
+
+
+# ─── 2. Tayinlov bajarish callback handleri ──────────────────────────────────
+
+async def handle_do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """do_assign_{case_id}_{user_uuid} — murojaat tayinlanadi."""
+    query = update.callback_query
+    await query.answer("⏳ Tayinlanmoqda...")
+
+    if not await _check_admin_permission(query):
+        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        return
+
+    # Callback data: do_assign_{case_external_id}_{user_uuid}
+    # UUID ni aniq ajratish (uuid 36 belgi)
+    data = query.data  # "do_assign_CASE-20260305-00001_xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    prefix = "do_assign_"
+    rest = data[len(prefix):]  # "CASE-20260305-00001_xxxxxxxx-..."
+    # UUID har doim oxirida (36 belgi), case_id oldida
+    user_uuid_str = rest[-36:]
+    case_external_id = rest[: -(36 + 1)]  # -37: underscore + uuid
+
+    actor_telegram_id = query.from_user.id
+
+    try:
+        import uuid as _uuid
+        user_uuid = _uuid.UUID(user_uuid_str)
+    except ValueError:
+        await query.answer("❌ Noto'g'ri ma'lumot", show_alert=True)
+        return
+
+    async with AsyncSessionLocal() as db:
+        async with db.begin():
+            # Case ni lock bilan olamiz (race condition oldini olish)
+            case_result = await db.execute(
+                select(Case).where(Case.external_id == case_external_id).with_for_update()
+            )
+            case = case_result.scalar_one_or_none()
+            if not case:
+                await query.answer("❌ Murojaat topilmadi", show_alert=True)
+                return
+
+            # Tayinlanadigan foydalanuvchi
+            user_result = await db.execute(select(User).where(User.id == user_uuid))
+            assignee = user_result.scalar_one_or_none()
+            if not assignee:
+                await query.answer("❌ Foydalanuvchi topilmadi", show_alert=True)
+                return
+
+            # Faol actor
+            actor_result = await db.execute(
+                select(User).where(User.telegram_chat_id == actor_telegram_id)
+            )
+            actor = actor_result.scalar_one_or_none()
+
+            # DB da tayinlash
+            case.assigned_to = user_uuid
+
+            # Audit log
+            db.add(AuditLog(
+                user_id=actor.id if actor else None,
+                case_id=case.id,
+                action=AuditAction.CASE_ASSIGN,
+                payload={
+                    "assigned_to": str(user_uuid),
+                    "assigned_by_telegram": actor_telegram_id,
+                    "source": "telegram_callback",
+                },
+            ))
+
+            # Session yopilishidan oldin kerakli qiymatlarni saqlash
+            assignee_telegram_id = assignee.telegram_chat_id
+            assignee_name = assignee.full_name or assignee.username
+            case_ext_id = case.external_id
+            case_category = case.category
+            case_priority = case.priority
+
+    # Transaction commit bo'ldi, endi bildirish
+
+    # Tayinlangan foydalanuvchiga xabar
+    if assignee_telegram_id:
+        cat_label = CATEGORY_LABELS_DISPLAY.get(case_category, str(case_category))
+        pri_label = PRIORITY_LABELS_DISPLAY.get(case_priority, str(case_priority))
+        try:
+            await context.bot.send_message(
+                chat_id=assignee_telegram_id,
+                text=(
+                    f"📋 *Sizga tayinlandi:* `{case_ext_id}`\n"
+                    f"📂 *Kategoriya:* {cat_label}\n"
+                    f"⚠️ *Ustuvorlik:* {pri_label}"
+                ),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        except Exception as e:
+            logger.warning(f"Assignee Telegram notify failed: {e}")
+
+    # Guruh xabarini yangilash
+    new_keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("👤 Qayta tayinlash", callback_data=f"assign_{case_ext_id}"),
+            InlineKeyboardButton("🔍 Admin panelda ko'r", callback_data=f"view_{case_ext_id}"),
+        ],
+        [
+            InlineKeyboardButton("▶️ Boshlash", callback_data=f"start_{case_ext_id}"),
+            InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{case_ext_id}"),
+        ],
+    ])
+    try:
+        await query.edit_message_reply_markup(reply_markup=new_keyboard)
+        await query.message.reply_text(
+            f"✅ *Tayinlandi:* `{case_ext_id}`\n👤 *Ijrochi:* {assignee_name}",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception as e:
+        logger.warning(f"do_assign edit failed: {e}")
+
+
+# ─── 3. Boshlash callback handleri ───────────────────────────────────────────
+
+async def handle_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """start_{case_external_id} — murojaat holatini in_progress ga o'tkazadi."""
+    query = update.callback_query
+    await query.answer("⏳ Boshlanmoqda...")
+
+    if not await _check_admin_permission(query):
+        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        return
+
+    case_external_id = query.data.replace("start_", "", 1)
+    actor_telegram_id = query.from_user.id
+
+    async with AsyncSessionLocal() as db:
+        async with db.begin():
+            case_result = await db.execute(
+                select(Case).where(Case.external_id == case_external_id).with_for_update()
+            )
+            case = case_result.scalar_one_or_none()
+            if not case:
+                await query.answer("❌ Murojaat topilmadi", show_alert=True)
+                return
+
+            if case.status not in (CaseStatus.NEW, CaseStatus.NEEDS_INFO):
+                await query.answer(
+                    f"⚠️ Holat: {case.status.value}. Boshlash mumkin emas.",
+                    show_alert=True,
+                )
+                return
+
+            case.status = CaseStatus.IN_PROGRESS
+
+            actor_result = await db.execute(
+                select(User).where(User.telegram_chat_id == actor_telegram_id)
+            )
+            actor = actor_result.scalar_one_or_none()
+            db.add(AuditLog(
+                user_id=actor.id if actor else None,
+                case_id=case.id,
+                action=AuditAction.CASE_UPDATE,
+                payload={"status": "in_progress", "source": "telegram_callback"},
+            ))
+
+    now_str = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M")
+    new_keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("👤 Tayinlash",           callback_data=f"assign_{case_external_id}"),
+            InlineKeyboardButton("🔍 Admin panelda ko'r",  callback_data=f"view_{case_external_id}"),
+        ],
+        [
+            InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{case_external_id}"),
+        ],
+    ])
+    try:
+        await query.edit_message_reply_markup(reply_markup=new_keyboard)
+        await query.message.reply_text(
+            f"▶️ *Boshlandi:* `{case_external_id}`\n🕐 {now_str}",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception as e:
+        logger.warning(f"handle_start_callback edit failed: {e}")
+
+
+# ─── 4. Rad etish callback handleri ──────────────────────────────────────────
+
+async def handle_reject_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """reject_{case_external_id} — rad etish sababini so'raydi."""
+    query = update.callback_query
+    await query.answer()
+
+    if not await _check_admin_permission(query):
+        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        return
+
+    case_external_id = query.data.replace("reject_", "", 1)
+
+    # context.user_data da holat va case_id saqlash
+    context.user_data["reject_case_id"] = case_external_id
+    context.user_data["reject_message_id"] = query.message.message_id
+    context.user_data["reject_chat_id"] = query.message.chat_id
+
+    try:
+        await query.message.reply_text(
+            f"❓ *{case_external_id} murojaatini rad etish sababi:*\n\nSababni yozing:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=ForceReply(selective=True),
+        )
+    except Exception as e:
+        logger.warning(f"handle_reject_callback reply failed: {e}")
+
+
+async def handle_reject_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin guruhida rad etish sababini qabul qiladi va holat yangilanadi."""
+    if not update.message:
+        return
+
+    # Faqat guruh chatida ishlaydi
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        return
+
+    case_external_id = context.user_data.get("reject_case_id")
+    if not case_external_id:
+        return  # Bu handler uchun emas
+
+    # Ruxsatni tekshirish
+    telegram_id = update.effective_user.id
+    async with AsyncSessionLocal() as db:
+        perm_result = await db.execute(
+            select(User).where(
+                User.telegram_chat_id == telegram_id,
+                User.is_active == True,
+                User.role.in_([UserRole.ADMIN, UserRole.INVESTIGATOR]),
+            )
+        )
+        actor = perm_result.scalar_one_or_none()
+        if not actor:
+            return
+
+    reason = update.message.text.strip()
+    if len(reason) < 3:
+        await update.message.reply_text("⚠️ Sabab juda qisqa. Iltimos, batafsil yozing.")
+        return
+
+    async with AsyncSessionLocal() as db:
+        async with db.begin():
+            case_result = await db.execute(
+                select(Case).where(Case.external_id == case_external_id).with_for_update()
+            )
+            case = case_result.scalar_one_or_none()
+            if not case:
+                await update.message.reply_text("❌ Murojaat topilmadi.")
+                context.user_data.pop("reject_case_id", None)
+                return
+
+            case.status = CaseStatus.REJECTED
+
+            actor_result = await db.execute(
+                select(User).where(User.telegram_chat_id == telegram_id)
+            )
+            actor_user = actor_result.scalar_one_or_none()
+            db.add(AuditLog(
+                user_id=actor_user.id if actor_user else None,
+                case_id=case.id,
+                action=AuditAction.CASE_UPDATE,
+                payload={"status": "rejected", "reason": reason, "source": "telegram_callback"},
+            ))
+
+    context.user_data.pop("reject_case_id", None)
+    orig_msg_id = context.user_data.pop("reject_message_id", None)
+
+    # Guruh xabarini yangilash (faqat keyboard qismi)
+    new_keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔍 Admin panelda ko'r", callback_data=f"view_{case_external_id}")]
+    ])
+    try:
+        if orig_msg_id:
+            await context.bot.edit_message_reply_markup(
+                chat_id=update.effective_chat.id,
+                message_id=orig_msg_id,
+                reply_markup=new_keyboard,
+            )
+    except Exception as e:
+        logger.warning(f"handle_reject_reason edit_reply_markup failed: {e}")
+
+    now_str = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M")
+    await update.message.reply_text(
+        f"❌ *Rad etildi:* `{case_external_id}`\n"
+        f"📝 *Sabab:* {reason}\n"
+        f"🕐 {now_str}",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─── 5. "view" callback — admin panelga yo'naltirish ─────────────────────────
+
+async def handle_view_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """view_{case_external_id} — admin panelga havola yuboradi."""
+    query = update.callback_query
+    await query.answer()
+
+    if not await _check_admin_permission(query):
+        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        return
+
+    case_external_id = query.data.replace("view_", "", 1)
+    panel_url = settings.WEBHOOK_URL.replace("/api/telegram/webhook", "")
+    await query.message.reply_text(
+        f"🔍 Admin panelda ko'rish:\n{panel_url}/admin/cases/{case_external_id}",
+        disable_web_page_preview=True,
+    )
+
+
+# ─── 6. back_case callback — asl keyboardga qaytish ─────────────────────────
+
+async def handle_back_case_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """back_case_{case_id} — asl 4-tugmali keyboardga qaytadi."""
+    query = update.callback_query
+    await query.answer()
+
+    case_external_id = query.data.replace("back_case_", "", 1)
+    original_keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("👤 Tayinlash",           callback_data=f"assign_{case_external_id}"),
+            InlineKeyboardButton("🔍 Admin panelda ko'r",  callback_data=f"view_{case_external_id}"),
+        ],
+        [
+            InlineKeyboardButton("▶️ Boshlash",  callback_data=f"start_{case_external_id}"),
+            InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{case_external_id}"),
+        ],
+    ])
+    try:
+        await query.edit_message_reply_markup(reply_markup=original_keyboard)
+    except Exception as e:
+        logger.warning(f"handle_back_case_callback failed: {e}")
+
+
 def build_application() -> Application:
     app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
 
@@ -1659,6 +2096,20 @@ def build_application() -> Application:
     from telegram.ext import PollHandler as TGPollHandler
     app.add_handler(TGPollAnswerHandler(handle_poll_answer))
     app.add_handler(TGPollHandler(handle_poll_update))
+
+    # ✅ Admin guruh: inline keyboard callback handlerlari
+    app.add_handler(CallbackQueryHandler(handle_assign_callback,    pattern=r"^assign_"))
+    app.add_handler(CallbackQueryHandler(handle_do_assign_callback, pattern=r"^do_assign_"))
+    app.add_handler(CallbackQueryHandler(handle_start_callback,     pattern=r"^start_"))
+    app.add_handler(CallbackQueryHandler(handle_reject_callback,    pattern=r"^reject_"))
+    app.add_handler(CallbackQueryHandler(handle_view_callback,      pattern=r"^view_"))
+    app.add_handler(CallbackQueryHandler(handle_back_case_callback, pattern=r"^back_case_"))
+
+    # ✅ Admin guruh: rad etish sababi xabari (guruh chati)
+    app.add_handler(MessageHandler(
+        filters.ChatType.GROUPS & filters.TEXT & ~filters.COMMAND,
+        handle_reject_reason,
+    ))
 
     # ✅ Global error handler — barcha xatolarni ushlaydi
     app.add_error_handler(error_handler)

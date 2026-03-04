@@ -2,7 +2,7 @@ import logging
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-from telegram import Bot
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from telegram.constants import ParseMode
 from app.core.config import settings
 from app.models import CaseCategory
@@ -66,13 +66,15 @@ async def notify_admins(
     category: CaseCategory,
     description: str,
     is_anonymous: bool,
-):
-    """Send notification to admin Telegram group and email"""
+) -> "Message | None":
+    """Send notification to admin Telegram group and email.
+    Returns the sent Telegram Message object (needed to store message_id for later editing).
+    """
     cat_label = CATEGORY_LABELS.get(category, str(category))
     short_desc = description[:300] + ("..." if len(description) > 300 else "")
     anon_text = "✅ Anonim" if is_anonymous else "❌ Anonim emas"
 
-    message = (
+    text = (
         f"🔔 *Yangi murojaat keldi!*\n\n"
         f"📋 *Raqam:* `{case_id}`\n"
         f"📂 *Kategoriya:* {cat_label}\n"
@@ -81,12 +83,27 @@ async def notify_admins(
         f"👉 [Admin panelga o'ting]({settings.WEBHOOK_URL.replace('/api/telegram/webhook', '')}/admin)"
     )
 
+    # Inline keyboard
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("👤 Tayinlash",           callback_data=f"assign_{case_id}"),
+            InlineKeyboardButton("🔍 Admin panelda ko'r",  callback_data=f"view_{case_id}"),
+        ],
+        [
+            InlineKeyboardButton("▶️ Boshlash",  callback_data=f"start_{case_id}"),
+            InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{case_id}"),
+        ],
+    ])
+
+    sent_message: "Message | None" = None
+
     # Telegram notification
     try:
-        await bot.send_message(
+        sent_message = await bot.send_message(
             chat_id=settings.ADMIN_CHAT_ID,
-            text=message,
+            text=text,
             parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboard,
         )
     except Exception as e:
         logger.error(f"Telegram notify failed: {e}")
@@ -96,6 +113,8 @@ async def notify_admins(
         await send_email_notification(case_id, cat_label, short_desc, is_anonymous)
     except Exception as e:
         logger.error(f"Email notify failed: {e}")
+
+    return sent_message
 
 
 async def send_email_notification(
