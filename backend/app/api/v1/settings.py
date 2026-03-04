@@ -106,3 +106,42 @@ async def update_settings(
 
     return {"message": f"{len(updated)} ta sozlama saqlandi", "updated": updated}
 
+
+@router.post("/test-report")
+async def send_test_report(
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Darhol kunlik hisobot xabarini yuboradi (faqat admin).
+    Test maqsadida ishlatiladi.
+    """
+    from app.bot.reports import send_daily_report
+    from app.core.config import settings as app_settings
+
+    chat_id = app_settings.ADMIN_CHAT_ID
+    if not chat_id:
+        raise HTTPException(
+            status_code=400,
+            detail="ADMIN_CHAT_ID sozlanmagan. .env faylida ADMIN_CHAT_ID ni o'rnating.",
+        )
+
+    try:
+        await send_daily_report()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Xabar yuborishda xato: {str(e)}")
+
+    # Audit log
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action=AuditAction.REPORT_SENT,
+        entity_type="report",
+        entity_id="test",
+        payload={"triggered_by": str(current_user.id), "type": "test_daily"},
+    ))
+    await db.commit()
+
+    return {"sent": True, "chat_id": str(chat_id)}
+
+
+

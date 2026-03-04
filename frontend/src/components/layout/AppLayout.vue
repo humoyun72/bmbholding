@@ -153,10 +153,8 @@
 
       <!-- Page content -->
       <main class="flex-1 overflow-y-auto">
-        <RouterView v-slot="{ Component }">
-          <Transition name="page" mode="out-in">
-            <component :is="Component" />
-          </Transition>
+        <RouterView v-slot="{ Component, route: r }">
+          <component :is="Component" :key="r.path" />
         </RouterView>
       </main>
     </div>
@@ -267,4 +265,9 @@ function handleLogout() {
 .dropdown-enter-active { transition: opacity 0.15s ease, transform 0.15s ease; }
 .dropdown-leave-active { transition: opacity 0.1s ease, transform 0.1s ease; }
 .dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-4px); }
+
+/* Sahifa o'tish animatsiyasi */
+.page-enter-active { transition: opacity 0.15s ease; }
+.page-leave-active { transition: opacity 0.1s ease; }
+.page-enter-from, .page-leave-to { opacity: 0; }
 </style>

@@ -352,39 +352,78 @@
 
         <!-- Bildirishnomalar -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">🔔 Avtomatik hisobotlar</h3>
+          <h3 class="font-semibold text-white mb-5">📊 Avtomatik Hisobotlar</h3>
           <div class="space-y-4">
-            <div class="flex items-center justify-between p-3 bg-surface-800 rounded-xl">
-              <div>
-                <div class="text-sm font-medium text-white">Kunlik hisobot</div>
-                <div class="text-xs text-surface-500">Har kuni belgilangan vaqtda admin guruhiga</div>
-              </div>
-              <div class="flex items-center gap-3">
-                <input v-model="sysForm.notify_daily_report_time" type="time" class="input w-28 text-sm" />
-                <button @click="sysForm.notify_daily_report = sysForm.notify_daily_report === 'true' ? 'false' : 'true'"
+
+            <!-- Kunlik hisobot -->
+            <div class="border border-surface-700 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm font-medium text-white">📅 Kunlik hisobot</div>
+                  <div class="text-xs text-surface-500 mt-0.5">Har kuni belgilangan vaqtda ADMIN_CHAT_ID ga yuboriladi</div>
+                </div>
+                <button
+                  @click="sysForm.notify_daily_report = sysForm.notify_daily_report === 'true' ? 'false' : 'true'"
                   :class="sysForm.notify_daily_report === 'true' ? 'bg-brand-500' : 'bg-surface-600'"
                   class="w-10 h-6 rounded-full transition-colors relative flex-shrink-0">
-                  <span :class="sysForm.notify_daily_report === 'true' ? 'translate-x-5' : 'translate-x-1'"
+                  <span
+                    :class="sysForm.notify_daily_report === 'true' ? 'translate-x-5' : 'translate-x-1'"
                     class="block w-4 h-4 bg-white rounded-full transition-transform absolute top-1"></span>
                 </button>
+              </div>
+              <div v-if="sysForm.notify_daily_report === 'true'" class="flex items-center gap-3 pt-1">
+                <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt (O'zbekiston):</label>
+                <input v-model="sysForm.notify_daily_report_time" type="time"
+                  class="input w-28 text-sm" />
+                <span class="text-surface-600 text-xs">UTC+5</span>
               </div>
             </div>
 
-            <div class="flex items-center justify-between p-3 bg-surface-800 rounded-xl">
-              <div>
-                <div class="text-sm font-medium text-white">Haftalik hisobot</div>
-                <div class="text-xs text-surface-500">Har dushanba belgilangan vaqtda</div>
-              </div>
-              <div class="flex items-center gap-3">
-                <input v-model="sysForm.notify_weekly_report_time" type="time" class="input w-28 text-sm" />
-                <button @click="sysForm.notify_weekly_report = sysForm.notify_weekly_report === 'true' ? 'false' : 'true'"
+            <!-- Haftalik hisobot -->
+            <div class="border border-surface-700 rounded-xl p-4 space-y-3">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm font-medium text-white">📈 Haftalik hisobot</div>
+                  <div class="text-xs text-surface-500 mt-0.5">Tanlangan kunda haftalik tahlil yuboriladi</div>
+                </div>
+                <button
+                  @click="sysForm.notify_weekly_report = sysForm.notify_weekly_report === 'true' ? 'false' : 'true'"
                   :class="sysForm.notify_weekly_report === 'true' ? 'bg-brand-500' : 'bg-surface-600'"
                   class="w-10 h-6 rounded-full transition-colors relative flex-shrink-0">
-                  <span :class="sysForm.notify_weekly_report === 'true' ? 'translate-x-5' : 'translate-x-1'"
+                  <span
+                    :class="sysForm.notify_weekly_report === 'true' ? 'translate-x-5' : 'translate-x-1'"
                     class="block w-4 h-4 bg-white rounded-full transition-transform absolute top-1"></span>
                 </button>
               </div>
+              <div v-if="sysForm.notify_weekly_report === 'true'" class="flex items-center gap-3 flex-wrap pt-1">
+                <div class="flex items-center gap-2">
+                  <label class="text-surface-400 text-xs whitespace-nowrap">Kun:</label>
+                  <select v-model="sysForm.notify_weekly_report_day" class="input text-sm w-36">
+                    <option v-for="d in reportWeekDays" :key="d.num" :value="String(d.num)">{{ d.label }}</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt:</label>
+                  <input v-model="sysForm.notify_weekly_report_time" type="time" class="input w-28 text-sm" />
+                  <span class="text-surface-600 text-xs">UTC+5</span>
+                </div>
+              </div>
             </div>
+
+            <!-- Test yuborish -->
+            <div class="flex items-center gap-3 pt-1">
+              <button @click="sendTestReport" :disabled="testReportLoading"
+                class="btn-ghost text-sm flex items-center gap-2 disabled:opacity-50">
+                <svg v-if="testReportLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                <span v-else>🧪</span>
+                Test hisobot yuborish
+              </button>
+              <span class="text-surface-600 text-xs">Darhol kunlik hisobot yuboriladi</span>
+            </div>
+
           </div>
         </div>
 
@@ -419,10 +458,22 @@
     </div>
 
   </div>
+
+  <!-- Toast -->
+  <Teleport to="body">
+    <Transition name="toast">
+      <div v-if="toast.show"
+        :class="toast.ok ? 'bg-green-900/90 border-green-700 text-green-200' : 'bg-red-900/90 border-red-700 text-red-200'"
+        class="fixed bottom-6 right-6 z-[99999] flex items-center gap-3 border px-4 py-3 rounded-xl shadow-xl backdrop-blur-sm">
+        <span>{{ toast.ok ? '✅' : '❌' }}</span>
+        <span class="text-sm font-medium">{{ toast.msg }}</span>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
 
@@ -458,6 +509,35 @@ const weekDays = [
   { num: 4, label: 'Pa' }, { num: 5, label: 'Ju' }, { num: 6, label: 'Sh' },
   { num: 7, label: 'Ya' },
 ]
+
+const reportWeekDays = [
+  { num: 1, label: 'Dushanba'  },
+  { num: 2, label: 'Seshanba'  },
+  { num: 3, label: 'Chorshanba'},
+  { num: 4, label: 'Payshanba' },
+  { num: 5, label: 'Juma'      },
+  { num: 6, label: 'Shanba'    },
+  { num: 7, label: 'Yakshanba' },
+]
+
+const toast = ref({ show: false, ok: true, msg: '' })
+function showToast(msg, ok = true) {
+  toast.value = { show: true, ok, msg }
+  setTimeout(() => { toast.value.show = false }, 3500)
+}
+
+const testReportLoading = ref(false)
+async function sendTestReport() {
+  testReportLoading.value = true
+  try {
+    const { data } = await api.post('/v1/settings/test-report')
+    showToast(`✅ Test hisobot yuborildi (chat_id: ${data.chat_id})`)
+  } catch (e) {
+    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+  } finally {
+    testReportLoading.value = false
+  }
+}
 
 // ── PROFIL ──────────────────────────────────────────────────────
 const profileForm = ref({ full_name: '', email: '', ui_lang: 'uz' })
@@ -592,6 +672,7 @@ const sysForm = ref({
   notify_daily_report: 'true',
   notify_daily_report_time: '18:00',
   notify_weekly_report: 'true',
+  notify_weekly_report_day: '1',
   notify_weekly_report_time: '09:00',
 })
 
@@ -663,3 +744,9 @@ async function setWebhook() {
   }
 }
 </script>
+
+<style scoped>
+.toast-enter-active, .toast-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+</style>
+

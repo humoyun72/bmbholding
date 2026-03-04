@@ -181,7 +181,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import api from '@/utils/api'
@@ -377,6 +377,10 @@ function getCatPercent(key) {
 onMounted(() => {
   readFromUrl()
   loadStats()
+})
+
+onUnmounted(() => {
+  if (abortCtrl) abortCtrl.abort()
 })
 </script>
 

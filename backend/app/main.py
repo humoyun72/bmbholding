@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 _polling_task = None
 _redis_subscriber_task = None
 _retention_task = None
+_report_task = None
 
 
 @asynccontextmanager
@@ -85,6 +86,10 @@ async def lifespan(app: FastAPI):
     from app.services.retention import run_retention
     _retention_task = asyncio.create_task(_run_retention_scheduler())
     logger.info("Data retention scheduler started ✅ (daily at 02:00 UTC)")
+
+    # Start report scheduler (kunlik + haftalik hisobotlar)
+    _report_task = asyncio.create_task(_run_report_scheduler())
+    logger.info("Report scheduler started ✅")
 
     # ClamAV holati haqida startup logi
     if settings.CLAMAV_ENABLED:
@@ -159,6 +164,12 @@ async def lifespan(app: FastAPI):
             await _retention_task
         except asyncio.CancelledError:
             pass
+    if _report_task:
+        _report_task.cancel()
+        try:
+            await _report_task
+        except asyncio.CancelledError:
+            pass
     if _polling_task:
         _polling_task.cancel()
         try:
@@ -225,6 +236,100 @@ async def _run_retention_scheduler():
         except Exception as e:
             logger.error(f"Data retention xato: {e}", exc_info=True)
             await asyncio.sleep(3600)  # Xato bo'lsa 1 soatdan keyin qayta urinish
+
+
+async def _run_report_scheduler():
+    """
+    Kunlik va haftalik hisobotlarni belgilangan vaqtda yuboradi.
+    Vaqtlar SystemSettings dan o'qiladi (fallback: kunlik 13:00 UTC = 18:00 UZT,
+    haftalik dushanba 04:00 UTC = 09:00 UZT).
+    """
+    from app.core.database import AsyncSessionLocal
+    from app.api.v1.settings import get_all_settings
+    from app.bot.reports import send_daily_report, send_weekly_report
+
+    logger.info("Report scheduler ishga tushdi")
+
+    while True:
+        try:
+            now = datetime.now(timezone.utc)
+
+            # ── Sozlamalarni o'qish ───────────────────────────────────────
+            async with AsyncSessionLocal() as db:
+                sys_settings = await get_all_settings(db)
+
+            daily_enabled = sys_settings.get("notify_daily_report", "true") == "true"
+            weekly_enabled = sys_settings.get("notify_weekly_report", "true") == "true"
+
+            # Vaqtni parse qilish (HH:MM) → UTC ga o'tkazish (UZT - 5)
+            daily_time_str = sys_settings.get("notify_daily_report_time", "18:00")
+            weekly_time_str = sys_settings.get("notify_weekly_report_time", "09:00")
+            weekly_day = int(sys_settings.get("notify_weekly_report_day", "1"))  # 1=Dushanba
+
+            def parse_hhmm_to_utc(time_str: str):
+                """HH:MM (UZT) → UTC soat, daqiqa"""
+                try:
+                    h, m = map(int, time_str.split(":"))
+                    utc_h = (h - 5) % 24
+                    return utc_h, m
+                except Exception:
+                    return 13, 0  # fallback: 18:00 UZT = 13:00 UTC
+
+            d_hour, d_min = parse_hhmm_to_utc(daily_time_str)
+            w_hour, w_min = parse_hhmm_to_utc(weekly_time_str)
+
+            # ── Keyingi ishga tushirish vaqtlarini hisoblash ──────────────
+            # Kunlik
+            next_daily = now.replace(hour=d_hour, minute=d_min, second=0, microsecond=0)
+            if next_daily <= now:
+                next_daily += timedelta(days=1)
+
+            # Haftalik — kelasi weekly_day (0=Dush)
+            days_ahead = (weekly_day - 1 - now.weekday()) % 7
+            next_weekly = (now + timedelta(days=days_ahead)).replace(
+                hour=w_hour, minute=w_min, second=0, microsecond=0)
+            if next_weekly <= now:
+                next_weekly += timedelta(weeks=1)
+
+            # Ikki vaqtdan eng yaqinini kutamiz
+            wait_until = next_daily
+            run_type = "daily"
+            if weekly_enabled and next_weekly < next_daily:
+                wait_until = next_weekly
+                run_type = "weekly"
+
+            wait_sec = max((wait_until - now).total_seconds(), 1)
+            logger.info(
+                f"Keyingi hisobot: {run_type} — "
+                f"{wait_until.strftime('%Y-%m-%d %H:%M')} UTC "
+                f"({wait_sec/3600:.1f} soatdan keyin)"
+            )
+
+            await asyncio.sleep(wait_sec)
+
+            # ── Hisobotni yuborish ────────────────────────────────────────
+            now_after = datetime.now(timezone.utc)
+            if run_type == "daily" and daily_enabled:
+                try:
+                    await send_daily_report()
+                    logger.info("Kunlik hisobot yuborildi ✅")
+                except Exception as e:
+                    logger.error(f"Kunlik hisobot xatosi: {e}", exc_info=True)
+            elif run_type == "weekly" and weekly_enabled:
+                try:
+                    await send_weekly_report()
+                    logger.info("Haftalik hisobot yuborildi ✅")
+                except Exception as e:
+                    logger.error(f"Haftalik hisobot xatosi: {e}", exc_info=True)
+
+            # Ikki marta ishlamasligi uchun 70 soniya kutamiz
+            await asyncio.sleep(70)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Report scheduler xato: {e}", exc_info=True)
+            await asyncio.sleep(300)  # 5 daqiqa kutib qayta urinish
 
 
 app = FastAPI(

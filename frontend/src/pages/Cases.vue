@@ -207,6 +207,7 @@ const exporting = ref(false)
 const exportOpen = ref(false)
 const exportMenuRef = ref(null)
 const toast = reactive({ show: false, msg: '' })
+let loadAbortCtrl = null
 
 const filters = reactive({
   status: '', category: '', priority: '',
@@ -257,12 +258,18 @@ function buildParams(extra = {}) {
 }
 
 async function loadCases() {
+  if (loadAbortCtrl) loadAbortCtrl.abort()
+  loadAbortCtrl = new AbortController()
   loading.value = true
   try {
     const params = buildParams({ page: pagination.page, per_page: pagination.per_page })
-    const { data } = await api.get('/v1/cases', { params })
+    const { data } = await api.get('/v1/cases', { params, signal: loadAbortCtrl.signal })
     cases.value = data.items
     Object.assign(pagination, { page: data.page, pages: data.pages, total: data.total })
+  } catch (e) {
+    if (e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
+      console.error('Cases yuklanmadi:', e)
+    }
   } finally {
     loading.value = false
   }
@@ -332,6 +339,7 @@ onMounted(() => {
   document.addEventListener('click', handleClickOutside)
 })
 onUnmounted(() => {
+  if (loadAbortCtrl) loadAbortCtrl.abort()
   document.removeEventListener('click', handleClickOutside)
 })
 

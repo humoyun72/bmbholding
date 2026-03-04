@@ -66,6 +66,7 @@ class AuditAction(str, enum.Enum):
     USER_CREATE = "user_create"
     USER_UPDATE = "user_update"
     SURVEY_CREATE = "survey_create"
+    REPORT_SENT = "report_sent"
 
 
 class PollStatus(str, enum.Enum):
