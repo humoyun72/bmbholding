@@ -30,6 +30,17 @@
             <div class="text-white font-semibold text-lg">{{ auth.user?.fullName || auth.user?.username }}</div>
             <div class="text-surface-400 text-sm">{{ roleLabel }}</div>
             <div class="text-surface-500 text-xs mt-0.5">{{ auth.user?.email || '—' }}</div>
+            <div class="mt-2">
+              <span
+                @click="activeTab = 'telegram'"
+                :class="tgLinked
+                  ? 'bg-green-500/15 text-green-400 border-green-500/30 cursor-default'
+                  : 'bg-surface-700/50 text-surface-500 border-surface-600 cursor-pointer hover:border-brand-500/50 hover:text-brand-400'"
+                class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all">
+                <span>✈️</span>
+                {{ tgLinked ? 'Telegram ulangan' : 'Telegram ulash →' }}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -198,7 +209,144 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         3. BOT SOZLAMALARI
+         3. TELEGRAM BOG'LASH
+    ════════════════════════════════════════════ -->
+    <div v-if="activeTab === 'telegram'" class="space-y-5">
+
+      <!-- Hozirgi holat -->
+      <div class="card p-6">
+        <div class="flex items-start justify-between mb-5">
+          <div>
+            <h3 class="font-semibold text-white">Telegram akkauntga bog'lash</h3>
+            <p class="text-surface-500 text-sm mt-1">
+              Bog'lash orqali tayinlangan murojaatlar haqida Telegram xabar olasiz
+            </p>
+          </div>
+          <span
+            :class="tgLinked
+              ? 'bg-green-500/15 text-green-400 border-green-500/30'
+              : 'bg-surface-700/50 text-surface-400 border-surface-600'"
+            class="text-xs px-3 py-1 rounded-full border flex-shrink-0">
+            {{ tgLinked ? '● Bog\'langan' : '○ Bog\'lanmagan' }}
+          </span>
+        </div>
+
+        <!-- Bog'langan holat -->
+        <div v-if="tgLinked" class="space-y-4">
+          <div class="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
+            <span class="text-3xl">✈️</span>
+            <div>
+              <div class="text-green-300 font-medium">Telegram ulangan</div>
+              <div class="text-green-500/70 text-xs mt-0.5">
+                Chat ID: <code class="font-mono">{{ tgChatId }}</code>
+              </div>
+            </div>
+          </div>
+          <div v-if="!showUnlink">
+            <button @click="showUnlink = true" class="btn-danger text-sm">
+              🔌 Telegram'dan uzish
+            </button>
+          </div>
+          <div v-else class="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-3">
+            <p class="text-red-400 text-sm">⚠️ Telegram bog'lanishini uzishni tasdiqlaysizmi?</p>
+            <div class="flex gap-2">
+              <button @click="unlinkTelegram" :disabled="tgUnlinking" class="btn-danger text-sm">
+                {{ tgUnlinking ? '⏳...' : '✅ Ha, uzish' }}
+              </button>
+              <button @click="showUnlink = false" class="btn-ghost text-sm">Bekor</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bog'lanmagan holat -->
+        <div v-else class="space-y-5">
+          <div class="flex items-start gap-3 p-4 bg-surface-700/40 border border-surface-700 rounded-xl">
+            <span class="text-xl mt-0.5">ℹ️</span>
+            <div class="text-surface-400 text-sm space-y-1">
+              <p>Telegram akkauntingizni bog'lash uchun:</p>
+              <ol class="list-decimal list-inside space-y-1 text-surface-500 ml-1">
+                <li>Quyidagi "Havola olish" tugmasini bosing</li>
+                <li>Hosil bo'lgan havolani oching yoki QR kodni skanerlang</li>
+                <li>Telegram botda <code class="bg-surface-800 px-1 rounded">/start</code> ni bosing</li>
+                <li>Bot avtomatik tarzda akkauntingizni bog'laydi</li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Havola generatsiya -->
+          <div v-if="!tgLinkData">
+            <button @click="generateTgLink" :disabled="tgLinkLoading" class="btn-primary">
+              {{ tgLinkLoading ? '⏳ Yuklanmoqda...' : '🔗 Havola olish' }}
+            </button>
+          </div>
+
+          <!-- Havola tayyor -->
+          <div v-else class="space-y-4">
+            <!-- Havola + nusxa -->
+            <div class="p-4 bg-surface-800 border border-surface-700 rounded-xl space-y-3">
+              <div class="flex items-center justify-between">
+                <span class="text-surface-400 text-xs font-medium">Bog'lash havolasi</span>
+                <span class="text-surface-600 text-xs">{{ tgLinkCountdown }}s qoldi</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <code class="flex-1 text-brand-300 text-xs bg-surface-900 px-3 py-2 rounded-lg break-all">
+                  {{ tgLinkData.link }}
+                </code>
+                <button @click="copyLink" class="btn-ghost text-xs px-3 flex-shrink-0">
+                  {{ linkCopied ? '✅' : '📋' }}
+                </button>
+              </div>
+
+              <!-- Telegram da ochish tugmasi -->
+              <a :href="tgLinkData.link" target="_blank" rel="noopener"
+                class="btn-primary text-sm flex items-center justify-center gap-2 w-full">
+                <span>✈️</span> Telegram da ochish
+              </a>
+            </div>
+
+            <!-- Polling: bog'lanish kutilmoqda -->
+            <div class="flex items-center gap-3 p-3 bg-surface-800/60 rounded-xl border border-surface-700">
+              <svg class="w-4 h-4 animate-spin text-brand-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <span class="text-surface-400 text-sm">Bog'lanish kutilmoqda...</span>
+              <button @click="resetTgLink" class="ml-auto text-surface-600 text-xs hover:text-surface-400">
+                Bekor
+              </button>
+            </div>
+          </div>
+
+          <p v-if="tgLinkError" class="text-red-400 text-sm">{{ tgLinkError }}</p>
+        </div>
+      </div>
+
+      <!-- Foyda qismi -->
+      <div class="card p-5">
+        <h4 class="text-sm font-semibold text-surface-300 mb-3">📲 Nima uchun kerak?</h4>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          <div class="flex items-start gap-2 text-surface-400">
+            <span class="text-green-400 mt-0.5">✓</span>
+            <span>Yangi murojaat tayinlanganda darhol xabar</span>
+          </div>
+          <div class="flex items-start gap-2 text-surface-400">
+            <span class="text-green-400 mt-0.5">✓</span>
+            <span>Guruh inline tugmalardan foydalanish</span>
+          </div>
+          <div class="flex items-start gap-2 text-surface-400">
+            <span class="text-green-400 mt-0.5">✓</span>
+            <span>Murojaat holati o'zgarganda bildirishnoma</span>
+          </div>
+          <div class="flex items-start gap-2 text-surface-400">
+            <span class="text-green-400 mt-0.5">✓</span>
+            <span>Telefon yoki kompyuter — istalgan qurilmadan</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         4. BOT SOZLAMALARI
     ════════════════════════════════════════════ -->
     <div v-if="activeTab === 'bot'" class="space-y-5">
       <div v-if="sysLoading" class="card p-6 text-center text-surface-400">⏳ Yuklanmoqda...</div>
@@ -311,7 +459,7 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         4. TIZIM SOZLAMALARI
+         5. TIZIM SOZLAMALARI
     ════════════════════════════════════════════ -->
     <div v-if="activeTab === 'system'" class="space-y-5">
       <div v-if="sysLoading" class="card p-6 text-center text-surface-400">⏳ Yuklanmoqda...</div>
@@ -473,7 +621,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
 
@@ -483,6 +631,7 @@ const activeTab = ref('profile')
 const tabs = [
   { id: 'profile',  icon: '👤', label: 'Profil'    },
   { id: 'security', icon: '🔐', label: 'Xavfsizlik' },
+  { id: 'telegram', icon: '✈️', label: 'Telegram'   },
   { id: 'bot',      icon: '🤖', label: 'Bot'        },
   { id: 'system',   icon: '⚙️', label: 'Tizim'      },
 ]
@@ -552,6 +701,8 @@ onMounted(async () => {
   profileForm.value.full_name = auth.user?.fullName || ''
   profileForm.value.email = auth.user?.email || ''
   profileForm.value.ui_lang = localStorage.getItem('ui_lang') || 'uz'
+  // Telegram holat
+  await loadTgStatus()
   // Bot & system settings yuklash
   await loadSysSettings()
 })
@@ -597,6 +748,8 @@ async function changePassword() {
     pwdSaving.value = false
   }
 }
+
+onUnmounted(() => { resetTgLink() })
 
 // ── 2FA ──────────────────────────────────────────────────────────
 const twoFaLoading = ref(false)
@@ -652,6 +805,92 @@ async function disable2FA() {
   } finally {
     disabling.value = false
   }
+}
+
+// ── TELEGRAM BOG'LASH ───────────────────────────────────────────
+const tgLinked       = ref(false)
+const tgChatId       = ref(null)
+const tgLinkLoading  = ref(false)
+const tgLinkData     = ref(null)   // { link, token, expires_in }
+const tgLinkError    = ref('')
+const tgLinkCountdown = ref(0)
+const tgUnlinking    = ref(false)
+const showUnlink     = ref(false)
+const linkCopied     = ref(false)
+
+let _tgPollTimer   = null
+let _tgCountTimer  = null
+
+async function loadTgStatus() {
+  try {
+    const { data } = await api.get('/v1/auth/telegram-link/status')
+    tgLinked.value  = data.linked
+    tgChatId.value  = data.telegram_chat_id
+  } catch { /* jim */ }
+}
+
+async function generateTgLink() {
+  tgLinkLoading.value = true
+  tgLinkError.value   = ''
+  try {
+    const { data } = await api.post('/v1/auth/telegram-link/generate')
+    tgLinkData.value     = data
+    tgLinkCountdown.value = data.expires_in  // 600s
+
+    // Countdown timer
+    _tgCountTimer = setInterval(() => {
+      tgLinkCountdown.value--
+      if (tgLinkCountdown.value <= 0) resetTgLink()
+    }, 1000)
+
+    // Polling — har 3 soniyada bog'lanish holatini tekshirish
+    _tgPollTimer = setInterval(async () => {
+      const { data: st } = await api.get('/v1/auth/telegram-link/status')
+      if (st.linked) {
+        tgLinked.value  = true
+        tgChatId.value  = st.telegram_chat_id
+        resetTgLink()
+        showToast('✅ Telegram muvaffaqiyatli bog\'landi!')
+      }
+    }, 3000)
+
+  } catch (e) {
+    tgLinkError.value = '❌ ' + (e.response?.data?.detail || 'Xatolik yuz berdi')
+  } finally {
+    tgLinkLoading.value = false
+  }
+}
+
+function resetTgLink() {
+  clearInterval(_tgPollTimer)
+  clearInterval(_tgCountTimer)
+  _tgPollTimer  = null
+  _tgCountTimer = null
+  tgLinkData.value     = null
+  tgLinkCountdown.value = 0
+}
+
+async function unlinkTelegram() {
+  tgUnlinking.value = true
+  try {
+    await api.delete('/v1/auth/telegram-link')
+    tgLinked.value   = false
+    tgChatId.value   = null
+    showUnlink.value = false
+    showToast('Telegram bog\'lanishi uzildi')
+  } catch (e) {
+    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+  } finally {
+    tgUnlinking.value = false
+  }
+}
+
+async function copyLink() {
+  try {
+    await navigator.clipboard.writeText(tgLinkData.value?.link || '')
+    linkCopied.value = true
+    setTimeout(() => { linkCopied.value = false }, 2000)
+  } catch { /* jim */ }
 }
 
 // ── BOT & TIZIM SOZLAMALARI ──────────────────────────────────────

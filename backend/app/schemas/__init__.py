@@ -41,6 +41,7 @@ class UserResponse(BaseModel):
     is_active: bool
     totp_enabled: bool
     force_password_change: bool = False
+    telegram_chat_id: Optional[int] = None
     created_at: datetime
     last_login: Optional[datetime]
 

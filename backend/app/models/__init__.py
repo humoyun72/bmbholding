@@ -129,6 +129,9 @@ class Case(Base):
     jira_ticket_id: Mapped[Optional[str]] = mapped_column(String(64))     # masalan: "COMP-123" yoki "#456"
     jira_ticket_url: Mapped[Optional[str]] = mapped_column(String(512))   # tiketga to'g'ridan havola
 
+    # Admin guruh Telegram xabar ID — guruh xabarini in-place tahrirlash uchun
+    group_message_id: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+
     attachments: Mapped[list["CaseAttachment"]] = relationship("CaseAttachment", back_populates="case", cascade="all, delete-orphan")
     comments: Mapped[list["CaseComment"]] = relationship("CaseComment", back_populates="case", cascade="all, delete-orphan")
     notifications: Mapped[list["Notification"]] = relationship("Notification", back_populates="case", cascade="all, delete-orphan")

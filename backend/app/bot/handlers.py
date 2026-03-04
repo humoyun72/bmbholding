@@ -183,6 +183,14 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return MAIN_MENU
 
+    # ── Telegram bog'lash deep link: /start link_{token} ──────────────────
+    args = context.args  # /start dan keyingi argument
+    if args and args[0].startswith("link_"):
+        token = args[0][len("link_"):]
+        await _handle_telegram_link(update, context, token)
+        return MAIN_MENU
+    # ─────────────────────────────────────────────────────────────────────
+
     allowed, retry_after = await check_rate_limit(user.id, "start")
     if not allowed:
         await update.message.reply_text(
@@ -222,6 +230,90 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=get_main_keyboard(lang),
     )
     return MAIN_MENU
+
+
+async def _handle_telegram_link(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    token: str,
+):
+    """Telegram account ni admin panel foydalanuvchisi bilan bog'lash."""
+    tg_user = update.effective_user
+    redis_key = f"tg_link:{token}"
+
+    try:
+        import redis.asyncio as aioredis
+        import uuid as _uuid
+
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        user_id_str = await r.get(redis_key)
+
+        if not user_id_str:
+            await update.message.reply_text(
+                "❌ *Havola yaroqsiz yoki muddati o'tgan.*\n\n"
+                "Admin paneldan yangi havola oling.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            await r.aclose()
+            return
+
+        # Tokenni o'chirish — bir martalik
+        await r.delete(redis_key)
+        await r.aclose()
+
+        user_uuid = _uuid.UUID(user_id_str)
+
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(select(User).where(User.id == user_uuid))
+            admin_user = result.scalar_one_or_none()
+
+            if not admin_user:
+                await update.message.reply_text("❌ Foydalanuvchi topilmadi.")
+                return
+
+            # Bu telegram ID boshqa foydalanuvchida bormi — tekshirish
+            existing = await db.execute(
+                select(User).where(
+                    User.telegram_chat_id == tg_user.id,
+                    User.id != user_uuid,
+                )
+            )
+            if existing.scalar_one_or_none():
+                await update.message.reply_text(
+                    "⚠️ *Bu Telegram akkaunt boshqa foydalanuvchiga bog'langan.*\n\n"
+                    "Avval u yerdan uzib, qayta urinib ko'ring.",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+                return
+
+            admin_user.telegram_chat_id = tg_user.id
+            db.add(AuditLog(
+                user_id=admin_user.id,
+                action=AuditAction.USER_UPDATE,
+                entity_type="user",
+                entity_id=str(admin_user.id),
+                payload={
+                    "action": "telegram_linked",
+                    "telegram_id": tg_user.id,
+                    "telegram_username": tg_user.username,
+                },
+            ))
+            await db.commit()
+
+        display_name = admin_user.full_name or admin_user.username
+        await update.message.reply_text(
+            f"✅ *Muvaffaqiyatli bog'landi!*\n\n"
+            f"👤 Admin panel: *{display_name}*\n"
+            f"📱 Telegram: @{tg_user.username or tg_user.first_name}\n\n"
+            f"Endi admin panelidan tayinlangan murojaatlar haqida xabar olasiz.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+    except Exception as e:
+        logger.error(f"Telegram link error: {e}")
+        await update.message.reply_text(
+            "❌ Bog'lashda xatolik yuz berdi. Qayta urinib ko'ring."
+        )
 
 
 # ─── /help ───────────────────────────────────────────────────────────────────
@@ -719,9 +811,19 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await db.commit()
             admin_msg = await notify_admins(context.bot, case_id, category, description, is_anonymous)
 
-            # Admin guruh xabar ID sini bot_data da saqlash (keyinchalik tahrirlash uchun)
+            # Admin guruh xabar ID sini bot_data va DB da saqlash (keyinchalik tahrirlash uchun)
             if admin_msg:
                 context.bot_data.setdefault("admin_messages", {})[case_id] = admin_msg.message_id
+                # DB ga ham yozish
+                try:
+                    async with AsyncSessionLocal() as db2:
+                        res2 = await db2.execute(select(Case).where(Case.external_id == case_id))
+                        saved = res2.scalar_one_or_none()
+                        if saved:
+                            saved.group_message_id = admin_msg.message_id
+                            await db2.commit()
+                except Exception as e:
+                    logger.warning(f"group_message_id saqlashda xato: {e}")
 
             # Real-time WebSocket notification to admin panel
             try:

@@ -30,6 +30,7 @@ export const useAuthStore = defineStore('auth', () => {
       role: data.role,
       totpEnabled: data.totp_enabled,
       forcePasswordChange: data.force_password_change,
+      telegramChatId: data.telegram_chat_id || null,
     }
 
     localStorage.setItem('token', data.access_token)

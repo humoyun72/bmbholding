@@ -287,6 +287,130 @@ async def list_users(
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
 
 
+@router.put("/users/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: str,
+    body: dict,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Foydalanuvchini tahrirlash — admin huquqi kerak."""
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+    # O'zgartirilishi mumkin bo'lgan maydonlar
+    if "full_name" in body and body["full_name"] is not None:
+        target.full_name = body["full_name"].strip() or target.full_name
+
+    if "email" in body and body["email"]:
+        new_email = body["email"].strip().lower()
+        dup = await db.execute(
+            select(User).where(User.email == new_email, User.id != target.id)
+        )
+        if dup.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Bu email allaqachon ishlatilmoqda")
+        target.email = new_email
+
+    if "role" in body and body["role"]:
+        # Superuser (username=admin) rolini o'zgartirib bo'lmaydi
+        if target.username == "admin":
+            raise HTTPException(status_code=400, detail="Superuser roli o'zgartirib bo'lmaydi")
+        try:
+            target.role = UserRole(body["role"])
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Noto'g'ri rol")
+
+    if "is_active" in body and body["is_active"] is not None:
+        if target.username == "admin" and not body["is_active"]:
+            raise HTTPException(status_code=400, detail="Superuserni o'chirib bo'lmaydi")
+        target.is_active = bool(body["is_active"])
+
+    if "password" in body and body["password"]:
+        pw = body["password"]
+        if len(pw) < 8:
+            raise HTTPException(status_code=400, detail="Parol kamida 8 belgi bo'lishi kerak")
+        target.hashed_password = hash_password(pw)
+        target.force_password_change = body.get("force_password_change", False)
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action=AuditAction.USER_UPDATE,
+        entity_type="user",
+        entity_id=str(target.id),
+        payload={"updated_fields": [k for k in body if k != "password"], "by": str(current_user.id)},
+    ))
+    await db.commit()
+    await db.refresh(target)
+    return UserResponse.model_validate(target)
+
+
+@router.delete("/users/{user_id}")
+async def delete_user(
+    user_id: str,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Foydalanuvchini o'chirish — superuser (username=admin) o'chirilmaydi."""
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    target = result.scalar_one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+    # Superuserni himoya qilish
+    if target.username == "admin":
+        raise HTTPException(status_code=400, detail="Superuserni o'chirish mumkin emas")
+
+    # O'zini o'chira olmaydi
+    if target.id == current_user.id:
+        raise HTTPException(status_code=400, detail="O'z akkauntingizni o'chirib bo'lmaydi")
+
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action=AuditAction.USER_UPDATE,
+        entity_type="user",
+        entity_id=str(target.id),
+        payload={"action": "user_deleted", "username": target.username},
+    ))
+    await db.flush()   # AuditLog ni yozib, keyin user ni o'chirish
+    await db.delete(target)
+    await db.commit()
+    return {"message": f"Foydalanuvchi '{target.username}' o'chirildi"}
+
+
+@router.post("/users/{user_id}/telegram-link")
+async def generate_telegram_link_for_user(
+    user_id: str,
+    current_user: User = Depends(require_admin),
+):
+    """Admin boshqa foydalanuvchi uchun Telegram bog'lash havolasi yaratadi."""
+    import secrets as _secrets
+    import redis.asyncio as aioredis
+
+    token = _secrets.token_urlsafe(32)
+    redis_key = f"tg_link:{token}"
+
+    try:
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await r.setex(redis_key, 600, user_id)
+        await r.aclose()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Redis xatosi: {e}")
+
+    try:
+        from app.api.v1.telegram import get_bot_app
+        bot_app = get_bot_app()
+        await bot_app.initialize()
+        me = await bot_app.bot.get_me()
+        bot_username = me.username
+    except Exception:
+        bot_username = None
+
+    link = f"https://t.me/{bot_username}?start=link_{token}" if bot_username else None
+    return {"token": token, "link": link, "bot_username": bot_username, "expires_in": 600}
+
+
 @router.get("/ldap/status")
 async def ldap_status(_: User = Depends(require_admin)):
     """LDAP/SSO ulanish holati — faqat admin ko'ra oladi."""
@@ -371,6 +495,80 @@ async def change_password(    body: dict,
     ))
     await db.commit()
     return {"message": "Parol muvaffaqiyatli o'zgartirildi"}
+
+
+@router.post("/telegram-link/generate")
+async def generate_telegram_link(
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Bir martalik Telegram bog'lash tokeni yaratadi.
+    Frontend shu tokenni t.me/Bot?start=link_{token} havolasiga joylashtiradi.
+    Token 10 daqiqa amal qiladi, Redis da saqlanadi.
+    """
+    import secrets as _secrets
+    import redis.asyncio as aioredis
+
+    token = _secrets.token_urlsafe(32)
+    redis_key = f"tg_link:{token}"
+
+    try:
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        # Token → user_id mapping, 10 daqiqa TTL
+        await r.setex(redis_key, 600, str(current_user.id))
+        await r.aclose()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Redis xatosi: {e}")
+
+    # Bot username ni olish
+    try:
+        from app.api.v1.telegram import get_bot_app
+        bot_app = get_bot_app()
+        await bot_app.initialize()
+        me = await bot_app.bot.get_me()
+        bot_username = me.username
+    except Exception:
+        bot_username = None
+
+    link = f"https://t.me/{bot_username}?start=link_{token}" if bot_username else None
+
+    return {
+        "token": token,
+        "link": link,
+        "bot_username": bot_username,
+        "expires_in": 600,
+    }
+
+
+@router.get("/telegram-link/status")
+async def telegram_link_status(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Foydalanuvchining Telegram bog'lanish holatini qaytaradi."""
+    await db.refresh(current_user)
+    return {
+        "linked": current_user.telegram_chat_id is not None,
+        "telegram_chat_id": current_user.telegram_chat_id,
+    }
+
+
+@router.delete("/telegram-link")
+async def unlink_telegram(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Telegram bog'lanishini uzish."""
+    current_user.telegram_chat_id = None
+    db.add(AuditLog(
+        user_id=current_user.id,
+        action=AuditAction.USER_UPDATE,
+        entity_type="user",
+        entity_id=str(current_user.id),
+        payload={"action": "telegram_unlinked"},
+    ))
+    await db.commit()
+    return {"message": "Telegram bog'lanishi uzildi"}
 
 
 @router.put("/profile")
