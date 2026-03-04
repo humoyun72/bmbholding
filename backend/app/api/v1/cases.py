@@ -70,6 +70,313 @@ def decrypt_case(case: Case) -> dict:
     return base
 
 
+@router.get("/export")
+async def export_cases(
+    format: str = Query("xlsx", pattern="^(xlsx|pdf)$"),
+    status: Optional[CaseStatus] = None,
+    category: Optional[CaseCategory] = None,
+    priority: Optional[CasePriority] = None,
+    from_date: Optional[str] = Query(None, description="ISO 8601, masalan 2026-01-01"),
+    to_date:   Optional[str] = Query(None, description="ISO 8601, masalan 2026-12-31"),
+    current_user: User = Depends(require_investigator_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """Murojaatlarni Excel (.xlsx) yoki PDF (.pdf) formatida eksport qilish."""
+    from datetime import date as dt_date
+
+    # ── Filtr ──────────────────────────────────────────────────────────────
+    qfilters = []
+    if status:
+        qfilters.append(Case.status == status)
+    if category:
+        qfilters.append(Case.category == category)
+    if priority:
+        qfilters.append(Case.priority == priority)
+    if from_date:
+        try:
+            fd = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+            qfilters.append(Case.created_at >= fd)
+        except ValueError:
+            pass
+    if to_date:
+        try:
+            td = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc)
+            # to_date kuni oxirigacha
+            td = td.replace(hour=23, minute=59, second=59)
+            qfilters.append(Case.created_at <= td)
+        except ValueError:
+            pass
+
+    query = (
+        select(Case)
+        .options(selectinload(Case.assignee))
+        .order_by(Case.created_at.desc())
+    )
+    if qfilters:
+        query = query.where(and_(*qfilters))
+
+    result = await db.execute(query)
+    cases = result.scalars().all()
+
+    # ── Label lug'atlari ───────────────────────────────────────────────────
+    cat_labels = {
+        "corruption": "Korrupsiya / Pora",
+        "conflict_of_interest": "Manfaatlar to'qnashuvi",
+        "fraud": "Firibgarlik / O'g'irlik",
+        "safety": "Xavfsizlik buzilishi",
+        "discrimination": "Kamsitish / Bezovtalik",
+        "procurement": "Tender buzilishi",
+        "other": "Boshqa",
+    }
+    status_labels = {
+        "new": "Yangi",
+        "in_progress": "Ko'rib chiqilmoqda",
+        "needs_info": "Ma'lumot kerak",
+        "completed": "Yakunlandi",
+        "rejected": "Rad etildi",
+        "archived": "Arxivlandi",
+    }
+    priority_labels = {
+        "critical": "Kritik",
+        "high": "Yuqori",
+        "medium": "O'rta",
+        "low": "Past",
+    }
+
+    export_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    file_date   = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    # ── Filter info matni ──────────────────────────────────────────────────
+    filter_parts = []
+    if status:   filter_parts.append(f"Holat: {status_labels.get(status.value, status.value)}")
+    if category: filter_parts.append(f"Kategoriya: {cat_labels.get(category.value, category.value)}")
+    if priority: filter_parts.append(f"Ustuvorlik: {priority_labels.get(priority.value, priority.value)}")
+    if from_date: filter_parts.append(f"Dan: {from_date}")
+    if to_date:   filter_parts.append(f"Gacha: {to_date}")
+    filter_info = " | ".join(filter_parts) if filter_parts else "Barcha murojaatlar"
+
+    # ── Row ma'lumotlarini tayyorlash ──────────────────────────────────────
+    rows = []
+    for c in cases:
+        try:
+            desc = decrypt_case_content(c.description_encrypted)[:500]
+        except Exception:
+            desc = "[Shifrni ochib bo'lmadi]"
+        assignee_name = ""
+        if c.assignee:
+            assignee_name = c.assignee.full_name or c.assignee.username
+        rows.append({
+            "id":       c.external_id,
+            "category": cat_labels.get(c.category.value if hasattr(c.category, "value") else c.category, str(c.category)),
+            "status":   status_labels.get(c.status.value if hasattr(c.status, "value") else c.status, str(c.status)),
+            "priority": priority_labels.get(c.priority.value if hasattr(c.priority, "value") else c.priority, str(c.priority)),
+            "anon":     "Ha" if c.is_anonymous else "Yo'q",
+            "assignee": assignee_name,
+            "created":  c.created_at.strftime("%d.%m.%Y %H:%M") if c.created_at else "",
+            "closed":   c.closed_at.strftime("%d.%m.%Y %H:%M") if c.closed_at else "",
+            "desc":     desc,
+            "status_raw": c.status.value if hasattr(c.status, "value") else str(c.status),
+        })
+
+    headers_row = ["Murojaat ID", "Tavsif", "Kategoriya", "Holat", "Ustuvorlik",
+                   "Anonimlik", "Ijrochi", "Yaratilgan", "Yopilgan"]
+
+    # ══════════════════════════════════════════════════════════════════════
+    # EXCEL
+    # ══════════════════════════════════════════════════════════════════════
+    if format == "xlsx":
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        import io
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Murojaatlar"
+
+        # ── 1-qator: sarlavha ──────────────────────────────────────────────
+        ws.merge_cells("A1:I1")
+        ws["A1"] = f"IntegrityBot — Eksport hisoboti  |  {export_date}"
+        ws["A1"].font = Font(bold=True, size=13, color="FFFFFF")
+        ws["A1"].fill = PatternFill("solid", fgColor="1E3A5F")
+        ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 24
+
+        # ── 2-qator: filter info ───────────────────────────────────────────
+        ws.merge_cells("A2:I2")
+        ws["A2"] = f"Filtr: {filter_info}  |  Jami: {len(rows)} ta murojaat"
+        ws["A2"].font = Font(italic=True, size=10, color="444444")
+        ws["A2"].fill = PatternFill("solid", fgColor="D9E1F2")
+        ws["A2"].alignment = Alignment(horizontal="left", vertical="center")
+        ws.row_dimensions[2].height = 18
+
+        # ── 3-qator: ustun sarlavhalari ────────────────────────────────────
+        header_fill = PatternFill("solid", fgColor="2E75B6")
+        header_font = Font(bold=True, color="FFFFFF", size=11)
+        thin = Side(style="thin", color="AAAAAA")
+        border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+        for col_idx, col_name in enumerate(headers_row, start=1):
+            cell = ws.cell(row=3, column=col_idx, value=col_name)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = border
+        ws.row_dimensions[3].height = 22
+
+        # ── Rang xaritalari (holat bo'yicha) ───────────────────────────────
+        row_fills = {
+            "completed":   PatternFill("solid", fgColor="CCFFCC"),
+            "rejected":    PatternFill("solid", fgColor="FFCCCC"),
+            "in_progress": PatternFill("solid", fgColor="FFFFCC"),
+            "needs_info":  PatternFill("solid", fgColor="FFE4B5"),
+            "archived":    PatternFill("solid", fgColor="E0E0E0"),
+        }
+
+        # ── Ma'lumot qatorlari ─────────────────────────────────────────────
+        for r_idx, row in enumerate(rows, start=4):
+            fill = row_fills.get(row["status_raw"], None)
+            vals = [row["id"], row["desc"], row["category"], row["status"], row["priority"],
+                    row["anon"], row["assignee"], row["created"], row["closed"]]
+            for c_idx, val in enumerate(vals, start=1):
+                cell = ws.cell(row=r_idx, column=c_idx, value=val)
+                cell.border = border
+                cell.alignment = Alignment(vertical="top", wrap_text=(c_idx == 2))
+                if fill:
+                    cell.fill = fill
+                if c_idx == 1:
+                    cell.font = Font(bold=True, color="1F497D")
+
+        # ── Ustun kengliklarini auto-fit ───────────────────────────────────
+        col_widths = [18, 60, 22, 18, 12, 10, 20, 18, 18]
+        for i, w in enumerate(col_widths, start=1):
+            ws.column_dimensions[get_column_letter(i)].width = w
+
+        # ── Freeze top rows ────────────────────────────────────────────────
+        ws.freeze_panes = "A4"
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+
+        filename = f"integrity_report_{file_date}.xlsx"
+        return StreamingResponse(
+            buf,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PDF
+    # ══════════════════════════════════════════════════════════════════════
+    else:
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib import colors
+        from reportlab.lib.units import mm
+        from reportlab.platypus import (
+            SimpleDocTemplate, Table, TableStyle, Paragraph,
+            Spacer, HRFlowable
+        )
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT
+        import io
+
+        buf = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buf,
+            pagesize=landscape(A4),
+            leftMargin=15*mm, rightMargin=15*mm,
+            topMargin=18*mm, bottomMargin=18*mm,
+        )
+
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle("title", parent=styles["Title"],
+            fontSize=16, spaceAfter=4, textColor=colors.HexColor("#1E3A5F"))
+        sub_style = ParagraphStyle("sub", parent=styles["Normal"],
+            fontSize=9, textColor=colors.grey, spaceAfter=10)
+        cell_style = ParagraphStyle("cell", parent=styles["Normal"],
+            fontSize=7.5, leading=10)
+        header_style = ParagraphStyle("hdr", parent=styles["Normal"],
+            fontSize=8, textColor=colors.white, fontName="Helvetica-Bold")
+
+        story = []
+
+        # Sarlavha
+        story.append(Paragraph("IntegrityBot — Eksport hisoboti", title_style))
+        story.append(Paragraph(f"Sana: {export_date}  |  Filtr: {filter_info}  |  Jami: {len(rows)} ta", sub_style))
+        story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#2E75B6"), spaceAfter=8))
+
+        # Jadval sarlavhalari
+        col_widths_pdf = [38*mm, 65*mm, 35*mm, 28*mm, 20*mm, 14*mm, 28*mm, 24*mm, 24*mm]
+        header_cells = [Paragraph(h, header_style) for h in headers_row]
+        table_data = [header_cells]
+
+        status_colors_pdf = {
+            "completed":   colors.HexColor("#CCFFCC"),
+            "rejected":    colors.HexColor("#FFCCCC"),
+            "in_progress": colors.HexColor("#FFFFCC"),
+            "needs_info":  colors.HexColor("#FFE4B5"),
+            "archived":    colors.HexColor("#E0E0E0"),
+        }
+
+        row_bg_cmds = []
+        for r_idx, row in enumerate(rows, start=1):
+            cells = [
+                Paragraph(row["id"], cell_style),
+                Paragraph(row["desc"][:300], cell_style),
+                Paragraph(row["category"], cell_style),
+                Paragraph(row["status"], cell_style),
+                Paragraph(row["priority"], cell_style),
+                Paragraph(row["anon"], cell_style),
+                Paragraph(row["assignee"], cell_style),
+                Paragraph(row["created"], cell_style),
+                Paragraph(row["closed"], cell_style),
+            ]
+            table_data.append(cells)
+            bg = status_colors_pdf.get(row["status_raw"])
+            if bg:
+                row_bg_cmds.append(("BACKGROUND", (0, r_idx), (-1, r_idx), bg))
+
+        tbl = Table(table_data, colWidths=col_widths_pdf, repeatRows=1)
+        tbl_style = TableStyle([
+            # Sarlavha
+            ("BACKGROUND",  (0, 0), (-1, 0), colors.HexColor("#2E75B6")),
+            ("TEXTCOLOR",   (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",    (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",    (0, 0), (-1, 0), 8),
+            ("ALIGN",       (0, 0), (-1, 0), "CENTER"),
+            ("VALIGN",      (0, 0), (-1, -1), "TOP"),
+            ("FONTSIZE",    (0, 1), (-1, -1), 7.5),
+            ("GRID",        (0, 0), (-1, -1), 0.4, colors.HexColor("#BBBBBB")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F8FF")]),
+            ("LEFTPADDING",  (0, 0), (-1, -1), 4),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+            ("TOPPADDING",   (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING",(0, 0), (-1, -1), 3),
+        ] + row_bg_cmds)
+        tbl.setStyle(tbl_style)
+        story.append(tbl)
+
+        # Altbilgi funksiyasi
+        def add_page_number(canvas_obj, doc_obj):
+            canvas_obj.saveState()
+            canvas_obj.setFont("Helvetica", 8)
+            canvas_obj.setFillColor(colors.grey)
+            page_text = f"Sahifa {doc_obj.page}  —  IntegrityBot eksport  —  {export_date}"
+            canvas_obj.drawCentredString(landscape(A4)[0] / 2, 10*mm, page_text)
+            canvas_obj.restoreState()
+
+        doc.build(story, onFirstPage=add_page_number, onLaterPages=add_page_number)
+        buf.seek(0)
+
+        filename = f"integrity_report_{file_date}.pdf"
+        return StreamingResponse(
+            buf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+
+
 @router.get("", response_model=dict)
 async def list_cases(
     page: int = Query(1, ge=1),
@@ -224,6 +531,184 @@ async def get_case(
         base["assignee_name"] = case.assignee.full_name or case.assignee.username
 
     return base
+
+
+@router.get("/{case_id}/export")
+async def export_case_pdf(
+    case_id: str,
+    request: Request,
+    current_user: User = Depends(require_investigator_or_above),
+    db: AsyncSession = Depends(get_db),
+):
+    """Bitta murojaat kartochkasini PDF sifatida eksport qilish."""
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Table, TableStyle, Paragraph,
+        Spacer, HRFlowable
+    )
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_LEFT
+    import io
+
+    result = await db.execute(
+        select(Case)
+        .options(selectinload(Case.attachments), selectinload(Case.comments).selectinload(CaseComment.author), selectinload(Case.assignee))
+        .where(Case.external_id == case_id)
+    )
+    case = result.scalar_one_or_none()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    cat_labels = {
+        "corruption": "Korrupsiya / Pora", "conflict_of_interest": "Manfaatlar to'qnashuvi",
+        "fraud": "Firibgarlik", "safety": "Xavfsizlik buzilishi",
+        "discrimination": "Kamsitish", "procurement": "Tender buzilishi", "other": "Boshqa",
+    }
+    status_labels = {
+        "new": "Yangi", "in_progress": "Ko'rib chiqilmoqda", "needs_info": "Ma'lumot kerak",
+        "completed": "Yakunlandi", "rejected": "Rad etildi", "archived": "Arxivlandi",
+    }
+    priority_labels = {"critical": "Kritik", "high": "Yuqori", "medium": "O'rta", "low": "Past"}
+
+    def v(enum_val):
+        return enum_val.value if hasattr(enum_val, "value") else str(enum_val)
+
+    try:
+        description = decrypt_case_content(case.description_encrypted)
+    except Exception:
+        description = "[Shifrni ochib bo'lmadi]"
+
+    export_dt = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+        leftMargin=20*mm, rightMargin=20*mm, topMargin=20*mm, bottomMargin=20*mm)
+
+    styles = getSampleStyleSheet()
+    h1 = ParagraphStyle("h1", fontSize=16, fontName="Helvetica-Bold",
+        textColor=colors.HexColor("#1E3A5F"), spaceAfter=4)
+    h2 = ParagraphStyle("h2", fontSize=11, fontName="Helvetica-Bold",
+        textColor=colors.HexColor("#2E75B6"), spaceBefore=12, spaceAfter=4)
+    normal = ParagraphStyle("n", fontSize=9, leading=13)
+    label_s = ParagraphStyle("lbl", fontSize=8, textColor=colors.grey)
+    value_s = ParagraphStyle("val", fontSize=9, fontName="Helvetica-Bold")
+
+    story = []
+
+    # Sarlavha
+    story.append(Paragraph(f"Murojaat kartochkasi: {case.external_id}", h1))
+    story.append(Paragraph(f"Eksport sanasi: {export_dt}", label_s))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#2E75B6"), spaceAfter=10))
+
+    # Asosiy ma'lumotlar jadvali
+    info_data = [
+        ["Maydon", "Qiymat"],
+        ["Murojaat ID", case.external_id],
+        ["Kategoriya", cat_labels.get(v(case.category), v(case.category))],
+        ["Holat", status_labels.get(v(case.status), v(case.status))],
+        ["Ustuvorlik", priority_labels.get(v(case.priority), v(case.priority))],
+        ["Anonimlik", "Ha" if case.is_anonymous else "Yo'q"],
+        ["Ijrochi", (case.assignee.full_name or case.assignee.username) if case.assignee else "Tayinlanmagan"],
+        ["Yaratilgan", case.created_at.strftime("%d.%m.%Y %H:%M") if case.created_at else "—"],
+        ["Yopilgan", case.closed_at.strftime("%d.%m.%Y %H:%M") if case.closed_at else "—"],
+        ["Muddat", case.due_at.strftime("%d.%m.%Y") if case.due_at else "—"],
+    ]
+    info_tbl = Table(info_data, colWidths=[50*mm, 120*mm])
+    info_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E75B6")),
+        ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+        ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("FONTSIZE",   (0, 0), (-1, -1), 9),
+        ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#F0F4FA")),
+        ("FONTNAME",   (0, 1), (0, -1), "Helvetica-Bold"),
+        ("GRID",       (0, 0), (-1, -1), 0.5, colors.HexColor("#CCCCCC")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F8FF")]),
+        ("LEFTPADDING",  (0, 0), (-1, -1), 6),
+        ("TOPPADDING",   (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING",(0, 0), (-1, -1), 4),
+    ]))
+    story.append(info_tbl)
+
+    # Tavsif
+    story.append(Paragraph("Murojaat mazmuni", h2))
+    story.append(Paragraph(description.replace("\n", "<br/>"), normal))
+
+    # Chat tarixi
+    comments = sorted(case.comments, key=lambda x: x.created_at)
+    if comments:
+        story.append(Paragraph("Chat tarixi", h2))
+        chat_data = [["Vaqt", "Kim", "Xabar", "Tur"]]
+        for cm in comments:
+            try:
+                content = decrypt_comment_content(cm.content_encrypted)[:300]
+            except Exception:
+                content = "[Shifrni ochib bo'lmadi]"
+            who = "Reporter" if cm.is_from_reporter else (
+                cm.author.full_name if cm.author else "Admin")
+            kind = "Ichki" if cm.is_internal else "Tashqi"
+            ts = cm.created_at.strftime("%d.%m %H:%M") if cm.created_at else ""
+            chat_data.append([ts, who, content, kind])
+        chat_tbl = Table(chat_data, colWidths=[22*mm, 28*mm, 100*mm, 16*mm])
+        chat_tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E75B6")),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("GRID",       (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F8FF")]),
+            ("VALIGN",     (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING",  (0, 0), (-1, -1), 4),
+            ("TOPPADDING",   (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING",(0, 0), (-1, -1), 3),
+        ]))
+        story.append(chat_tbl)
+
+    # Fayllar ro'yxati
+    if case.attachments:
+        story.append(Paragraph("Biriktirилgan fayllar", h2))
+        att_data = [["Fayl nomi", "Tur", "Hajm", "Sana", "Yuklagan"]]
+        for a in case.attachments:
+            size = f"{a.size_bytes // 1024} KB" if a.size_bytes else "—"
+            uploaded = "Admin" if getattr(a, "uploaded_by_admin", False) else "Reporter"
+            att_data.append([
+                a.original_filename,
+                a.mime_type,
+                size,
+                a.uploaded_at.strftime("%d.%m.%Y") if a.uploaded_at else "—",
+                uploaded,
+            ])
+        att_tbl = Table(att_data, colWidths=[60*mm, 35*mm, 20*mm, 25*mm, 25*mm])
+        att_tbl.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2E75B6")),
+            ("TEXTCOLOR",  (0, 0), (-1, 0), colors.white),
+            ("FONTNAME",   (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE",   (0, 0), (-1, -1), 8),
+            ("GRID",       (0, 0), (-1, -1), 0.4, colors.HexColor("#CCCCCC")),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#F5F8FF")]),
+            ("LEFTPADDING",  (0, 0), (-1, -1), 4),
+            ("TOPPADDING",   (0, 0), (-1, -1), 3),
+        ]))
+        story.append(att_tbl)
+
+    def footer(canvas_obj, doc_obj):
+        canvas_obj.saveState()
+        canvas_obj.setFont("Helvetica", 7.5)
+        canvas_obj.setFillColor(colors.grey)
+        canvas_obj.drawCentredString(A4[0] / 2, 10*mm,
+            f"Sahifa {doc_obj.page}  —  IntegrityBot  —  {export_dt}  —  Maxfiy")
+        canvas_obj.restoreState()
+
+    doc.build(story, onFirstPage=footer, onLaterPages=footer)
+    buf.seek(0)
+
+    filename = f"case_{case_id}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+    return StreamingResponse(
+        buf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.post("/{case_id}/assign")

@@ -9,25 +9,79 @@
     </div>
 
     <!-- Filters -->
-    <div class="card p-4 mb-6">
+    <div class="card p-4 mb-6 space-y-3">
       <div class="flex items-center gap-3 flex-wrap">
-        <select v-model="filters.status" class="input flex-1 min-w-32" @change="loadCases">
+        <select v-model="filters.status" class="input flex-1 min-w-32" @change="onFilterChange">
           <option value="">Barcha holatlar</option>
           <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
         </select>
-        <select v-model="filters.category" class="input flex-1 min-w-32" @change="loadCases">
+        <select v-model="filters.category" class="input flex-1 min-w-32" @change="onFilterChange">
           <option value="">Barcha kategoriyalar</option>
           <option v-for="c in categoryOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
         </select>
-        <select v-model="filters.priority" class="input flex-1 min-w-32" @change="loadCases">
+        <select v-model="filters.priority" class="input flex-1 min-w-32" @change="onFilterChange">
           <option value="">Barcha ustuvorliklar</option>
           <option v-for="p in priorityOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
         </select>
+      </div>
+      <!-- Date range + actions row -->
+      <div class="flex items-center gap-3 flex-wrap">
+        <div class="flex items-center gap-2 flex-1 min-w-48">
+          <label class="text-surface-500 text-xs whitespace-nowrap">Dan:</label>
+          <input type="date" v-model="filters.from_date" @change="onFilterChange"
+            class="input flex-1 text-sm" />
+        </div>
+        <div class="flex items-center gap-2 flex-1 min-w-48">
+          <label class="text-surface-500 text-xs whitespace-nowrap">Gacha:</label>
+          <input type="date" v-model="filters.to_date" @change="onFilterChange"
+            class="input flex-1 text-sm" />
+        </div>
         <button @click="resetFilters" class="btn-ghost text-sm whitespace-nowrap">
           Filtrni tozalash
         </button>
+
+        <!-- Export dropdown -->
+        <div class="relative" ref="exportMenuRef">
+          <button @click="exportOpen = !exportOpen"
+            :disabled="exporting"
+            class="btn-ghost text-sm whitespace-nowrap flex items-center gap-2 disabled:opacity-50">
+            <svg v-if="exporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+            </svg>
+            <span v-else>📥</span>
+            Eksport
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+            </svg>
+          </button>
+          <Transition name="dropdown">
+            <div v-if="exportOpen"
+              class="absolute right-0 top-full mt-1 w-48 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-50 overflow-hidden">
+              <button @click="doExport('xlsx')"
+                class="w-full text-left px-4 py-3 text-sm text-surface-200 hover:bg-surface-700 transition-colors flex items-center gap-2">
+                <span>📊</span> Excel (.xlsx)
+              </button>
+              <button @click="doExport('pdf')"
+                class="w-full text-left px-4 py-3 text-sm text-surface-200 hover:bg-surface-700 transition-colors flex items-center gap-2 border-t border-surface-700">
+                <span>📄</span> PDF (.pdf)
+              </button>
+            </div>
+          </Transition>
+        </div>
       </div>
     </div>
+
+    <!-- Toast -->
+    <Teleport to="body">
+      <Transition name="toast">
+        <div v-if="toast.show"
+          class="fixed bottom-6 right-6 z-[99999] flex items-center gap-3 bg-green-900/90 border border-green-700 text-green-200 px-4 py-3 rounded-xl shadow-xl backdrop-blur-sm">
+          <span>✅</span>
+          <span class="text-sm font-medium">{{ toast.msg }}</span>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- Table -->
     <!-- Desktop table -->
@@ -140,7 +194,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, defineComponent, h } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, defineComponent, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { format } from 'date-fns'
 import api from '@/utils/api'
@@ -149,8 +203,15 @@ const router = useRouter()
 const loading = ref(true)
 const cases = ref([])
 const pagination = reactive({ page: 1, pages: 1, total: 0, per_page: 20 })
+const exporting = ref(false)
+const exportOpen = ref(false)
+const exportMenuRef = ref(null)
+const toast = reactive({ show: false, msg: '' })
 
-const filters = reactive({ status: '', category: '', priority: '' })
+const filters = reactive({
+  status: '', category: '', priority: '',
+  from_date: '', to_date: '',
+})
 
 const columns = [
   { key: 'id', label: 'Murojaat ID' },
@@ -169,7 +230,6 @@ const statusOptions = [
   { value: 'completed', label: 'Yakunlandi' },
   { value: 'rejected', label: 'Rad etildi' },
 ]
-
 const categoryOptions = [
   { value: 'corruption', label: 'Korrupsiya' },
   { value: 'conflict_of_interest', label: "Manfaatlar to'qnashuvi" },
@@ -179,7 +239,6 @@ const categoryOptions = [
   { value: 'procurement', label: 'Tender' },
   { value: 'other', label: 'Boshqa' },
 ]
-
 const priorityOptions = [
   { value: 'critical', label: '🔴 Kritik' },
   { value: 'high', label: '🟠 Yuqori' },
@@ -187,14 +246,20 @@ const priorityOptions = [
   { value: 'low', label: '🟢 Past' },
 ]
 
+function buildParams(extra = {}) {
+  const params = { ...extra }
+  if (filters.status)    params.status    = filters.status
+  if (filters.category)  params.category  = filters.category
+  if (filters.priority)  params.priority  = filters.priority
+  if (filters.from_date) params.from_date = filters.from_date
+  if (filters.to_date)   params.to_date   = filters.to_date
+  return params
+}
+
 async function loadCases() {
   loading.value = true
   try {
-    const params = { page: pagination.page, per_page: pagination.per_page }
-    if (filters.status) params.status = filters.status
-    if (filters.category) params.category = filters.category
-    if (filters.priority) params.priority = filters.priority
-
+    const params = buildParams({ page: pagination.page, per_page: pagination.per_page })
     const { data } = await api.get('/v1/cases', { params })
     cases.value = data.items
     Object.assign(pagination, { page: data.page, pages: data.pages, total: data.total })
@@ -203,15 +268,18 @@ async function loadCases() {
   }
 }
 
+function onFilterChange() {
+  pagination.page = 1
+  loadCases()
+}
+
 function changePage(p) {
   pagination.page = p
   loadCases()
 }
 
 function resetFilters() {
-  filters.status = ''
-  filters.category = ''
-  filters.priority = ''
+  Object.assign(filters, { status: '', category: '', priority: '', from_date: '', to_date: '' })
   pagination.page = 1
   loadCases()
 }
@@ -219,6 +287,53 @@ function resetFilters() {
 function goToCase(id) {
   router.push(`/cases/${id}`)
 }
+
+// ── Export ────────────────────────────────────────────────────────────────────
+async function doExport(fmt) {
+  exportOpen.value = false
+  exporting.value = true
+  try {
+    const params = buildParams({ format: fmt })
+    const resp = await api.get('/v1/cases/export', {
+      params,
+      responseType: 'blob',
+    })
+    const today = new Date().toISOString().slice(0, 10)
+    const ext = fmt === 'pdf' ? 'pdf' : 'xlsx'
+    const filename = `integrity_report_${today}.${ext}`
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(url)
+    showToast(`✅ Fayl yuklab olindi: ${filename}`)
+  } catch (e) {
+    showToast('❌ Eksport muvaffaqiyatsiz: ' + (e.response?.data?.detail || e.message))
+  } finally {
+    exporting.value = false
+  }
+}
+
+function showToast(msg) {
+  toast.msg = msg
+  toast.show = true
+  setTimeout(() => { toast.show = false }, 3500)
+}
+
+// Dropdown tashqariga bosilsa yopilsin
+function handleClickOutside(e) {
+  if (exportMenuRef.value && !exportMenuRef.value.contains(e.target)) {
+    exportOpen.value = false
+  }
+}
+onMounted(() => {
+  loadCases()
+  document.addEventListener('click', handleClickOutside)
+})
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 function formatDate(d) {
   return d ? format(new Date(d), 'dd.MM.yyyy HH:mm') : '—'
@@ -274,6 +389,12 @@ const PriorityBadge = defineComponent({
     }
   }
 })
-
-onMounted(loadCases)
 </script>
+
+<style scoped>
+.dropdown-enter-active, .dropdown-leave-active { transition: opacity 0.15s ease, transform 0.15s ease; }
+.dropdown-enter-from, .dropdown-leave-to { opacity: 0; transform: translateY(-6px); }
+
+.toast-enter-active, .toast-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
+.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+</style>
