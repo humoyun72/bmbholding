@@ -269,8 +269,8 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "⚠️ Invalid format. Example: `CASE-20251201-00001`",
     },
 
-    # ── Bekor qilish ──────────────────────────────────────────────────────────
-    "cancelled": {
+    # ── Bekor qilish (eski, orqaga muvofiqlik uchun) ──────────────────────────
+    "cancelled_short": {
         "uz": "❌ Bekor qilindi. Bosh menyuga qaytdingiz.",
         "ru": "❌ Отменено. Вы вернулись в главное меню.",
         "en": "❌ Cancelled. You've returned to the main menu.",
@@ -437,11 +437,188 @@ TRANSLATIONS: dict[str, dict[str, str]] = {
         "en": "❓ Other",
     },
 
+    # ── Fallback va xato kalitlar ─────────────────────────────────────────────
+    "unknown_command": {
+        "uz": (
+            "🤔 *Kechirasiz, bu buyruqni tushunmadim.*\n\n"
+            "Nima qilishni istaysiz?"
+        ),
+        "ru": (
+            "🤔 *Извините, я не понял эту команду.*\n\n"
+            "Что вы хотите сделать?"
+        ),
+        "en": (
+            "🤔 *Sorry, I didn't understand that command.*\n\n"
+            "What would you like to do?"
+        ),
+    },
+
+    "invalid_input_in_state": {
+        "uz": "⚠️ Iltimos, tugmalardan foydalaning yoki /cancel bosing.",
+        "ru": "⚠️ Пожалуйста, используйте кнопки или нажмите /cancel.",
+        "en": "⚠️ Please use the buttons or press /cancel.",
+    },
+
+    "text_too_short": {
+        "uz": "⚠️ Matn juda qisqa (minimum 20 belgi). Hozir: *{length}/20*\n\nIltimos, batafsil yozing.",
+        "ru": "⚠️ Текст слишком короткий (минимум 20 символов). Сейчас: *{length}/20*\n\nПожалуйста, напишите подробнее.",
+        "en": "⚠️ Text too short (minimum 20 characters). Current: *{length}/20*\n\nPlease write in more detail.",
+    },
+
+    "text_too_long": {
+        "uz": "⚠️ Matn juda uzun (maksimum 5000 belgi). Hozir: *{length}/5000*\n\nIltimos, qisqartiring.",
+        "ru": "⚠️ Текст слишком длинный (максимум 5000 символов). Сейчас: *{length}/5000*\n\nПожалуйста, сократите.",
+        "en": "⚠️ Text too long (maximum 5000 characters). Current: *{length}/5000*\n\nPlease shorten it.",
+    },
+
+    "welcome_new": {
+        "uz": (
+            "👋 *Xush kelibsiz, yangi foydalanuvchi!*\n\n"
+            "Bu bot orqali qoidabuzarliklar haqida *xavfsiz va anonim* murojaat qilishingiz mumkin.\n\n"
+            "📌 Murojaat yuborish: «📝 Murojaat yuborish» tugmasi\n"
+            "📌 Holat tekshirish: «🔍 Holatni tekshirish» tugmasi\n"
+            "📌 Yordam: /help\n\n"
+            "🔒 Barcha murojaatlar *AES-256* shifrlangan holda saqlanadi.\n"
+            "✅ Anonimlik to'liq kafolatlanadi.\n\n"
+            "Nima qilishni istaysiz?"
+        ),
+        "ru": (
+            "👋 *Добро пожаловать, новый пользователь!*\n\n"
+            "Через этот бот вы можете *безопасно и анонимно* сообщить о нарушениях.\n\n"
+            "📌 Подать обращение: кнопка «📝 Отправить обращение»\n"
+            "📌 Проверить статус: кнопка «🔍 Проверить статус»\n"
+            "📌 Помощь: /help\n\n"
+            "🔒 Все обращения хранятся в зашифрованном виде (*AES-256*).\n"
+            "✅ Анонимность полностью гарантируется.\n\n"
+            "Что вы хотите сделать?"
+        ),
+        "en": (
+            "👋 *Welcome, new user!*\n\n"
+            "You can use this bot to *safely and anonymously* report violations.\n\n"
+            "📌 Submit report: «📝 Submit report» button\n"
+            "📌 Check status: «🔍 Check status» button\n"
+            "📌 Help: /help\n\n"
+            "🔒 All reports are stored encrypted (*AES-256*).\n"
+            "✅ Full anonymity is guaranteed.\n\n"
+            "What would you like to do?"
+        ),
+    },
+
+    "welcome_returning": {
+        "uz": (
+            "🛡️ *Integrity Hotline Bot*\n\n"
+            "Qaytib kelganingiz uchun rahmat!\n\n"
+            "Nima qilishni istaysiz?"
+        ),
+        "ru": (
+            "🛡️ *Integrity Hotline Bot*\n\n"
+            "С возвращением!\n\n"
+            "Что вы хотите сделать?"
+        ),
+        "en": (
+            "🛡️ *Integrity Hotline Bot*\n\n"
+            "Welcome back!\n\n"
+            "What would you like to do?"
+        ),
+    },
+
+    "group_redirect": {
+        "uz": (
+            "ℹ️ Bu bot shaxsiy murojaat uchun mo'ljallangan.\n\n"
+            "Anonim murojaat yuborish uchun bevosita botga yozing:\n"
+            "@IntegrityBot"
+        ),
+        "ru": (
+            "ℹ️ Этот бот предназначен для личных обращений.\n\n"
+            "Для отправки анонимного обращения напишите боту напрямую:\n"
+            "@IntegrityBot"
+        ),
+        "en": (
+            "ℹ️ This bot is designed for personal reports.\n\n"
+            "To submit an anonymous report, write to the bot directly:\n"
+            "@IntegrityBot"
+        ),
+    },
+
+    "technical_error": {
+        "uz": (
+            "😔 *Texnik nosozlik yuz berdi.*\n\n"
+            "Iltimos, birozdan keyin urinib ko'ring.\n"
+            "Muammo davom etsa: /start buyrug'ini bering."
+        ),
+        "ru": (
+            "😔 *Произошла техническая ошибка.*\n\n"
+            "Пожалуйста, повторите попытку чуть позже.\n"
+            "Если проблема сохраняется: введите /start."
+        ),
+        "en": (
+            "😔 *A technical error occurred.*\n\n"
+            "Please try again in a moment.\n"
+            "If the issue persists: use the /start command."
+        ),
+    },
+
+    "cancelled": {
+        "uz": (
+            "❌ *Bekor qilindi.*\n\n"
+            "Murojaat saqlanmadi.\n"
+            "Bosh menyudan davom etishingiz mumkin."
+        ),
+        "ru": (
+            "❌ *Отменено.*\n\n"
+            "Обращение не сохранено.\n"
+            "Вы можете продолжить из главного меню."
+        ),
+        "en": (
+            "❌ *Cancelled.*\n\n"
+            "Report was not saved.\n"
+            "You can continue from the main menu."
+        ),
+    },
+
+    "choose_category_invalid": {
+        "uz": "⚠️ Iltimos, ro'yxatdan kategoriya tanlang yoki /cancel bosing.",
+        "ru": "⚠️ Пожалуйста, выберите категорию из списка или нажмите /cancel.",
+        "en": "⚠️ Please select a category from the list or press /cancel.",
+    },
+
     # ── Qo'shimcha kalitlar (settings, language) ──────────────────────────────
     "btn_language": {
         "uz": "🌐 Til tanlash",
         "ru": "🌐 Выбор языка",
         "en": "🌐 Choose language",
+    },
+
+    # ── Persistent reply keyboard tugmalari ───────────────────────────────────
+    "menu_submit": {
+        "uz": "📝 Murojaat yuborish",
+        "ru": "📝 Отправить обращение",
+        "en": "📝 Submit report",
+    },
+    "menu_check_status": {
+        "uz": "🔍 Holatni tekshirish",
+        "ru": "🔍 Проверить статус",
+        "en": "🔍 Check status",
+    },
+    "menu_reply_admin": {
+        "uz": "💬 Adminga javob",
+        "ru": "💬 Ответить администратору",
+        "en": "💬 Reply to admin",
+    },
+    "menu_my_cases": {
+        "uz": "📂 Mening murojaatlarim",
+        "ru": "📂 Мои обращения",
+        "en": "📂 My reports",
+    },
+    "menu_help": {
+        "uz": "❓ Yordam",
+        "ru": "❓ Помощь",
+        "en": "❓ Help",
+    },
+    "menu_settings": {
+        "uz": "⚙️ Sozlamalar",
+        "ru": "⚙️ Настройки",
+        "en": "⚙️ Settings",
     },
 
     "followup_enter_id": {

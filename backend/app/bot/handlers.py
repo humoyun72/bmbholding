@@ -131,17 +131,27 @@ def get_category_keyboard(lang: str = "uz"):
     return InlineKeyboardMarkup(buttons)
 
 
-def get_persistent_menu() -> ReplyKeyboardMarkup:
+def get_persistent_menu(lang: str = "uz") -> ReplyKeyboardMarkup:
     """Har doim xabar yozish maydoni yonida ko'rinadigan tugmalar"""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📝 Murojaat yuborish"),   KeyboardButton("🔍 Holatni tekshirish")],
-            [KeyboardButton("💬 Adminga javob"),        KeyboardButton("📂 Mening murojaatlarim")],
-            [KeyboardButton("❓ Yordam"),                KeyboardButton("⚙️ Sozlamalar")],
+            [KeyboardButton(t("menu_submit", lang)),      KeyboardButton(t("menu_check_status", lang))],
+            [KeyboardButton(t("menu_reply_admin", lang)), KeyboardButton(t("menu_my_cases", lang))],
+            [KeyboardButton(t("menu_help", lang)),        KeyboardButton(t("menu_settings", lang))],
         ],
         resize_keyboard=True,
         is_persistent=True,
     )
+
+
+# Barcha tillardagi persistent menu tugma matnlari (ConversationHandler Regex uchun)
+_MENU_KEYS = ["menu_submit", "menu_check_status", "menu_reply_admin",
+              "menu_my_cases", "menu_help", "menu_settings"]
+_ALL_MENU_TEXTS = set()
+for _key in _MENU_KEYS:
+    for _lang in SUPPORTED_LANGS:
+        _ALL_MENU_TEXTS.add(t(_key, _lang))
+MENU_BUTTON_REGEX = "^(" + "|".join(re.escape(txt) for txt in _ALL_MENU_TEXTS) + ")$"
 
 
 async def generate_case_id() -> str:
@@ -160,6 +170,17 @@ async def generate_case_id() -> str:
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    chat = update.effective_chat
+
+    # Guruh chatida /start berilsa — faqat qisqa yo'naltirish xabari
+    if chat.type in ("group", "supergroup", "channel"):
+        await update.message.reply_text(
+            "ℹ️ Bu bot shaxsiy murojaat uchun mo'ljallangan.\n\n"
+            "Anonim murojaat yuborish uchun bevosita botga yozing:\n"
+            "@IntegrityBot"
+        )
+        return MAIN_MENU
+
     allowed, retry_after = await check_rate_limit(user.id, "start")
     if not allowed:
         await update.message.reply_text(
@@ -170,24 +191,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
 
     # DB dan foydalanuvchi tilini o'qi (yoki yangi yozuv yarat)
+    is_new_user = False
     try:
+        from datetime import timedelta
         bot_user = await get_or_create_bot_user(user.id)
         lang = bot_user.lang
+        # Yangi foydalanuvchi: first_seen va last_active orasidagi farq 5 soniyadan kam
+        time_diff = abs((bot_user.last_active - bot_user.first_seen).total_seconds())
+        is_new_user = time_diff < 5
     except Exception as e:
         logger.warning(f"BotUser DB xatosi (start): {e}")
         lang = get_user_lang(context)
 
-    # context ga ham set qilamiz — keyingi callbacklar uchun
+    # context ga ham set qilamiz
     set_user_lang(context, lang)
 
-    # Avval persistent menyu tugmalarini ko'rsatamiz
+    # Persistent menyu
     await update.message.reply_text(
         "👇 Quyidagi tugmalardan foydalaning:",
-        reply_markup=get_persistent_menu(),
+        reply_markup=get_persistent_menu(lang),
     )
-    # Keyin inline menyu bilan xush kelibsiz xabari
+
+    # Yangi vs qaytib kelgan foydalanuvchi uchun farqli xabar
+    welcome_key = "welcome_new" if is_new_user else "welcome_returning"
     await update.message.reply_text(
-        t("welcome", lang),
+        t(welcome_key, lang),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=get_main_keyboard(lang),
     )
@@ -298,6 +326,20 @@ Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
             ]])
+        )
+        return MAIN_MENU
+
+    elif query.data == "choose_language":
+        await query.answer()
+        lang = get_user_lang(context)
+        try:
+            await query.edit_message_reply_markup(reply_markup=None)
+        except Exception:
+            pass
+        await query.message.reply_text(
+            t("choose_language", lang),
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_language_keyboard(),
         )
         return MAIN_MENU
 
@@ -442,6 +484,7 @@ async def choose_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def enter_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    lang = get_user_lang(context)
     allowed, retry_after = await check_rate_limit(user.id, "report")
     if not allowed:
         minutes = retry_after // 60
@@ -454,7 +497,15 @@ async def enter_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     if len(text) < 20:
         await update.message.reply_text(
-            "⚠️ Iltimos, kamida 20 ta belgi kiriting. Ko'proq ma'lumot bering."
+            t("text_too_short", lang, length=len(text)),
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return ENTER_DESCRIPTION
+
+    if len(text) > 5000:
+        await update.message.reply_text(
+            t("text_too_long", lang, length=len(text)),
+            parse_mode=ParseMode.MARKDOWN,
         )
         return ENTER_DESCRIPTION
 
@@ -953,64 +1004,69 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
     text = update.message.text
     lang = get_user_lang(context)
 
-    if text == "📝 Murojaat yuborish":
+    # Barcha tillardagi tugma matnlari bilan solishtirish
+    from app.bot.i18n import SUPPORTED_LANGS, t as _t
+
+    def matches(key: str) -> bool:
+        return any(text == _t(key, l) for l in SUPPORTED_LANGS)
+
+    if matches("menu_submit"):
         context.user_data.clear()
         await update.message.reply_text(
-            t("choose_category", lang),
+            _t("choose_category", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_category_keyboard(lang),
         )
         return CHOOSE_CATEGORY
 
-    elif text == "🔍 Holatni tekshirish":
+    elif matches("menu_check_status"):
         await update.message.reply_text(
-            t("enter_case_id", lang),
+            _t("enter_case_id", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("cancel_btn", lang), callback_data="home")
+                InlineKeyboardButton(_t("cancel_btn", lang), callback_data="home")
             ]]),
         )
         return CHECK_STATUS
 
-    elif text == "💬 Adminga javob":
+    elif matches("menu_reply_admin"):
         await update.message.reply_text(
-            t("followup_enter_id", lang),
+            _t("followup_enter_id", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("cancel_btn", lang), callback_data="home")
+                InlineKeyboardButton(_t("cancel_btn", lang), callback_data="home")
             ]]),
         )
         context.user_data["followup_mode"] = "from_menu"
         return CHECK_STATUS
 
-    elif text == "📂 Mening murojaatlarim":
+    elif matches("menu_my_cases"):
         return await my_cases_handler(update, context)
 
-    elif text == "❓ Yordam":
+    elif matches("menu_help"):
         await update.message.reply_text(
-            t("help", lang),
+            _t("help", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("btn_home", lang), callback_data="home")
+                InlineKeyboardButton(_t("btn_home", lang), callback_data="home")
             ]]),
         )
         return MAIN_MENU
 
-    elif text == "⚙️ Sozlamalar":
+    elif matches("menu_settings"):
         await update.message.reply_text(
-            t("settings_info", lang),
+            _t("settings_info", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(t("btn_home", lang), callback_data="home"),
-                InlineKeyboardButton(t("btn_language", lang), callback_data="choose_language"),
+                InlineKeyboardButton(_t("btn_home", lang), callback_data="home"),
+                InlineKeyboardButton(_t("btn_language", lang), callback_data="choose_language"),
             ]]),
         )
         return MAIN_MENU
 
     # Noma'lum matn — bosh menyuga qaytaramiz
-    lang = get_user_lang(context)
     await update.message.reply_text(
-        t("welcome", lang),
+        _t("welcome", lang),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=get_main_keyboard(lang),
     )
@@ -1078,11 +1134,133 @@ async def my_cases_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ─── Cancel ───────────────────────────────────────────────────────────────────
 
+# ─── Universal fallback handler ──────────────────────────────────────────────
+
+async def universal_fallback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    ConversationHandler tashqarisidan yoki tushunilmagan xabar kelganda ishlaydigan fallback.
+    - Guruh/kanal xabarlari → jim o'tkazib yuborish
+    - Shaxsiy chat → bosh menyu ko'rsatish
+    """
+    if not update.message:
+        return MAIN_MENU
+
+    chat = update.effective_chat
+    if chat and chat.type in ("group", "supergroup", "channel"):
+        return  # Guruhda hech narsa qilmaymiz
+
+    user = update.effective_user
+    # Rate limit tekshiruvi (start limiti ishlatiladi)
+    allowed, retry_after = await check_rate_limit(user.id, "start")
+    if not allowed:
+        await update.message.reply_text(
+            f"⏳ {retry_after} soniyadan keyin urinib ko'ring."
+        )
+        return MAIN_MENU
+
+    lang = get_user_lang(context)
+    await update.message.reply_text(
+        t("unknown_command", lang),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_main_keyboard(lang),
+    )
+    return MAIN_MENU
+
+
+# ─── State-specific invalid input handlers ────────────────────────────────────
+
+async def invalid_category_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """CHOOSE_CATEGORY state da matn (yoki noto'g'ri narsa) kelsa."""
+    if not update.message:
+        return CHOOSE_CATEGORY
+    lang = get_user_lang(context)
+    await update.message.reply_text(
+        t("choose_category_invalid", lang),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_category_keyboard(lang),
+    )
+    return CHOOSE_CATEGORY
+
+
+async def invalid_description_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """ENTER_DESCRIPTION state da matn emas narsa (sticker, location, va h.k.) kelsa."""
+    if not update.message:
+        return ENTER_DESCRIPTION
+    lang = get_user_lang(context)
+    await update.message.reply_text(
+        "✍️ " + t("text_too_short", lang, length=0).split("(")[0].strip() +
+        "\n\nIltimos, murojaat matnini yozing (kamida 20 belgi).",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+    return ENTER_DESCRIPTION
+
+
+async def invalid_confirm_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """CONFIRM state da noto'g'ri xabar kelsa."""
+    if not update.message:
+        return CONFIRM
+    lang = get_user_lang(context)
+    await update.message.reply_text(
+        t("invalid_input_in_state", lang),
+        parse_mode=ParseMode.MARKDOWN,
+    )
+    return CONFIRM
+
+
+# ─── Global error handler ─────────────────────────────────────────────────────
+
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """
+    Barcha xatolarni ushlaydi.
+    - Stack trace HECH QACHON foydalanuvchiga yuborilmaydi
+    - Faqat loglarga yoziladi
+    - Foydalanuvchiga umumiy xato xabari yuboriladi
+    """
+    logger.error("Exception while handling update:", exc_info=context.error)
+
+    # Update mavjud va xabar yoki callback bo'lsa
+    if not isinstance(update, Update):
+        return
+
+    try:
+        lang = "uz"
+        if update.effective_user and hasattr(context, "user_data"):
+            lang = context.user_data.get("lang", "uz") if context.user_data else "uz"
+
+        error_text = t("technical_error", lang)
+
+        if update.message:
+            await update.message.reply_text(
+                error_text,
+                parse_mode=ParseMode.MARKDOWN,
+            )
+        elif update.callback_query:
+            try:
+                await update.callback_query.answer(
+                    "😔 Texnik xato yuz berdi. /start bosing.",
+                    show_alert=True,
+                )
+            except Exception:
+                pass
+            try:
+                await update.callback_query.message.reply_text(
+                    error_text,
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except Exception:
+                pass
+    except Exception as e:
+        logger.error(f"Error in error_handler itself: {e}")
+
+
+# ─── /cancel ─────────────────────────────────────────────────────────────────
+
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_user_lang(context)
     context.user_data.clear()
     await update.message.reply_text(
         t("cancelled", lang),
+        parse_mode=ParseMode.MARKDOWN,
         reply_markup=ReplyKeyboardRemove()
     )
     await update.message.reply_text(
@@ -1125,7 +1303,12 @@ async def lang_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
         t("language_changed", lang_code),
         parse_mode=ParseMode.MARKDOWN,
     )
-    # Bosh menyuni yangi tilda ko'rsatish
+    # Persistent menyu tugmalarini yangi tilda yangilash
+    await query.message.reply_text(
+        t("welcome", lang_code),
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=get_persistent_menu(lang_code),
+    )
     await query.message.reply_text(
         t("welcome", lang_code),
         parse_mode=ParseMode.MARKDOWN,
@@ -1359,73 +1542,80 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
 def build_application() -> Application:
     app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
 
+    # Faqat shaxsiy chat filtri — ConversationHandler entry_points uchun
+    private_filter = filters.ChatType.PRIVATE
+
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
+        # /lang buyrug'i va lang_* callback — barcha state-larda ishlashi uchun
+        lang_handlers = [
+            CommandHandler("lang", lang_command),
+            CallbackQueryHandler(lang_callback, pattern=r"^lang_(uz|ru|en)$"),
+        ]
+
+        # Persistent menyu tugmalari handler — barcha tillarda
+        persistent_menu_handler = MessageHandler(
+            filters.Regex(MENU_BUTTON_REGEX),
+            reply_keyboard_handler,
+        )
+
         conv_handler = ConversationHandler(
             entry_points=[
                 CommandHandler("start", start),
                 CommandHandler("help", help_command),
+                CommandHandler("lang", lang_command),
                 MessageHandler(
-                    filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
+                    private_filter & filters.Regex(MENU_BUTTON_REGEX),
                     reply_keyboard_handler,
                 ),
             ],
             states={
                 MAIN_MENU: [
+                    *lang_handlers,
                     CallbackQueryHandler(main_menu_callback),
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    persistent_menu_handler,
                 ],
                 CHOOSE_CATEGORY: [
+                    *lang_handlers,
                     CallbackQueryHandler(choose_category),
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    persistent_menu_handler,
+                    # State fallback: matn kelsa kategoriya klaviaturasini ko'rsat
+                    MessageHandler(filters.ALL, invalid_category_input),
                 ],
                 ENTER_DESCRIPTION: [
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    *lang_handlers,
+                    persistent_menu_handler,
                     MessageHandler(filters.TEXT & ~filters.COMMAND, enter_description),
+                    # State fallback: matn emas narsa (sticker, location, va h.k.) kelsa
+                    MessageHandler(filters.ALL, invalid_description_input),
                 ],
                 ADD_ATTACHMENT: [
+                    *lang_handlers,
                     MessageHandler(filters.Document.ALL | filters.PHOTO, add_attachment),
                     CallbackQueryHandler(skip_attachment, pattern="^skip_attachment$"),
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    persistent_menu_handler,
                 ],
                 CHOOSE_ANONYMOUS: [
+                    *lang_handlers,
                     CallbackQueryHandler(choose_anonymous, pattern="^anon_"),
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    persistent_menu_handler,
                 ],
                 CONFIRM: [
+                    *lang_handlers,
                     CallbackQueryHandler(confirm_send),
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    persistent_menu_handler,
+                    # State fallback: noto'g'ri xabar kelsa
+                    MessageHandler(filters.ALL, invalid_confirm_input),
                 ],
                 CHECK_STATUS: [
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    *lang_handlers,
+                    persistent_menu_handler,
                     MessageHandler(filters.TEXT & ~filters.COMMAND, check_status_handler),
                 ],
                 FOLLOWUP_ENTER: [
-                    MessageHandler(
-                        filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                        reply_keyboard_handler,
-                    ),
+                    *lang_handlers,
+                    persistent_menu_handler,
                     MessageHandler(filters.TEXT & ~filters.COMMAND, followup_enter),
                 ],
             },
@@ -1433,11 +1623,12 @@ def build_application() -> Application:
                 CommandHandler("cancel", cancel),
                 CommandHandler("start", start),
                 CommandHandler("help", help_command),
+                CommandHandler("lang", lang_command),
+                CallbackQueryHandler(lang_callback, pattern=r"^lang_(uz|ru|en)$"),
                 CallbackQueryHandler(main_menu_callback, pattern="^home$"),
-                MessageHandler(
-                    filters.Regex(r"^(📝 Murojaat yuborish|🔍 Holatni tekshirish|💬 Adminga javob|📂 Mening murojaatlarim|❓ Yordam|⚙️ Sozlamalar)$"),
-                    reply_keyboard_handler,
-                ),
+                persistent_menu_handler,
+                # Universal fallback — ENG OXIRIDA bo'lishi shart
+                MessageHandler(filters.ALL, universal_fallback),
             ],
             per_user=True,
             per_chat=True,
@@ -1450,20 +1641,34 @@ def build_application() -> Application:
     app.add_handler(CommandHandler("lang", lang_command))
     app.add_handler(CallbackQueryHandler(lang_callback, pattern=r"^lang_(uz|ru|en)$"))
 
-    # Poll answer handler — non-anonymous guruh poll'lari uchun
+    # Guruhda /start uchun alohida handler (ConversationHandler tashqarisida)
+    app.add_handler(CommandHandler("start", start))
+
+    # ConversationHandler tashqarisidan kelgan barcha xabarlar uchun fallback
+    app.add_handler(MessageHandler(
+        filters.ChatType.PRIVATE & filters.Regex(MENU_BUTTON_REGEX),
+        reply_keyboard_handler,
+    ))
+    app.add_handler(MessageHandler(
+        filters.ChatType.PRIVATE & ~filters.COMMAND,
+        universal_fallback,
+    ))
+
+    # Poll answer handler
     from telegram.ext import PollAnswerHandler as TGPollAnswerHandler
     from telegram.ext import PollHandler as TGPollHandler
     app.add_handler(TGPollAnswerHandler(handle_poll_answer))
-    # Poll update handler — anonymous kanal poll'lari uchun (natijalar o'zgarganda)
     app.add_handler(TGPollHandler(handle_poll_update))
 
-    # ✅ Reminder scheduler — har 24 soatda bir marta ishlaydi
-    # Birinchi marta ishga tushishdan 60 soniya keyin boshlanadi
+    # ✅ Global error handler — barcha xatolarni ushlaydi
+    app.add_error_handler(error_handler)
+
+    # ✅ Reminder scheduler
     if app.job_queue:
         app.job_queue.run_repeating(
             callback=send_pending_reminders,
-            interval=86400,   # 24 soat (soniyada)
-            first=60,         # Birinchi ishga tushishdan 60s keyin
+            interval=86400,
+            first=60,
             name="daily_reminders",
         )
         logger.info("Daily reminder scheduler registered ✅")
