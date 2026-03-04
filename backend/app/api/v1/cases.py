@@ -422,53 +422,202 @@ async def list_cases(
 
 @router.get("/stats")
 async def get_stats(
+    period: Optional[str] = Query(None, pattern="^(today|week|month|year)$"),
+    from_date: Optional[str] = Query(None, description="ISO date, e.g. 2026-01-01"),
+    to_date:   Optional[str] = Query(None, description="ISO date, e.g. 2026-12-31"),
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
-    # Count by status
-    status_counts = {}
-    for s in CaseStatus:
-        r = await db.execute(select(func.count(Case.id)).where(Case.status == s))
-        status_counts[s.value] = r.scalar()
-
-    # Count by category
-    cat_counts = {}
-    for c in CaseCategory:
-        r = await db.execute(select(func.count(Case.id)).where(Case.category == c))
-        cat_counts[c.value] = r.scalar()
-
-    # Count by priority
-    pri_counts = {}
-    for p in CasePriority:
-        r = await db.execute(select(func.count(Case.id)).where(Case.priority == p))
-        pri_counts[p.value] = r.scalar()
-
-    # Monthly trend (last 6 months)
-    from sqlalchemy import extract
-    monthly = []
+    from sqlalchemy import extract, cast, Date as SADate, Integer as SAInteger, text
     now = datetime.now(timezone.utc)
-    for i in range(5, -1, -1):
-        month = (now.month - i - 1) % 12 + 1
-        year = now.year - ((now.month - i - 1) // 12)
-        r = await db.execute(
-            select(func.count(Case.id)).where(
-                and_(
-                    extract("month", Case.created_at) == month,
-                    extract("year", Case.created_at) == year,
+
+    # ── Sana oralig'ini aniqlash ──────────────────────────────────────────
+    from_dt: Optional[datetime] = None
+    to_dt:   Optional[datetime] = None
+
+    if from_date or to_date:
+        # from_date/to_date ustunlik qiladi
+        if from_date:
+            try:
+                from_dt = datetime.fromisoformat(from_date).replace(
+                    hour=0, minute=0, second=0, microsecond=0, tzinfo=timezone.utc)
+            except ValueError:
+                pass
+        if to_date:
+            try:
+                to_dt = datetime.fromisoformat(to_date).replace(
+                    hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
+            except ValueError:
+                pass
+    elif period:
+        if period == "today":
+            from_dt = now.replace(hour=0, minute=0, second=0, microsecond=0)
+            to_dt   = now
+        elif period == "week":
+            # Haftaning dushanbasi
+            monday = now - __import__('datetime').timedelta(days=now.weekday())
+            from_dt = monday.replace(hour=0, minute=0, second=0, microsecond=0)
+            to_dt   = now
+        elif period == "month":
+            from_dt = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+            to_dt   = now
+        elif period == "year":
+            from_dt = now.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            to_dt   = now
+
+    # ── WHERE shartini qurish ─────────────────────────────────────────────
+    def date_filter():
+        conds = []
+        if from_dt:
+            conds.append(Case.created_at >= from_dt)
+        if to_dt:
+            conds.append(Case.created_at <= to_dt)
+        return and_(*conds) if conds else True
+
+    # ── 1. Total ──────────────────────────────────────────────────────────
+    total_r = await db.execute(
+        select(func.count(Case.id)).where(date_filter())
+    )
+    total = total_r.scalar() or 0
+
+    # ── 2. By status (1 query) ────────────────────────────────────────────
+    status_r = await db.execute(
+        select(Case.status, func.count(Case.id))
+        .where(date_filter())
+        .group_by(Case.status)
+    )
+    status_counts = {s.value: 0 for s in CaseStatus}
+    for row in status_r:
+        key = row[0].value if hasattr(row[0], "value") else str(row[0])
+        status_counts[key] = row[1]
+
+    # ── 3. By category (1 query) ──────────────────────────────────────────
+    cat_r = await db.execute(
+        select(Case.category, func.count(Case.id))
+        .where(date_filter())
+        .group_by(Case.category)
+    )
+    cat_counts = {c.value: 0 for c in CaseCategory}
+    for row in cat_r:
+        key = row[0].value if hasattr(row[0], "value") else str(row[0])
+        cat_counts[key] = row[1]
+
+    # ── 4. By priority (1 query) ──────────────────────────────────────────
+    pri_r = await db.execute(
+        select(Case.priority, func.count(Case.id))
+        .where(date_filter())
+        .group_by(Case.priority)
+    )
+    pri_counts = {p.value: 0 for p in CasePriority}
+    for row in pri_r:
+        key = row[0].value if hasattr(row[0], "value") else str(row[0])
+        pri_counts[key] = row[1]
+
+    # ── 5. Trend (1 query, smart grouping) ───────────────────────────────
+    # Oraliq uzunligi bo'yicha guruhlash strategiyasini belgilash
+    if from_dt and to_dt:
+        delta_days = (to_dt - from_dt).days
+    elif from_dt:
+        delta_days = (now - from_dt).days
+    else:
+        delta_days = 180  # default: oy bo'yicha
+
+    monthly = []
+
+    if delta_days < 7:
+        # Kun bo'yicha guruhlash
+        fd = from_dt or (now - __import__('datetime').timedelta(days=6)).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        td = to_dt or now
+        import datetime as dt_mod
+        current = fd.replace(hour=0, minute=0, second=0, microsecond=0)
+        while current.date() <= td.date():
+            next_day = current + dt_mod.timedelta(days=1)
+            day_conds = [Case.created_at >= current, Case.created_at < next_day]
+            if from_dt: day_conds.append(Case.created_at >= from_dt)
+            if to_dt:   day_conds.append(Case.created_at <= to_dt)
+            r = await db.execute(
+                select(func.count(Case.id)).where(and_(*day_conds))
+            )
+            monthly.append({
+                "month": current.strftime("%d %b"),
+                "count": r.scalar() or 0,
+            })
+            current = next_day
+
+    elif delta_days <= 60:
+        # Hafta bo'yicha guruhlash
+        import datetime as dt_mod
+        fd = from_dt or (now - dt_mod.timedelta(weeks=8)).replace(
+            hour=0, minute=0, second=0, microsecond=0)
+        td = to_dt or now
+        # Haftaning boshiga to'g'rila
+        week_start = fd - dt_mod.timedelta(days=fd.weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        while week_start <= td:
+            week_end = week_start + dt_mod.timedelta(days=7)
+            r = await db.execute(
+                select(func.count(Case.id)).where(
+                    and_(Case.created_at >= week_start, Case.created_at < week_end,
+                         Case.created_at >= fd, Case.created_at <= td)
                 )
             )
-        )
-        monthly.append({"month": f"{year}-{month:02d}", "count": r.scalar()})
+            monthly.append({
+                "month": week_start.strftime("%d %b"),
+                "count": r.scalar() or 0,
+            })
+            week_start = week_end
 
-    total = await db.execute(select(func.count(Case.id)))
+    else:
+        # Oy bo'yicha guruhlash — so'nggi 12 oy (yoki oraliq)
+        import datetime as dt_mod
+        if from_dt:
+            start_year, start_month = from_dt.year, from_dt.month
+        else:
+            start_month = (now.month - 11) % 12 or 12
+            start_year  = now.year - (1 if now.month <= 11 else 0)
+        end_year, end_month = (to_dt or now).year, (to_dt or now).month
+        y, m = start_year, start_month
+        while (y, m) <= (end_year, end_month):
+            month_start = datetime(y, m, 1, tzinfo=timezone.utc)
+            if m == 12:
+                month_end = datetime(y + 1, 1, 1, tzinfo=timezone.utc)
+            else:
+                month_end = datetime(y, m + 1, 1, tzinfo=timezone.utc)
+            conds = [Case.created_at >= month_start, Case.created_at < month_end]
+            if from_dt: conds.append(Case.created_at >= from_dt)
+            if to_dt:   conds.append(Case.created_at <= to_dt)
+            r = await db.execute(select(func.count(Case.id)).where(and_(*conds)))
+            monthly.append({
+                "month": f"{y}-{m:02d}",
+                "count": r.scalar() or 0,
+            })
+            if m == 12:
+                y += 1; m = 1
+            else:
+                m += 1
+
+    # Trend label ni qaytarish uchun meta
+    trend_label = "oy"
+    if delta_days < 7:
+        trend_label = "kun"
+    elif delta_days <= 60:
+        trend_label = "hafta"
 
     return {
-        "total": total.scalar(),
+        "total": total,
         "by_status": status_counts,
         "by_category": cat_counts,
         "by_priority": pri_counts,
         "monthly_trend": monthly,
+        "trend_label": trend_label,
+        "filter": {
+            "period": period,
+            "from_date": from_dt.date().isoformat() if from_dt else None,
+            "to_date": to_dt.date().isoformat() if to_dt else None,
+        },
     }
+
 
 
 @router.get("/{case_id}")
