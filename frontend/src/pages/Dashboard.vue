@@ -3,8 +3,8 @@
     <!-- Header + Period filters -->
     <div class="flex items-start justify-between gap-4 mb-6 flex-wrap">
       <div>
-        <h1 class="text-2xl font-bold text-white">Bosh sahifa</h1>
-        <p class="text-surface-400 text-sm mt-1">Barcha murojaatlar va tizim holati</p>
+        <h1 class="text-2xl font-bold text-white">{{ t('dashboard.title') }}</h1>
+        <p class="text-surface-400 text-sm mt-1">{{ t('dashboard.subtitle') }}</p>
       </div>
 
       <!-- Period tabs -->
@@ -27,7 +27,7 @@
               ? 'bg-brand-600 text-white'
               : 'bg-surface-800 text-surface-400 hover:text-white hover:bg-surface-700'
           ]">
-          📅 Maxsus
+          📅 {{ t('dashboard.custom') }}
         </button>
       </div>
     </div>
@@ -36,20 +36,20 @@
     <Transition name="slide">
       <div v-if="customOpen" class="card p-4 mb-5 flex items-end gap-3 flex-wrap">
         <div class="flex items-center gap-2">
-          <label class="text-surface-400 text-xs whitespace-nowrap">Dan:</label>
+          <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('dashboard.from') }}</label>
           <input type="date" v-model="customFrom" class="input text-sm" :max="customTo || undefined" />
         </div>
         <div class="flex items-center gap-2">
-          <label class="text-surface-400 text-xs whitespace-nowrap">Gacha:</label>
+          <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('dashboard.to') }}</label>
           <input type="date" v-model="customTo" class="input text-sm" :min="customFrom || undefined" />
         </div>
         <button @click="applyCustom"
           :disabled="!customFrom || !customTo || customFrom > customTo"
           class="btn-primary text-sm px-4 py-2 disabled:opacity-40">
-          Qo'llash
+          {{ t('dashboard.apply') }}
         </button>
         <button @click="clearCustom" class="btn-ghost text-sm px-3 py-2 text-surface-400">
-          ✕ Bekor
+          ✕ {{ t('dashboard.cancel_custom') }}
         </button>
       </div>
     </Transition>
@@ -60,7 +60,7 @@
         📅 {{ filterLabel }}
       </span>
       <button @click="clearAll" class="text-surface-500 hover:text-surface-300 text-xs transition-colors">
-        ✕ Filterni tozalash
+        ✕ {{ t('dashboard.clear_filter') }}
       </button>
     </div>
 
@@ -112,10 +112,10 @@
         <div class="flex items-center gap-3">
           <span class="text-2xl">🚨</span>
           <span class="text-red-300 font-medium text-sm">
-            {{ stats.overdue_count }} ta murojaat muddatini o'tkazib yubordi
+            {{ t('dashboard.overdue_count', { count: stats.overdue_count }) }}
           </span>
         </div>
-        <span class="text-red-400 text-xs font-medium whitespace-nowrap">Ko'rish →</span>
+        <span class="text-red-400 text-xs font-medium whitespace-nowrap">{{ t('dashboard.overdue_view') }}</span>
       </div>
       <div v-if="stats?.deadline_near_count > 0"
         @click="router.push('/cases?status=in_progress&deadline_near=true')"
@@ -123,10 +123,10 @@
         <div class="flex items-center gap-3">
           <span class="text-2xl">⏰</span>
           <span class="text-yellow-300 font-medium text-sm">
-            {{ stats.deadline_near_count }} ta murojaat deadline yaqin (24 soat)
+            {{ t('dashboard.deadline_near', { count: stats.deadline_near_count }) }}
           </span>
         </div>
-        <span class="text-yellow-400 text-xs font-medium whitespace-nowrap">Ko'rish →</span>
+        <span class="text-yellow-400 text-xs font-medium whitespace-nowrap">{{ t('dashboard.overdue_view') }}</span>
       </div>
 
       <!-- Stats row -->
@@ -148,7 +148,7 @@
         <!-- Trend bar chart -->
         <div class="card p-6 lg:col-span-2">
           <div class="mb-5">
-            <h3 class="font-semibold text-white">Dinamika</h3>
+            <h3 class="font-semibold text-white">{{ t('dashboard.dynamics') }}</h3>
             <p class="text-surface-500 text-xs mt-0.5">{{ trendSubtitle }}</p>
           </div>
           <div class="flex items-end justify-between gap-1.5 h-40">
@@ -160,14 +160,14 @@
               <span class="text-surface-500 text-xs truncate w-full text-center">{{ item.label }}</span>
             </div>
             <div v-if="!monthlyBars.length" class="w-full text-center text-surface-600 text-sm py-10">
-              Ma'lumot yo'q
+              {{ t('dashboard.no_data') }}
             </div>
           </div>
         </div>
 
         <!-- Category bar list -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">Kategoriya bo'yicha</h3>
+          <h3 class="font-semibold text-white mb-5">{{ t('dashboard.by_category') }}</h3>
           <div class="space-y-2.5">
             <div v-for="item in categoryItems" :key="item.key" class="flex items-center gap-3">
               <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" :style="{ background: item.color }"></div>
@@ -187,7 +187,7 @@
       <!-- Status + Priority -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">Holat bo'yicha</h3>
+          <h3 class="font-semibold text-white mb-5">{{ t('dashboard.by_status') }}</h3>
           <div class="space-y-3">
             <div v-for="item in statusItems" :key="item.key"
               class="flex items-center justify-between gap-3">
@@ -210,7 +210,7 @@
         </div>
 
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">Ustuvorlik bo'yicha</h3>
+          <h3 class="font-semibold text-white mb-5">{{ t('dashboard.by_priority') }}</h3>
           <div class="space-y-3">
             <div v-for="item in priorityItems" :key="item.key"
               class="flex items-center justify-between gap-3">
@@ -243,9 +243,11 @@ import { format, differenceInDays, parseISO } from 'date-fns'
 import api from '@/utils/api'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import ErrorState from '@/components/ErrorState.vue'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
 const route  = useRoute()
+const { t } = useI18n()
 
 const loading    = ref(true)
 const loadError  = ref('')
@@ -258,39 +260,38 @@ const customTo   = ref('')
 // AbortController — eski so'rovni bekor qilish
 let abortCtrl = null
 
-const periodOptions = [
-  { value: '',      label: 'Barchasi' },
-  { value: 'today', label: 'Bugun'    },
-  { value: 'week',  label: 'Bu hafta' },
-  { value: 'month', label: 'Bu oy'    },
-  { value: 'year',  label: 'Bu yil'   },
-]
+const periodOptions = computed(() => [
+  { value: '',      label: t('dashboard.period_all') },
+  { value: 'today', label: t('dashboard.period_today') },
+  { value: 'week',  label: t('dashboard.period_week') },
+  { value: 'month', label: t('dashboard.period_month') },
+  { value: 'year',  label: t('dashboard.period_year') },
+])
 
-const periodLabels = {
-  '':      'Barcha vaqt',
-  today:   'Bugungi',
-  week:    'Bu hafta',
-  month:   'Bu oy',
-  year:    'Bu yil',
-}
-
-// ── Filter label hisoblash ────────────────────────────────────────────────────
 const filterLabel = computed(() => {
   if (customFrom.value && customTo.value && !customOpen.value) {
     const d1 = parseISO(customFrom.value)
     const d2 = parseISO(customTo.value)
     const days = differenceInDays(d2, d1) + 1
-    return `${format(d1, 'dd MMM')} — ${format(d2, 'dd MMM yyyy')} (${days} kun)`
+    return `${format(d1, 'dd MMM')} — ${format(d2, 'dd MMM yyyy')} (${t('dashboard.days_count', { days })})`
   }
-  if (activePeriod.value) return periodLabels[activePeriod.value]
+  if (activePeriod.value) {
+    const periodLabelMap = {
+      today: t('dashboard.period_label_today'),
+      week:  t('dashboard.period_label_week'),
+      month: t('dashboard.period_label_month'),
+      year:  t('dashboard.period_label_year'),
+    }
+    return periodLabelMap[activePeriod.value] || ''
+  }
   return ''
 })
 
 const trendSubtitle = computed(() => {
   const label = stats.value?.trend_label || 'oy'
-  if (label === 'kun')   return "Kunlik dinamika"
-  if (label === 'hafta') return "Haftalik dinamika"
-  return "Oylik dinamika"
+  if (label === 'kun')   return t('dashboard.daily_dynamics')
+  if (label === 'hafta') return t('dashboard.weekly_dynamics')
+  return t('dashboard.monthly_dynamics')
 })
 
 // ── URL sync ──────────────────────────────────────────────────────────────────
@@ -341,7 +342,7 @@ async function loadStats() {
   } catch (e) {
     if (e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
       console.error('Stats yuklab bo\'lmadi:', e)
-      loadError.value = e.response?.data?.detail || "Ma'lumotlarni yuklashda xatolik yuz berdi"
+      loadError.value = e.response?.data?.detail || t('dashboard.load_error')
     }
   } finally {
     loading.value = false
@@ -385,34 +386,34 @@ function clearAll() {
 }
 
 // ── Static config ─────────────────────────────────────────────────────────────
-const statusItems = [
-  { key: 'new',         label: 'Yangi',              dot: 'bg-blue-400',   bar: 'bg-blue-400'   },
-  { key: 'in_progress', label: "Ko'rib chiqilmoqda", dot: 'bg-yellow-400', bar: 'bg-yellow-400' },
-  { key: 'needs_info',  label: "Ma'lumot kerak",     dot: 'bg-orange-400', bar: 'bg-orange-400' },
-  { key: 'completed',   label: 'Yakunlandi',          dot: 'bg-green-400',  bar: 'bg-green-400'  },
-  { key: 'rejected',    label: 'Rad etildi',          dot: 'bg-red-400',    bar: 'bg-red-400'    },
-]
-const priorityItems = [
-  { key: 'critical', label: 'Kritik',  emoji: '🔴', bar: 'bg-red-500'    },
-  { key: 'high',     label: 'Yuqori',  emoji: '🟠', bar: 'bg-orange-500' },
-  { key: 'medium',   label: "O'rta",   emoji: '🟡', bar: 'bg-yellow-500' },
-  { key: 'low',      label: 'Past',    emoji: '🟢', bar: 'bg-green-500'  },
-]
-const categoryItems = [
-  { key: 'corruption',           label: 'Korrupsiya',    color: '#ef4444' },
-  { key: 'conflict_of_interest', label: "Manfaat to'q",  color: '#f97316' },
-  { key: 'fraud',                label: 'Firibgarlik',   color: '#eab308' },
-  { key: 'safety',               label: 'Xavfsizlik',    color: '#22c55e' },
-  { key: 'discrimination',       label: 'Kamsitish',     color: '#3b82f6' },
-  { key: 'procurement',          label: 'Tender',        color: '#8b5cf6' },
-  { key: 'other',                label: 'Boshqa',        color: '#64748b' },
-]
+const statusItems = computed(() => [
+  { key: 'new',         label: t('status.new'),         dot: 'bg-blue-400',   bar: 'bg-blue-400'   },
+  { key: 'in_progress', label: t('status.in_progress'), dot: 'bg-yellow-400', bar: 'bg-yellow-400' },
+  { key: 'needs_info',  label: t('status.needs_info'),  dot: 'bg-orange-400', bar: 'bg-orange-400' },
+  { key: 'completed',   label: t('status.completed'),   dot: 'bg-green-400',  bar: 'bg-green-400'  },
+  { key: 'rejected',    label: t('status.rejected'),    dot: 'bg-red-400',    bar: 'bg-red-400'    },
+])
+const priorityItems = computed(() => [
+  { key: 'critical', label: t('priority.critical'), emoji: '🔴', bar: 'bg-red-500'    },
+  { key: 'high',     label: t('priority.high'),     emoji: '🟠', bar: 'bg-orange-500' },
+  { key: 'medium',   label: t('priority.medium'),   emoji: '🟡', bar: 'bg-yellow-500' },
+  { key: 'low',      label: t('priority.low'),      emoji: '🟢', bar: 'bg-green-500'  },
+])
+const categoryItems = computed(() => [
+  { key: 'corruption',           label: t('category_short.corruption'),           color: '#ef4444' },
+  { key: 'conflict_of_interest', label: t('category_short.conflict_of_interest'), color: '#f97316' },
+  { key: 'fraud',                label: t('category_short.fraud'),                color: '#eab308' },
+  { key: 'safety',               label: t('category_short.safety'),               color: '#22c55e' },
+  { key: 'discrimination',       label: t('category_short.discrimination'),       color: '#3b82f6' },
+  { key: 'procurement',          label: t('category_short.procurement'),          color: '#8b5cf6' },
+  { key: 'other',                label: t('category_short.other'),                color: '#64748b' },
+])
 
 const statCards = computed(() => [
-  { label: 'Jami murojaatlar',   value: stats.value?.total                  || 0, icon: '📋', bg: 'bg-brand-600/20'  },
-  { label: 'Yangi',              value: stats.value?.by_status?.new         || 0, icon: '🆕', bg: 'bg-blue-500/20'   },
-  { label: "Ko'rib chiqilmoqda", value: stats.value?.by_status?.in_progress || 0, icon: '🔄', bg: 'bg-yellow-500/20' },
-  { label: 'Kritik',             value: stats.value?.by_priority?.critical  || 0, icon: '🔴', bg: 'bg-red-500/20'    },
+  { label: t('stats.total'),       value: stats.value?.total                  || 0, icon: '📋', bg: 'bg-brand-600/20'  },
+  { label: t('stats.new'),         value: stats.value?.by_status?.new         || 0, icon: '🆕', bg: 'bg-blue-500/20'   },
+  { label: t('stats.in_progress'), value: stats.value?.by_status?.in_progress || 0, icon: '🔄', bg: 'bg-yellow-500/20' },
+  { label: t('stats.critical'),    value: stats.value?.by_priority?.critical  || 0, icon: '🔴', bg: 'bg-red-500/20'    },
 ])
 
 const monthlyBars = computed(() => {

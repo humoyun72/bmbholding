@@ -30,10 +30,10 @@
       <!-- Actions -->
       <div class="flex items-center justify-center gap-3 flex-wrap">
         <button @click="goBack" class="btn-ghost text-sm">
-          ← Orqaga
+          ← {{ t('error_page.back') }}
         </button>
         <router-link to="/dashboard" class="btn-primary text-sm">
-          🏠 Bosh sahifaga
+          🏠 {{ t('error_page.home') }}
         </router-link>
       </div>
 
@@ -50,6 +50,7 @@
 <script setup>
 import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from '@/composables/useI18n'
 
 const props = defineProps({
   code: { type: [Number, String], default: 404 },
@@ -57,64 +58,65 @@ const props = defineProps({
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 
 // Route meta dan override qilish imkoniyati
 const code = computed(() => route.meta?.errorCode || props.code)
 
-const ERROR_MAP = {
+const ERROR_MAP = computed(() => ({
   403: {
     icon: '🔒',
     iconBg: 'bg-amber-500/10 border border-amber-500/20',
     codeColor: 'text-amber-500/80',
-    title: 'Ruxsat berilmagan',
-    description: 'Sizda bu sahifaga kirish huquqi yo\'q. Agar bu xato deb o\'ylasangiz, administratorga murojaat qiling.',
+    title: t('error_page.403_title'),
+    description: t('error_page.403_desc'),
   },
   404: {
     icon: '🔍',
     iconBg: 'bg-brand-500/10 border border-brand-500/20',
     codeColor: 'text-brand-500/80',
-    title: 'Sahifa topilmadi',
-    description: 'Siz qidirayotgan sahifa mavjud emas, o\'chirilgan yoki manzil noto\'g\'ri kiritilgan bo\'lishi mumkin.',
+    title: t('error_page.404_title'),
+    description: t('error_page.404_desc'),
   },
   500: {
     icon: '⚠️',
     iconBg: 'bg-red-500/10 border border-red-500/20',
     codeColor: 'text-red-500/80',
-    title: 'Server xatosi',
-    description: 'Serverda kutilmagan xatolik yuz berdi. Iltimos, biroz kutib qayta urinib ko\'ring yoki administratorga xabar bering.',
+    title: t('error_page.500_title'),
+    description: t('error_page.500_desc'),
   },
   502: {
     icon: '🔌',
     iconBg: 'bg-orange-500/10 border border-orange-500/20',
     codeColor: 'text-orange-500/80',
-    title: 'Server javob bermayapti',
-    description: 'Backend server hozirda ishlamayapti yoki texnik xizmat ko\'rsatilmoqda. Biroz kutib qayta urinib ko\'ring.',
+    title: t('error_page.502_title'),
+    description: t('error_page.502_desc'),
   },
   503: {
     icon: '🛠️',
     iconBg: 'bg-yellow-500/10 border border-yellow-500/20',
     codeColor: 'text-yellow-500/80',
-    title: 'Texnik xizmat',
-    description: 'Tizimda texnik ishlar olib borilmoqda. Iltimos, biroz vaqtdan keyin qayta kiring.',
+    title: t('error_page.503_title'),
+    description: t('error_page.503_desc'),
   },
   429: {
     icon: '🐌',
     iconBg: 'bg-purple-500/10 border border-purple-500/20',
     codeColor: 'text-purple-500/80',
-    title: 'Juda ko\'p so\'rov',
-    description: 'Siz juda ko\'p so\'rov yubordingiz. Iltimos, biroz kutib qayta urinib ko\'ring.',
+    title: t('error_page.429_title'),
+    description: t('error_page.429_desc'),
   },
-}
+}))
 
-const FALLBACK = {
+const FALLBACK = computed(() => ({
   icon: '❌',
   iconBg: 'bg-red-500/10 border border-red-500/20',
   codeColor: 'text-red-500/80',
-  title: 'Xatolik yuz berdi',
-  description: 'Kutilmagan xatolik. Iltimos qayta urinib ko\'ring yoki administratorga murojaat qiling.',
-}
+  title: t('error_page.default_title'),
+  description: t('error_page.default_desc'),
+}))
 
-const config = computed(() => ERROR_MAP[code.value] || FALLBACK)
+const config = computed(() => ERROR_MAP.value[code.value] || FALLBACK.value)
 
 function goBack() {
   if (window.history.length > 2) {
@@ -124,4 +126,3 @@ function goBack() {
   }
 }
 </script>
-

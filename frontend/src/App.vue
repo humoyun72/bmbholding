@@ -16,32 +16,32 @@
           <!-- Header -->
           <div class="text-center mb-6">
             <div class="text-4xl mb-3">🔐</div>
-            <h2 class="text-xl font-bold text-white">Parolni o'zgartiring</h2>
+            <h2 class="text-xl font-bold text-white">{{ t('force_password.title') }}</h2>
             <p class="text-amber-400 text-sm mt-2">
-              Xavfsizlik uchun dastlabki parolni o'zgartirish majburiy
+              {{ t('force_password.desc') }}
             </p>
           </div>
 
           <!-- Form -->
           <div class="space-y-4">
             <div>
-              <label class="text-surface-400 text-sm mb-1 block">Yangi parol</label>
+              <label class="text-surface-400 text-sm mb-1 block">{{ t('force_password.new_password') }}</label>
               <input
                 v-model="newPassword"
                 type="password"
                 class="input w-full"
-                placeholder="Kamida 8 belgi"
+                :placeholder="t('force_password.placeholder_new')"
                 @keyup.enter="confirmFocus"
                 ref="newPassRef"
               />
             </div>
             <div>
-              <label class="text-surface-400 text-sm mb-1 block">Yangi parolni tasdiqlang</label>
+              <label class="text-surface-400 text-sm mb-1 block">{{ t('force_password.confirm_password') }}</label>
               <input
                 v-model="confirmPassword"
                 type="password"
                 class="input w-full"
-                placeholder="Parolni qayta kiriting"
+                :placeholder="t('force_password.placeholder_confirm')"
                 @keyup.enter="submitPasswordChange"
                 ref="confirmRef"
               />
@@ -55,13 +55,13 @@
               @click="submitPasswordChange"
               :disabled="changingPassword"
               class="btn-primary w-full py-3 mt-2 disabled:opacity-50">
-              <span v-if="changingPassword">⏳ Saqlanmoqda...</span>
-              <span v-else>✅ Parolni saqlash</span>
+              <span v-if="changingPassword">⏳ {{ t('force_password.saving') }}</span>
+              <span v-else>✅ {{ t('force_password.save') }}</span>
             </button>
           </div>
 
           <p class="text-surface-600 text-xs text-center mt-4">
-            Bu oynani yopib bo'lmaydi — parol o'zgartirilguncha
+            {{ t('force_password.hint') }}
           </p>
         </div>
       </div>
@@ -75,7 +75,9 @@ import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api, { setProgressBar } from '@/utils/api'
 import TopProgressBar from '@/components/TopProgressBar.vue'
+import { useI18n } from '@/composables/useI18n'
 
+const { t } = useI18n()
 const authStore = useAuthStore()
 const progressBarRef = ref(null)
 
@@ -101,18 +103,18 @@ async function submitPasswordChange() {
   passwordError.value = ''
 
   if (newPassword.value.length < 8) {
-    passwordError.value = 'Parol kamida 8 belgidan iborat bo\'lishi kerak'
+    passwordError.value = t('force_password.error_min_length')
     return
   }
   if (newPassword.value !== confirmPassword.value) {
-    passwordError.value = 'Parollar mos kelmadi'
+    passwordError.value = t('force_password.error_mismatch')
     return
   }
 
   // Kuchli parol tekshiruvi
   const strong = /^(?=.*[A-Z])(?=.*[0-9]).{8,}$/
   if (!strong.test(newPassword.value)) {
-    passwordError.value = 'Parolda kamida 1 ta katta harf va 1 ta raqam bo\'lishi kerak'
+    passwordError.value = t('force_password.error_weak')
     return
   }
 
@@ -127,7 +129,7 @@ async function submitPasswordChange() {
     newPassword.value = ''
     confirmPassword.value = ''
   } catch (e) {
-    passwordError.value = e.response?.data?.detail || 'Xato yuz berdi'
+    passwordError.value = e.response?.data?.detail || t('force_password.error_generic')
   } finally {
     changingPassword.value = false
   }

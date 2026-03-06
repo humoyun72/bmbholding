@@ -34,21 +34,21 @@
           <!-- Header -->
           <div class="flex items-center justify-between px-4 py-3 border-b border-surface-800">
             <div class="flex items-center gap-2">
-              <span class="text-white font-semibold text-sm">Bildirishnomalar</span>
+              <span class="text-white font-semibold text-sm">{{ t('notifications.title') }}</span>
               <span v-if="store.unreadCount > 0"
                 class="bg-red-500/20 text-red-400 text-xs font-medium px-2 py-0.5 rounded-full">
-                {{ store.unreadCount }} yangi
+                {{ t('notifications.new_count', { count: store.unreadCount }) }}
               </span>
             </div>
             <div class="flex items-center gap-2">
               <span :class="['text-xs flex items-center gap-1', store.connected ? 'text-green-400' : 'text-surface-500']">
                 <span :class="['w-1.5 h-1.5 rounded-full', store.connected ? 'bg-green-400' : 'bg-surface-500']"></span>
-                {{ store.connected ? 'Jonli' : 'Uzilgan' }}
+                {{ store.connected ? t('notifications.connected') : t('notifications.disconnected') }}
               </span>
               <button v-if="store.notifications.length"
                 @click="store.markAllRead()"
                 class="text-xs text-brand-400 hover:text-brand-300 transition-colors">
-                Barchasini o'qi
+                {{ t('notifications.mark_all_read') }}
               </button>
             </div>
           </div>
@@ -62,7 +62,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                   d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
               </svg>
-              <p class="text-sm">Bildirishnomalar yo'q</p>
+              <p class="text-sm">{{ t('notifications.no_notifications') }}</p>
             </div>
 
             <!-- Items -->
@@ -89,7 +89,7 @@
           <div v-if="store.notifications.length"
             class="px-4 py-2.5 border-t border-surface-800 flex justify-end">
             <button @click="store.clear()" class="text-xs text-surface-500 hover:text-surface-300 transition-colors">
-              Hammasini tozalash
+              {{ t('notifications.clear_all') }}
             </button>
           </div>
         </div>
@@ -103,9 +103,11 @@ import { ref, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { onClickOutside } from '@vueuse/core'
 import { useNotificationStore } from '@/stores/notifications'
+import { useI18n } from '@/composables/useI18n'
 
 const store = useNotificationStore()
 const router = useRouter()
+const { t } = useI18n()
 const open = ref(false)
 const containerRef = ref(null)
 
@@ -186,10 +188,10 @@ function priorityIcon(p) { return PRIORITY_ICON[p] || '📋' }
 function timeAgo(iso) {
   if (!iso) return ''
   const diff = Math.floor((Date.now() - new Date(iso)) / 1000)
-  if (diff < 60)  return `${diff}s oldin`
-  if (diff < 3600) return `${Math.floor(diff / 60)}d oldin`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}s oldin`
-  return new Date(iso).toLocaleDateString('uz-UZ')
+  if (diff < 60)  return t('notifications.seconds_ago', { count: diff })
+  if (diff < 3600) return t('notifications.minutes_ago', { count: Math.floor(diff / 60) })
+  if (diff < 86400) return t('notifications.hours_ago', { count: Math.floor(diff / 3600) })
+  return new Date(iso).toLocaleDateString()
 }
 </script>
 

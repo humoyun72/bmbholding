@@ -2,7 +2,7 @@
   <!-- View button -->
   <button @click.stop="$emit('view')"
     class="p-1.5 rounded-lg text-surface-400 hover:text-brand-400 hover:bg-surface-700 transition-colors"
-    title="Ko'rish">
+    :title="t('case_actions.view')">
     👀
   </button>
 
@@ -28,26 +28,26 @@
         <button v-if="caseItem.status === 'new'"
           @click="doAction('start')"
           class="menu-item">
-          <span>▶️</span> Boshlash
+          <span>▶️</span> {{ t('case_actions.start') }}
         </button>
 
         <!-- Tayinlash — har doim -->
         <button @click="doAction('assign')" class="menu-item">
-          <span>👤</span> Tayinlash
+          <span>👤</span> {{ t('case_actions.assign') }}
         </button>
 
         <!-- Yakunlash — faqat in_progress -->
         <button v-if="caseItem.status === 'in_progress'"
           @click="doAction('complete')"
           class="menu-item">
-          <span>✅</span> Yakunlash
+          <span>✅</span> {{ t('case_actions.complete') }}
         </button>
 
         <!-- Rad etish — new va in_progress -->
         <button v-if="caseItem.status === 'new' || caseItem.status === 'in_progress'"
           @click="doAction('reject')"
           class="menu-item text-red-400 hover:!bg-red-500/10">
-          <span>❌</span> Rad etish
+          <span>❌</span> {{ t('case_actions.reject') }}
         </button>
 
         <!-- Ajratgich -->
@@ -55,7 +55,7 @@
 
         <!-- PDF eksport -->
         <button @click="doAction('pdf')" class="menu-item">
-          <span>📄</span> PDF eksport
+          <span>📄</span> {{ t('case_actions.pdf_export') }}
         </button>
       </div>
     </Transition>
@@ -64,6 +64,8 @@
 
 <script setup>
 import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useI18n } from '@/composables/useI18n'
+const { t } = useI18n()
 
 defineProps({
   caseItem: { type: Object, required: true },

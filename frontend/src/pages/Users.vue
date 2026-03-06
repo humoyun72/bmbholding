@@ -2,10 +2,10 @@
   <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
     <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-xl sm:text-2xl font-bold text-white">Foydalanuvchilar</h1>
-        <p class="text-surface-400 text-sm mt-1">Boshqaruv paneli foydalanuvchilarini boshqarish</p>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">{{ t('users.title') }}</h1>
+        <p class="text-surface-400 text-sm mt-1">{{ t('users.subtitle') }}</p>
       </div>
-      <button @click="openCreate" class="btn-primary whitespace-nowrap">+ Foydalanuvchi qo'shish</button>
+      <button @click="openCreate" class="btn-primary whitespace-nowrap">+ {{ t('users.add_user') }}</button>
     </div>
 
     <!-- Desktop table -->
@@ -13,7 +13,7 @@
       <table class="w-full">
         <thead>
           <tr class="border-b border-surface-800">
-            <th v-for="c in ['Foydalanuvchi', 'Email', 'Rol', '2FA', 'Telegram', 'Oxirgi kirish', 'Holat', '']"
+            <th v-for="c in [t('users.col_name'), t('users.col_email'), t('users.col_role'), t('users.col_2fa'), t('users.col_telegram'), t('users.col_last_login'), t('users.col_status'), '']"
               :key="c" class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">
               {{ c }}
             </th>
@@ -43,7 +43,7 @@
           </template>
           <tr v-else-if="!users.length">
             <td colspan="8">
-              <EmptyState icon="👥" title="Foydalanuvchilar yo'q" description="Hali foydalanuvchi qo'shilmagan" />
+              <EmptyState icon="👥" :title="t('users.no_users_empty')" :description="t('users.no_users_hint')" />
             </td>
           </tr>
           <tr v-for="u in users" :key="u.id"
@@ -58,7 +58,7 @@
                     <span class="text-white text-sm font-medium">{{ u.full_name || u.username }}</span>
                     <span v-if="u.username === 'admin'"
                       class="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded-full">
-                      superuser
+                      {{ t('users.superuser') }}
                     </span>
                   </div>
                   <div class="text-surface-500 text-xs">@{{ u.username }}</div>
@@ -75,28 +75,28 @@
               </span>
             </td>
             <td class="px-5 py-4">
-              <span v-if="u.telegram_chat_id" class="text-green-400 text-sm">✈️ Ulangan</span>
+              <span v-if="u.telegram_chat_id" class="text-green-400 text-sm">✈️ {{ t('users.linked') }}</span>
               <button v-else @click="openTgLink(u)"
                 class="text-xs text-brand-400 hover:text-brand-300 underline underline-offset-2 transition-colors">
-                Ulash
+                {{ t('users.link') }}
               </button>
             </td>
             <td class="px-5 py-4 text-surface-400 text-sm">
-              {{ u.last_login ? formatDate(u.last_login) : 'Hech qachon' }}
+              {{ u.last_login ? formatDate(u.last_login) : t('users.never') }}
             </td>
             <td class="px-5 py-4">
               <span :class="u.is_active ? 'text-green-400' : 'text-red-400'" class="text-sm">
-                {{ u.is_active ? '● Faol' : '○ Nofaol' }}
+                {{ u.is_active ? '● ' + t('users.active') : '○ ' + t('users.inactive') }}
               </span>
             </td>
             <!-- Actions -->
             <td class="px-5 py-4">
               <div class="flex items-center gap-1">
-                <button @click="openEdit(u)" title="Tahrirlash"
+                <button @click="openEdit(u)" :title="t('users.edit')"
                   class="p-1.5 text-surface-400 hover:text-white hover:bg-surface-700 rounded-lg transition-all">
                   ✏️
                 </button>
-                <button v-if="u.username !== 'admin'" @click="confirmDelete(u)" title="O'chirish"
+                <button v-if="u.username !== 'admin'" @click="confirmDelete(u)" :title="t('users.delete')"
                   class="p-1.5 text-surface-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all">
                   🗑️
                 </button>
@@ -128,25 +128,25 @@
             <div class="text-surface-500 text-xs">{{ u.email }}</div>
           </div>
           <span :class="u.is_active ? 'text-green-400' : 'text-red-400'" class="text-xs flex-shrink-0">
-            {{ u.is_active ? '● Faol' : '○ Nofaol' }}
+            {{ u.is_active ? '● ' + t('users.active') : '○ ' + t('users.inactive') }}
           </span>
         </div>
         <div class="flex items-center gap-2 flex-wrap mb-3">
           <span :class="roleClass(u.role)" class="badge">{{ roleLabel(u.role) }}</span>
           <span :class="u.totp_enabled ? 'text-green-400' : 'text-surface-600'" class="text-xs">
-            {{ u.totp_enabled ? '🔐 2FA' : '2FA yoq' }}
+            {{ u.totp_enabled ? '🔐 2FA' : t('users.2fa_no') }}
           </span>
-          <span v-if="u.telegram_chat_id" class="text-green-400 text-xs">✈️ TG ulangan</span>
-          <button v-else @click="openTgLink(u)" class="text-xs text-brand-400 underline">✈️ TG ulash</button>
+          <span v-if="u.telegram_chat_id" class="text-green-400 text-xs">✈️ {{ t('users.tg_linked') }}</span>
+          <button v-else @click="openTgLink(u)" class="text-xs text-brand-400 underline">✈️ {{ t('users.tg_link') }}</button>
         </div>
         <div class="flex items-center gap-2 pt-2 border-t border-surface-800">
           <button @click="openEdit(u)"
             class="flex-1 text-xs py-1.5 px-3 bg-surface-700 hover:bg-surface-600 text-surface-300 hover:text-white rounded-lg transition-all text-center">
-            ✏️ Tahrirlash
+            ✏️ {{ t('users.edit') }}
           </button>
           <button v-if="u.username !== 'admin'" @click="confirmDelete(u)"
             class="flex-1 text-xs py-1.5 px-3 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg transition-all text-center">
-            🗑️ O'chirish
+            🗑️ {{ t('users.delete') }}
           </button>
         </div>
       </div>
@@ -159,50 +159,39 @@
       <div class="card w-full max-w-md animate-slide-up max-h-[90vh] overflow-y-auto">
         <div class="p-6 border-b border-surface-800 flex items-center justify-between sticky top-0 bg-surface-900 z-10">
           <h2 class="text-lg font-semibold text-white">
-            {{ editMode ? 'Foydalanuvchini tahrirlash' : 'Yangi foydalanuvchi' }}
+            {{ editMode ? t('users.edit_user') : t('users.new_user') }}
           </h2>
           <button @click="closeForm" class="text-surface-400 hover:text-white text-lg leading-none">✕</button>
         </div>
         <form @submit.prevent="saveUser" class="p-6 space-y-4">
-
-          <!-- Username — edit da o'zgartirib bo'lmaydi -->
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-1.5">Foydalanuvchi nomi *</label>
+            <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('users.username_label') }} *</label>
             <input v-model="form.username" class="input w-full"
               :disabled="editMode" :class="editMode ? 'opacity-50 cursor-not-allowed' : ''"
               placeholder="john.doe" :required="!editMode" />
-            <p v-if="editMode" class="text-surface-600 text-xs mt-1">Foydalanuvchi nomini o'zgartirib bo'lmaydi</p>
+            <p v-if="editMode" class="text-surface-600 text-xs mt-1">{{ t('users.username_hint') }}</p>
           </div>
-
-          <!-- Full name -->
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-1.5">To'liq ism</label>
+            <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('users.fullname_label') }}</label>
             <input v-model="form.full_name" class="input w-full" placeholder="Ism Familiya" />
           </div>
-
-          <!-- Email -->
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-1.5">Email *</label>
-            <input v-model="form.email" class="input w-full" type="email"
-              placeholder="john@company.uz" required />
+            <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('users.email_label') }} *</label>
+            <input v-model="form.email" class="input w-full" type="email" placeholder="john@company.uz" required />
           </div>
-
-          <!-- Rol — superuser uchun o'zgartirib bo'lmaydi -->
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-1.5">Rol *</label>
+            <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('users.role_label') }} *</label>
             <select v-model="form.role" class="input w-full"
               :disabled="form.username === 'admin'"
               :class="form.username === 'admin' ? 'opacity-50 cursor-not-allowed' : ''">
-              <option value="viewer">👁 Viewer (faqat ko'rish)</option>
-              <option value="investigator">🔍 Investigator (ko'rish + amal)</option>
-              <option value="admin">👑 Admin (to'liq huquq)</option>
+              <option value="viewer">👁 {{ t('users.role_viewer_desc') }}</option>
+              <option value="investigator">🔍 {{ t('users.role_investigator_desc') }}</option>
+              <option value="admin">👑 {{ t('users.role_admin_desc') }}</option>
             </select>
           </div>
-
-          <!-- Holat (faol/nofaol) — faqat edit, superuser uchun yo'q -->
           <div v-if="editMode && form.username !== 'admin'"
             class="flex items-center justify-between p-3 bg-surface-800 rounded-xl">
-            <span class="text-sm text-surface-300">Hisob holati</span>
+            <span class="text-sm text-surface-300">{{ t('users.account_status') }}</span>
             <button type="button" @click="form.is_active = !form.is_active"
               :class="form.is_active ? 'bg-green-500' : 'bg-surface-600'"
               class="w-10 h-6 rounded-full transition-colors relative">
@@ -210,38 +199,31 @@
                 class="block w-4 h-4 bg-white rounded-full transition-transform absolute top-1"></span>
             </button>
           </div>
-
-          <!-- Parol -->
           <div>
             <label class="block text-sm font-medium text-surface-300 mb-1.5">
-              {{ editMode ? 'Yangi parol (ixtiyoriy)' : 'Parol *' }}
+              {{ editMode ? t('users.password_edit_label') : t('users.password_label') + ' *' }}
             </label>
             <input v-model="form.password" class="input w-full" type="password"
-              :placeholder="editMode ? 'Bo\'sh qoldiring — o\'zgarmaydi' : 'Kuchli parol'"
+              :placeholder="editMode ? t('users.password_edit_placeholder') : t('users.password_placeholder')"
               :required="!editMode" autocomplete="new-password" />
             <p v-if="form.password && form.password.length < 8" class="text-red-400 text-xs mt-1">
-              Kamida 8 belgi kerak
+              {{ t('users.password_min') }}
             </p>
           </div>
-
-          <!-- Birinchi kirishda parol o'zgartirish majburligi -->
           <div v-if="form.password" class="flex items-center gap-3">
             <input id="force_pw" type="checkbox" v-model="form.force_password_change"
               class="w-4 h-4 rounded accent-brand-500" />
             <label for="force_pw" class="text-sm text-surface-400 cursor-pointer">
-              Birinchi kirishda parol o'zgartirishni talab qilish
+              {{ t('users.force_password_change') }}
             </label>
           </div>
-
-          <!-- Xato xabari -->
           <p v-if="formError" class="text-red-400 text-sm p-3 bg-red-500/10 rounded-xl">{{ formError }}</p>
-
           <div class="flex gap-3 pt-2">
-            <button type="button" @click="closeForm" class="btn-ghost flex-1">Bekor qilish</button>
+            <button type="button" @click="closeForm" class="btn-ghost flex-1">{{ t('users.cancel') }}</button>
             <button type="submit" :disabled="saving"
               :class="!editMode || !form.password || form.password.length >= 8 || !form.password ? '' : 'opacity-50'"
               class="btn-primary flex-1 justify-center">
-              {{ saving ? '⏳ Saqlanmoqda...' : (editMode ? '💾 Saqlash' : '✅ Yaratish') }}
+              {{ saving ? '⏳ ' + t('users.saving') : (editMode ? '💾 ' + t('users.save') : '✅ ' + t('users.create')) }}
             </button>
           </div>
         </form>
@@ -257,20 +239,20 @@
         <div class="flex items-center gap-3">
           <div class="w-12 h-12 bg-red-500/15 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">🗑️</div>
           <div>
-            <h3 class="text-white font-semibold">Foydalanuvchini o'chirish</h3>
-            <p class="text-surface-400 text-sm mt-0.5">Bu amalni qaytarib bo'lmaydi</p>
+            <h3 class="text-white font-semibold">{{ t('users.delete_title') }}</h3>
+            <p class="text-surface-400 text-sm mt-0.5">{{ t('users.delete_warning') }}</p>
           </div>
         </div>
         <div class="p-3 bg-surface-800 rounded-xl text-sm">
-          <span class="text-surface-400">O'chiriladi: </span>
+          <span class="text-surface-400">{{ t('users.delete_target') }} </span>
           <span class="text-white font-medium">{{ deleteTarget.full_name || deleteTarget.username }}</span>
           <span class="text-surface-500 ml-1">(@{{ deleteTarget.username }})</span>
         </div>
         <p v-if="deleteError" class="text-red-400 text-sm">{{ deleteError }}</p>
         <div class="flex gap-3">
-          <button @click="deleteTarget = null; deleteError = ''" class="btn-ghost flex-1">Bekor</button>
+          <button @click="deleteTarget = null; deleteError = ''" class="btn-ghost flex-1">{{ t('common.cancel') }}</button>
           <button @click="deleteUser" :disabled="deleting" class="btn-danger flex-1 justify-center">
-            {{ deleting ? '⏳...' : '🗑️ Ha, o\'chirish' }}
+            {{ deleting ? '⏳...' : '🗑️ ' + t('users.delete_confirm') }}
           </button>
         </div>
       </div>
@@ -286,57 +268,47 @@
           <div class="flex items-center gap-3">
             <span class="text-2xl">✈️</span>
             <div>
-              <h3 class="text-white font-semibold">Telegram bog'lash</h3>
+              <h3 class="text-white font-semibold">{{ t('users.tg_connect') }}</h3>
               <p class="text-surface-500 text-sm">{{ tgLinkTarget.full_name || tgLinkTarget.username }}</p>
             </div>
           </div>
           <button @click="closeTgLink" class="text-surface-400 hover:text-white">✕</button>
         </div>
-
-        <!-- Havola yuklanmoqda -->
         <div v-if="tgLinkLoading" class="flex items-center justify-center py-6">
           <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
         </div>
-
-        <!-- Havola tayyor -->
         <template v-else-if="tgLinkData">
           <div class="p-4 bg-surface-800 rounded-xl space-y-3">
             <div class="flex items-center justify-between">
-              <span class="text-surface-400 text-xs">Bog'lash havolasi</span>
-              <span class="text-surface-600 text-xs">{{ tgLinkCountdown }}s qoldi</span>
+              <span class="text-surface-400 text-xs">{{ t('users.tg_link_label') }}</span>
+              <span class="text-surface-600 text-xs">{{ t('users.tg_countdown', { seconds: tgLinkCountdown }) }}</span>
             </div>
             <div class="flex items-center gap-2">
               <code class="flex-1 text-brand-300 text-xs bg-surface-900 px-3 py-2 rounded-lg break-all">
                 {{ tgLinkData.link }}
               </code>
-              <button @click="copyTgLink"
-                class="btn-ghost text-xs px-3 flex-shrink-0">
+              <button @click="copyTgLink" class="btn-ghost text-xs px-3 flex-shrink-0">
                 {{ tgLinkCopied ? '✅' : '📋' }}
               </button>
             </div>
             <a :href="tgLinkData.link" target="_blank" rel="noopener"
               class="btn-primary text-sm flex items-center justify-center gap-2 w-full">
-              ✈️ Telegram da ochish
+              ✈️ {{ t('users.tg_open_telegram') }}
             </a>
           </div>
-
           <div class="flex items-center gap-3 p-3 bg-surface-800/60 rounded-xl border border-surface-700">
             <svg class="w-4 h-4 animate-spin text-brand-400 flex-shrink-0" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            <span class="text-surface-400 text-sm">Bog'lanish kutilmoqda...</span>
+            <span class="text-surface-400 text-sm">{{ t('users.tg_waiting') }}</span>
           </div>
-
           <div class="text-surface-500 text-xs">
-            Foydalanuvchi ushbu havolani ochib, botda <code class="bg-surface-800 px-1 rounded">/start</code> tugmasini bosishi kerak.
+            {{ t('users.tg_link_hint') }}
           </div>
         </template>
-
-        <!-- Xato -->
         <p v-if="tgLinkError" class="text-red-400 text-sm">{{ tgLinkError }}</p>
-
-        <button @click="closeTgLink" class="btn-ghost w-full">Yopish</button>
+        <button @click="closeTgLink" class="btn-ghost w-full">{{ t('users.close') }}</button>
       </div>
     </div>
 
@@ -359,6 +331,9 @@ import { ref, reactive, onUnmounted, onMounted } from 'vue'
 import { format } from 'date-fns'
 import api from '@/utils/api'
 import EmptyState from '@/components/EmptyState.vue'
+import { useI18n } from '@/composables/useI18n'
+
+const { t } = useI18n()
 
 // ── State ─────────────────────────────────────────────────────────
 const loading  = ref(true)
@@ -382,7 +357,7 @@ function roleClass(r) {
       : 'bg-surface-700/50 text-surface-400'
 }
 function roleLabel(r) {
-  return r === 'admin' ? '👑 Admin' : r === 'investigator' ? '🔍 Investigator' : '👁 Viewer'
+  return r === 'admin' ? '👑 ' + t('users.role_admin') : r === 'investigator' ? '🔍 ' + t('users.role_investigator') : '👁 ' + t('users.role_viewer')
 }
 function formatDate(d) { return d ? format(new Date(d), 'dd.MM.yyyy HH:mm') : '—' }
 
@@ -451,7 +426,7 @@ async function saveUser() {
         body.force_password_change = form.force_password_change
       }
       await api.put(`/v1/auth/users/${editId.value}`, body)
-      showToast('✅ Foydalanuvchi yangilandi')
+      showToast('✅ ' + t('users.user_updated'))
     } else {
       await api.post('/v1/auth/users', {
         username: form.username,
@@ -460,12 +435,12 @@ async function saveUser() {
         password: form.password,
         role: form.role,
       })
-      showToast('✅ Foydalanuvchi yaratildi')
+      showToast('✅ ' + t('users.user_created'))
     }
     closeForm()
     await loadUsers()
   } catch (e) {
-    formError.value = '❌ ' + (e.response?.data?.detail || 'Xatolik yuz berdi')
+    formError.value = '❌ ' + (e.response?.data?.detail || t('case_detail.error_occurred'))
   } finally {
     saving.value = false
   }
@@ -482,11 +457,11 @@ async function deleteUser() {
   deleteError.value = ''
   try {
     await api.delete(`/v1/auth/users/${deleteTarget.value.id}`)
-    showToast(`🗑️ ${deleteTarget.value.username} o'chirildi`)
+    showToast('🗑️ ' + t('users.user_deleted', { username: deleteTarget.value.username }))
     deleteTarget.value = null
     await loadUsers()
   } catch (e) {
-    deleteError.value = '❌ ' + (e.response?.data?.detail || 'Xatolik')
+    deleteError.value = '❌ ' + (e.response?.data?.detail || t('common.error'))
   } finally {
     deleting.value = false
   }
@@ -532,7 +507,7 @@ async function openTgLink(u) {
       } catch { /* jim */ }
     }, 3000)
   } catch (e) {
-    tgLinkError.value = '❌ ' + (e.response?.data?.detail || 'Xatolik')
+    tgLinkError.value = '❌ ' + (e.response?.data?.detail || t('common.error'))
   } finally {
     tgLinkLoading.value = false
   }

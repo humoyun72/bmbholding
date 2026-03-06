@@ -3,15 +3,15 @@
     <!-- Header -->
     <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-xl sm:text-2xl font-bold text-white">Audit jurnali</h1>
-        <p class="text-surface-400 text-sm mt-1">Tizimda bajarilgan barcha amallar</p>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">{{ t('audit.title') }}</h1>
+        <p class="text-surface-400 text-sm mt-1">{{ t('audit.subtitle') }}</p>
       </div>
       <div class="flex items-center gap-2">
         <button @click="exportExcel" :disabled="exporting" class="btn-ghost text-sm flex items-center gap-2 whitespace-nowrap">
-          <span :class="{ 'animate-spin': exporting }">📥</span> Excel
+          <span :class="{ 'animate-spin': exporting }">📥</span> {{ t('audit.export_excel') }}
         </button>
         <button @click="loadLogs" class="btn-ghost text-sm flex items-center gap-2 whitespace-nowrap">
-          <span :class="{ 'animate-spin': loading }">🔄</span> Yangilash
+          <span :class="{ 'animate-spin': loading }">🔄</span> {{ t('audit.refresh') }}
         </button>
       </div>
     </div>
@@ -20,28 +20,28 @@
     <div class="card p-4 mb-6">
       <div class="flex items-center gap-3 flex-wrap">
         <select v-model="filters.action" class="input flex-1 min-w-40" @change="resetAndLoad">
-          <option value="">Barcha amallar</option>
+          <option value="">{{ t('audit.filter_action') }}</option>
           <option v-for="a in actions" :key="a" :value="a">{{ actionLabel(a) }}</option>
         </select>
         <select v-model="filters.user_id" class="input flex-1 min-w-40" @change="resetAndLoad">
-          <option value="">Barcha foydalanuvchilar</option>
+          <option value="">{{ t('audit.filter_user') }}</option>
           <option v-for="u in users" :key="u.id" :value="u.id">{{ u.full_name || u.username }}</option>
         </select>
         <input
           v-model="filters.from_date"
           type="date"
           class="input flex-1 min-w-40"
-          placeholder="Boshlanish sanasi"
+          :placeholder="t('audit.filter_from')"
           @change="resetAndLoad"
         />
         <input
           v-model="filters.to_date"
           type="date"
           class="input flex-1 min-w-40"
-          placeholder="Tugash sanasi"
+          :placeholder="t('audit.filter_to')"
           @change="resetAndLoad"
         />
-        <button @click="clearFilters" class="btn-ghost text-sm whitespace-nowrap">Filtrni tozalash</button>
+        <button @click="clearFilters" class="btn-ghost text-sm whitespace-nowrap">{{ t('audit.clear_filter') }}</button>
       </div>
     </div>
 
@@ -87,9 +87,9 @@
               <td colspan="5">
                 <EmptyState
                   :icon="hasAuditFilters ? '🔍' : '📋'"
-                  :title="hasAuditFilters ? 'Natija topilmadi' : 'Hech qanday yozuv topilmadi'"
-                  :description="hasAuditFilters ? 'Ushbu filtrlar bo\'yicha yozuv topilmadi' : 'Audit jurnali hali bo\'sh'"
-                  :action="hasAuditFilters ? 'Filterni tozalash' : ''"
+                  :title="hasAuditFilters ? t('audit.no_logs_filtered') : t('audit.no_logs')"
+                  :description="hasAuditFilters ? t('audit.no_logs_filtered_desc') : t('audit.no_logs_empty_desc')"
+                  :action="hasAuditFilters ? t('audit.clear_filter') : ''"
                   :action-fn="hasAuditFilters ? resetFilters : null" />
               </td>
             </tr>
@@ -107,7 +107,7 @@
                     <div class="text-surface-500 text-xs">{{ roleLabel(log.user.role) }}</div>
                   </div>
                 </div>
-                <span v-else class="text-surface-600 text-sm italic">Tizim</span>
+                <span v-else class="text-surface-600 text-sm italic">{{ t('audit.system') }}</span>
               </td>
               <td class="px-5 py-3.5">
                 <span :class="['inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium', actionBadge(log.action)]">
@@ -169,9 +169,9 @@
 
       <EmptyState v-else-if="!logs.length"
         :icon="hasAuditFilters ? '🔍' : '📋'"
-        :title="hasAuditFilters ? 'Natija topilmadi' : 'Hech qanday yozuv topilmadi'"
-        :description="hasAuditFilters ? 'Ushbu filtrlar bo\'yicha yozuv topilmadi' : ''"
-        :action="hasAuditFilters ? 'Filterni tozalash' : ''"
+        :title="hasAuditFilters ? t('audit.no_logs_filtered') : t('audit.no_logs')"
+        :description="hasAuditFilters ? t('audit.no_logs_filtered_desc') : ''"
+        :action="hasAuditFilters ? t('audit.clear_filter') : ''"
         :action-fn="hasAuditFilters ? resetFilters : null" />
       <div v-else v-for="log in logs" :key="log.id" class="card p-4">
         <div class="flex items-start justify-between gap-3 mb-2">
@@ -180,7 +180,7 @@
               {{ (log.user.full_name || log.user.username).charAt(0).toUpperCase() }}
             </div>
             <div>
-              <div class="text-white text-sm font-medium">{{ log.user ? (log.user.full_name || log.user.username) : 'Tizim' }}</div>
+              <div class="text-white text-sm font-medium">{{ log.user ? (log.user.full_name || log.user.username) : t('audit.system') }}</div>
               <div class="text-surface-500 text-xs">{{ log.ip_address || '—' }}</div>
             </div>
           </div>
@@ -216,9 +216,11 @@ import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
 import Pagination from '@/components/Pagination.vue'
 import EmptyState from '@/components/EmptyState.vue'
+import { useI18n } from '@/composables/useI18n'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 
 const loading = ref(false)
 const exporting = ref(false)
@@ -250,28 +252,28 @@ function resetFilters() {
   pagination.page = 1; loadLogs()
 }
 
-const columns = ['Foydalanuvchi', 'Amal', 'Murojaat / Ob\'ekt', 'IP manzil', 'Vaqt']
+const columns = computed(() => [t('audit.col_user'), t('audit.col_action'), t('audit.col_case'), t('audit.col_ip'), t('audit.col_time')])
 
-const ACTION_META = {
-  login:               { label: 'Kirish',        icon: '🔑', badge: 'bg-green-500/20 text-green-400' },
-  logout:              { label: 'Chiqish',        icon: '🚪', badge: 'bg-surface-700 text-surface-400' },
-  case_view:           { label: 'Ko\'rish',       icon: '👁',  badge: 'bg-blue-500/20 text-blue-400' },
-  case_update:         { label: 'Yangilash',      icon: '✏️',  badge: 'bg-yellow-500/20 text-yellow-400' },
-  case_assign:         { label: 'Tayinlash',      icon: '👤',  badge: 'bg-purple-500/20 text-purple-400' },
-  case_comment:        { label: 'Izoh',           icon: '💬',  badge: 'bg-cyan-500/20 text-cyan-400' },
-  case_export:         { label: 'Eksport',        icon: '📤',  badge: 'bg-orange-500/20 text-orange-400' },
-  attachment_download: { label: 'Yuklash',        icon: '📎',  badge: 'bg-orange-500/20 text-orange-400' },
-  user_create:         { label: 'Foydalanuvchi',  icon: '➕',  badge: 'bg-brand-500/20 text-brand-400' },
-  user_update:         { label: 'Foydalanuvchi tahrirlash', icon: '🔧', badge: 'bg-brand-500/20 text-brand-400' },
-  survey_create:       { label: 'So\'rovnoma',    icon: '📊',  badge: 'bg-pink-500/20 text-pink-400' },
-}
+const ACTION_META = computed(() => ({
+  login:               { label: t('audit.action_login'),        icon: '🔑', badge: 'bg-green-500/20 text-green-400' },
+  logout:              { label: t('audit.action_logout'),        icon: '🚪', badge: 'bg-surface-700 text-surface-400' },
+  case_view:           { label: t('audit.action_case_view'),       icon: '👁',  badge: 'bg-blue-500/20 text-blue-400' },
+  case_update:         { label: t('audit.action_case_update'),      icon: '✏️',  badge: 'bg-yellow-500/20 text-yellow-400' },
+  case_assign:         { label: t('audit.action_case_assign'),      icon: '👤',  badge: 'bg-purple-500/20 text-purple-400' },
+  case_comment:        { label: t('audit.action_case_comment'),           icon: '💬',  badge: 'bg-cyan-500/20 text-cyan-400' },
+  case_export:         { label: t('audit.action_case_export'),        icon: '📤',  badge: 'bg-orange-500/20 text-orange-400' },
+  attachment_download: { label: t('audit.action_attachment_download'),        icon: '📎',  badge: 'bg-orange-500/20 text-orange-400' },
+  user_create:         { label: t('audit.action_user_create'),  icon: '➕',  badge: 'bg-brand-500/20 text-brand-400' },
+  user_update:         { label: t('audit.action_user_update'), icon: '🔧', badge: 'bg-brand-500/20 text-brand-400' },
+  survey_create:       { label: t('audit.action_survey_create'),    icon: '📊',  badge: 'bg-pink-500/20 text-pink-400' },
+}))
 
-function actionLabel(a) { return ACTION_META[a]?.label || a }
-function actionIcon(a)  { return ACTION_META[a]?.icon  || '📌' }
-function actionBadge(a) { return ACTION_META[a]?.badge || 'bg-surface-700 text-surface-400' }
+function actionLabel(a) { return ACTION_META.value[a]?.label || a }
+function actionIcon(a)  { return ACTION_META.value[a]?.icon  || '📌' }
+function actionBadge(a) { return ACTION_META.value[a]?.badge || 'bg-surface-700 text-surface-400' }
 
-const ROLE_LABELS = { admin: 'Admin', investigator: 'Tergovchi', viewer: 'Kuzatuvchi' }
-function roleLabel(r) { return ROLE_LABELS[r] || r }
+const ROLE_LABELS = computed(() => ({ admin: t('audit.role_admin'), investigator: t('audit.role_investigator'), viewer: t('audit.role_viewer') }))
+function roleLabel(r) { return ROLE_LABELS.value[r] || r }
 
 function formatDate(dt) {
   if (!dt) return '—'

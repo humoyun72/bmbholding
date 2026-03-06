@@ -2,11 +2,11 @@
   <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
     <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-xl sm:text-2xl font-bold text-white">So'rovnomalar</h1>
-        <p class="text-surface-400 text-sm mt-1">Telegram guruh yoki kanalda so'rovnomalar o'tkazish</p>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">{{ t('polls.title') }}</h1>
+        <p class="text-surface-400 text-sm mt-1">{{ t('polls.subtitle') }}</p>
       </div>
       <button @click="showCreate = true" class="btn-primary whitespace-nowrap">
-        + Yangi so'rovnoma
+        + {{ t('polls.create') }}
       </button>
     </div>
 
@@ -15,9 +15,9 @@
       class="mb-6 flex items-start gap-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-3">
       <span class="text-yellow-400 text-lg flex-shrink-0">⚠️</span>
       <div>
-        <p class="text-yellow-300 text-sm font-medium">So'rovnoma faollashtirildi, lekin Telegram'ga yuborilmadi</p>
+        <p class="text-yellow-300 text-sm font-medium">{{ t('polls.activate_warning_title') }}</p>
         <p class="text-yellow-400/70 text-xs mt-0.5">{{ activateWarning }}</p>
-        <p class="text-surface-500 text-xs mt-1">Yechim: <code class="text-brand-400">.env</code> faylga <code class="text-brand-400">POLL_CHAT_ID=&lt;guruh_yoki_kanal_id&gt;</code> qo'shing va konteynerlarni qayta ishga tushiring.</p>
+        <p class="text-surface-500 text-xs mt-1">{{ t('polls.activate_warning_hint') }}</p>
       </div>
       <button @click="activateWarning = ''" class="ml-auto text-surface-500 hover:text-white">✕</button>
     </div>
@@ -26,13 +26,8 @@
     <div class="mb-6 flex items-center gap-3 bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-3">
       <span class="text-blue-400 text-lg">📢</span>
       <div class="text-sm">
-        <span class="text-surface-300">So'rovnomalar </span>
-        <span class="text-white font-medium">Telegram guruh yoki kanalingizga</span>
-        <span class="text-surface-300"> native poll sifatida yuboriladi. Kanal/guruh ID ni </span>
-        <code class="text-brand-400">.env</code>
-        <span class="text-surface-300"> da </span>
-        <code class="text-brand-400">POLL_CHAT_ID</code>
-        <span class="text-surface-300"> orqali sozlang.</span>
+        <span class="text-surface-300">{{ t('polls.info_text') }} </span>
+        <span class="text-surface-300">{{ t('polls.info_config') }}</span>
       </div>
     </div>
 
@@ -53,26 +48,26 @@
             </div>
             <p v-if="poll.description" class="text-surface-400 text-sm mb-3">{{ poll.description }}</p>
             <div class="flex items-center gap-4 text-surface-500 text-xs">
-              <span>{{ poll.questions_count }} ta savol</span>
-              <span>{{ poll.total_votes }} ta ovoz</span>
+              <span>{{ t('polls.questions_count', { count: poll.questions_count }) }}</span>
+              <span>{{ t('polls.votes_count', { count: poll.total_votes }) }}</span>
               <span>{{ formatDate(poll.created_at) }}</span>
             </div>
           </div>
           <div class="flex items-center gap-2">
             <button v-if="poll.status === 'draft'" @click.stop="activatePoll(poll.id)"
               class="btn-primary text-xs px-3 py-1.5">
-              ▶ Faollashtirish
+              ▶ {{ t('polls.activate') }}
             </button>
             <button v-if="poll.status === 'active'" @click.stop="closePoll(poll.id)"
               class="btn-ghost text-xs px-3 py-1.5 text-red-400 hover:text-red-300">
-              ■ Yopish
+              ■ {{ t('polls.close') }}
             </button>
           </div>
         </div>
       </div>
 
       <div v-if="!loading && !polls.length" class="card p-12 text-center text-surface-500">
-        Hali so'rovnomalar yo'q. Birinchisini yarating!
+        {{ t('polls.no_polls') }}
       </div>
     </div>
 
@@ -80,48 +75,48 @@
     <div v-if="showCreate" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
         <div class="p-6 border-b border-surface-800 flex items-center justify-between">
-          <h2 class="text-lg font-semibold text-white">Yangi so'rovnoma</h2>
+          <h2 class="text-lg font-semibold text-white">{{ t('polls.create_title') }}</h2>
           <button @click="showCreate = false" class="text-surface-400 hover:text-white transition-colors">✕</button>
         </div>
         <div class="p-6 space-y-5">
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-2">So'rovnoma nomi *</label>
-            <input v-model="form.title" class="input" placeholder="Masalan: Mart oyi anonim so'rovnomasi" />
+            <label class="block text-sm font-medium text-surface-300 mb-2">{{ t('polls.poll_name') }} *</label>
+            <input v-model="form.title" class="input" :placeholder="t('polls.poll_name_placeholder')" />
           </div>
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-2">Tavsif</label>
-            <textarea v-model="form.description" class="input resize-none" rows="2" placeholder="Qo'shimcha ma'lumot..."></textarea>
+            <label class="block text-sm font-medium text-surface-300 mb-2">{{ t('polls.poll_description') }}</label>
+            <textarea v-model="form.description" class="input resize-none" rows="2" :placeholder="t('polls.poll_description_placeholder')"></textarea>
           </div>
 
           <!-- Questions -->
           <div>
             <div class="flex items-center justify-between mb-3">
-              <label class="text-sm font-medium text-surface-300">Savollar</label>
-              <button @click="addQuestion" class="text-brand-400 text-sm hover:text-brand-300 transition-colors">+ Savol qo'shish</button>
+              <label class="text-sm font-medium text-surface-300">{{ t('polls.questions_label') }}</label>
+              <button @click="addQuestion" class="text-brand-400 text-sm hover:text-brand-300 transition-colors">+ {{ t('polls.add_question') }}</button>
             </div>
             <div class="space-y-4">
               <div v-for="(q, qi) in form.questions" :key="qi" class="bg-surface-800 rounded-xl p-4">
                 <div class="flex items-start gap-3 mb-3">
-                  <input v-model="q.question_text" class="input flex-1 text-sm" :placeholder="`${qi + 1}-savol matni`" />
+                  <input v-model="q.question_text" class="input flex-1 text-sm" :placeholder="t('polls.question_placeholder', { num: qi + 1 })" />
                   <button @click="removeQuestion(qi)" class="text-surface-500 hover:text-red-400 transition-colors mt-2">✕</button>
                 </div>
                 <!-- Options -->
                 <div class="space-y-2 ml-3">
                   <div v-for="(opt, oi) in q.options" :key="oi" class="flex items-center gap-2">
                     <span class="text-surface-500 text-xs w-5">{{ oi + 1 }}.</span>
-                    <input v-model="opt.option_text" class="input flex-1 text-sm" :placeholder="`Variant ${oi + 1}`" />
+                    <input v-model="opt.option_text" class="input flex-1 text-sm" :placeholder="t('polls.option_placeholder', { num: oi + 1 })" />
                     <button @click="removeOption(qi, oi)" class="text-surface-500 hover:text-red-400 transition-colors">✕</button>
                   </div>
-                  <button @click="addOption(qi)" class="text-brand-400 text-xs hover:text-brand-300 transition-colors ml-5">+ Variant qo'shish</button>
+                  <button @click="addOption(qi)" class="text-brand-400 text-xs hover:text-brand-300 transition-colors ml-5">+ {{ t('polls.add_option') }}</button>
                 </div>
               </div>
             </div>
           </div>
         </div>
         <div class="p-6 border-t border-surface-800 flex gap-3 justify-end">
-          <button @click="showCreate = false" class="btn-ghost">Bekor qilish</button>
+          <button @click="showCreate = false" class="btn-ghost">{{ t('polls.cancel') }}</button>
           <button @click="createPoll" :disabled="saving" class="btn-primary">
-            {{ saving ? 'Saqlanmoqda...' : 'Yaratish' }}
+            {{ saving ? t('polls.saving') : t('polls.create_btn') }}
           </button>
         </div>
       </div>
@@ -134,8 +129,10 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { format } from 'date-fns'
 import api from '@/utils/api'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
+const { t } = useI18n()
 const loading = ref(true)
 const saving = ref(false)
 const showCreate = ref(false)
@@ -212,7 +209,7 @@ function statusClass(s) {
     : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20'
 }
 function statusLabel(s) {
-  return s === 'active' ? '● Faol' : s === 'closed' ? 'Yopiq' : 'Qoralama'
+  return s === 'active' ? t('polls.status_active') : s === 'closed' ? t('polls.status_closed') : t('polls.status_draft')
 }
 function formatDate(d) { return d ? format(new Date(d), 'dd.MM.yyyy') : '' }
 

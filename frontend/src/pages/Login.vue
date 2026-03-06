@@ -16,23 +16,23 @@
               d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
           </svg>
         </div>
-        <h1 class="text-2xl font-bold text-white">IntegrityBot</h1>
-        <p class="text-surface-400 text-sm mt-1">Muvofiqlik boshqaruv paneli</p>
+        <h1 class="text-2xl font-bold text-white">{{ t('login.title') }}</h1>
+        <p class="text-surface-400 text-sm mt-1">{{ t('login.subtitle') }}</p>
       </div>
 
       <!-- Login card -->
       <div class="card p-8 shadow-2xl">
-        <h2 class="text-lg font-semibold text-white mb-6">Tizimga kirish</h2>
+        <h2 class="text-lg font-semibold text-white mb-6">{{ t('login.heading') }}</h2>
 
         <form @submit.prevent="handleLogin" class="space-y-5">
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-2">Foydalanuvchi nomi</label>
+            <label class="block text-sm font-medium text-surface-300 mb-2">{{ t('login.username') }}</label>
             <input v-model="form.username" type="text" class="input" placeholder="admin"
               autocomplete="username" required />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-2">Parol</label>
+            <label class="block text-sm font-medium text-surface-300 mb-2">{{ t('login.password') }}</label>
             <div class="relative">
               <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
                 class="input pr-10" placeholder="••••••••" autocomplete="current-password" required />
@@ -51,7 +51,7 @@
           <!-- 2FA code (shown after first attempt if needed) -->
           <div v-if="requires2FA">
             <label class="block text-sm font-medium text-surface-300 mb-2">
-              🔐 2FA kodi (Authenticator ilovasidan)
+              🔐 {{ t('login.totp_label') }}
             </label>
             <input
               v-model="form.totpCode"
@@ -65,7 +65,7 @@
               @input="onTotpInput"
             />
             <p class="text-surface-500 text-xs mt-1.5 text-center">
-              Google Authenticator yoki Authy ilovasidagi 6 raqamli kodni kiriting
+              {{ t('login.totp_hint') }}
             </p>
           </div>
 
@@ -82,13 +82,13 @@
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
             </svg>
-            {{ loading ? 'Kirilmoqda...' : 'Kirish' }}
+            {{ loading ? t('login.loading') : t('login.login_btn') }}
           </button>
         </form>
       </div>
 
       <p class="text-center text-surface-600 text-xs mt-6">
-        © {{ new Date().getFullYear() }} IntegrityBot — Barcha huquqlar himoyalangan
+        {{ t('login.copyright', { year: new Date().getFullYear() }) }}
       </p>
     </div>
   </div>
@@ -98,9 +98,11 @@
 import { ref, reactive, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const form = reactive({ username: '', password: '', totpCode: '' })
 const loading = ref(false)
@@ -123,15 +125,15 @@ async function handleLogin() {
     if (is2FAError) {
       requires2FA.value = true
       form.totpCode = ''
-      error.value = "Authenticator ilovasidan 6 raqamli kodni kiriting"
+      error.value = t('login.error_2fa')
       // 2FA input ga focus
       await nextTick()
       totpInput.value?.focus()
     } else if (err.response?.status === 401) {
       requires2FA.value = false
-      error.value = "Noto'g'ri login yoki parol"
+      error.value = t('login.error_invalid')
     } else {
-      error.value = detail || "Xatolik yuz berdi, qayta urinib ko'ring"
+      error.value = detail || t('login.error_generic')
     }
   } finally {
     loading.value = false

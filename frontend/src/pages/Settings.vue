@@ -1,8 +1,8 @@
 <template>
   <div class="p-4 sm:p-6 lg:p-8 animate-fade-in max-w-3xl">
     <div class="mb-6">
-      <h1 class="text-xl sm:text-2xl font-bold text-white">Sozlamalar</h1>
-      <p class="text-surface-400 text-sm mt-1">Profil, xavfsizlik, bot va tizim sozlamalari</p>
+      <h1 class="text-xl sm:text-2xl font-bold text-white">{{ t('settings.title') }}</h1>
+      <p class="text-surface-400 text-sm mt-1">{{ t('settings.subtitle') }}</p>
     </div>
 
     <!-- ── Tabs ── -->
@@ -21,7 +21,7 @@
 
       <!-- Avatar + info -->
       <div class="card p-6">
-        <h3 class="font-semibold text-white mb-5">Profil ma'lumotlari</h3>
+        <h3 class="font-semibold text-white mb-5">{{ t('settings.profile_info') }}</h3>
         <div class="flex items-center gap-4 mb-6">
           <div class="w-16 h-16 bg-gradient-to-br from-brand-500 to-brand-700 rounded-2xl flex items-center justify-center text-2xl text-white font-bold flex-shrink-0">
             {{ initials }}
@@ -38,7 +38,7 @@
                   : 'bg-surface-700/50 text-surface-500 border-surface-600 cursor-pointer hover:border-brand-500/50 hover:text-brand-400'"
                 class="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all">
                 <span>✈️</span>
-                {{ tgLinked ? 'Telegram ulangan' : 'Telegram ulash →' }}
+                {{ tgLinked ? t('settings.tg_linked_info') : t('settings.tg_link_connect') }}
               </span>
             </div>
           </div>
@@ -47,18 +47,18 @@
         <div class="space-y-4">
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-surface-300 mb-1.5">To'liq ism</label>
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.fullname') }}</label>
               <input v-model="profileForm.full_name" type="text" class="input w-full" placeholder="Ism Familiya" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-surface-300 mb-1.5">Email</label>
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.email') }}</label>
               <input v-model="profileForm.email" type="email" class="input w-full" placeholder="email@company.uz" />
             </div>
           </div>
 
           <!-- Interfeys tili -->
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-1.5">Interfeys tili</label>
+            <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.ui_lang') }}</label>
             <div class="flex gap-2">
               <button v-for="lang in uiLangs" :key="lang.code"
                 @click="profileForm.ui_lang = lang.code"
@@ -77,7 +77,7 @@
             </p>
             <span v-else />
             <button @click="saveProfile" :disabled="profileSaving" class="btn-primary">
-              {{ profileSaving ? '⏳ Saqlanmoqda...' : '💾 Saqlash' }}
+              {{ profileSaving ? '⏳ ' + t('settings.saving') : '💾 ' + t('settings.save_btn') }}
             </button>
           </div>
         </div>
@@ -85,24 +85,24 @@
 
       <!-- Parol o'zgartirish -->
       <div class="card p-6">
-        <h3 class="font-semibold text-white mb-5">Parol o'zgartirish</h3>
+        <h3 class="font-semibold text-white mb-5">{{ t('settings.change_password') }}</h3>
         <div class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-surface-300 mb-1.5">Joriy parol</label>
+            <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.current_password') }}</label>
             <input v-model="pwdForm.current" type="password" class="input w-full" placeholder="••••••••" autocomplete="current-password" />
           </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-medium text-surface-300 mb-1.5">Yangi parol</label>
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.new_password') }}</label>
               <input v-model="pwdForm.new1" type="password" class="input w-full" placeholder="Kamida 8 belgi" autocomplete="new-password" />
             </div>
             <div>
-              <label class="block text-sm font-medium text-surface-300 mb-1.5">Tasdiqlash</label>
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.confirm_password') }}</label>
               <input v-model="pwdForm.new2" type="password" class="input w-full" placeholder="••••••••" autocomplete="new-password" />
             </div>
           </div>
           <p v-if="pwdForm.new1 && pwdForm.new2 && pwdForm.new1 !== pwdForm.new2" class="text-red-400 text-xs">
-            ⚠️ Parollar mos kelmaydi
+            ⚠️ {{ t('settings.password_mismatch') }}
           </p>
           <div class="flex items-center justify-between pt-1 border-t border-surface-800">
             <p v-if="pwdMsg" :class="pwdMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ pwdMsg.text }}</p>
@@ -110,7 +110,7 @@
             <button @click="changePassword"
               :disabled="pwdSaving || !pwdForm.current || !pwdForm.new1 || pwdForm.new1 !== pwdForm.new2"
               class="btn-primary">
-              {{ pwdSaving ? '⏳ Saqlanmoqda...' : '🔑 Parolni o\'zgartirish' }}
+              {{ pwdSaving ? '⏳ ' + t('settings.saving') : '🔑 ' + t('settings.change_password_btn') }}
             </button>
           </div>
         </div>
@@ -124,38 +124,38 @@
       <div class="card p-6">
         <div class="flex items-start justify-between mb-5">
           <div>
-            <h3 class="font-semibold text-white">Ikki bosqichli autentifikatsiya (2FA)</h3>
-            <p class="text-surface-500 text-sm mt-1">Google Authenticator yoki Authy bilan xavfsizlikni oshiring</p>
+            <h3 class="font-semibold text-white">{{ t('settings.tfa_title') }}</h3>
+            <p class="text-surface-500 text-sm mt-1">{{ t('settings.tfa_desc') }}</p>
           </div>
           <span :class="auth.user?.totpEnabled
               ? 'bg-green-500/15 text-green-400 border-green-500/30'
               : 'bg-surface-700/50 text-surface-400 border-surface-600'"
             class="text-xs px-3 py-1 rounded-full border flex-shrink-0">
-            {{ auth.user?.totpEnabled ? '● Yoqilgan' : '○ O\'chirilgan' }}
+            {{ auth.user?.totpEnabled ? '● ' + t('settings.tfa_enabled') : '○ ' + t('settings.tfa_disabled') }}
           </span>
         </div>
 
         <!-- 2FA yo'q -->
         <template v-if="!auth.user?.totpEnabled">
           <p class="text-surface-400 text-sm mb-4">
-            2FA yoqilganda har safar kirishda Authenticator ilovasidan 6 xonali kod talab qilinadi.
+            {{ t('settings.tfa_info') }}
           </p>
           <button v-if="!setupData" @click="setup2FA" :disabled="twoFaLoading" class="btn-primary">
-            {{ twoFaLoading ? '⏳ Yuklanmoqda...' : '🔐 2FA ni yoqish' }}
+            {{ twoFaLoading ? '⏳ ' + t('settings.tfa_loading') : '🔐 ' + t('settings.tfa_enable') }}
           </button>
           <div v-if="setupData" class="mt-5 space-y-4">
-            <p class="text-surface-400 text-sm">1. Quyidagi QR kodni Authenticator ilovangizga skanerlang:</p>
+            <p class="text-surface-400 text-sm">{{ t('settings.tfa_scan_qr') }}</p>
             <div class="bg-white p-4 rounded-2xl w-fit">
               <img :src="setupData.qr_code" alt="QR" class="w-52 h-52" />
             </div>
-            <p class="text-surface-400 text-sm">2. Ilovada ko'rsatilgan 6 xonali kodni kiriting:</p>
+            <p class="text-surface-400 text-sm">{{ t('settings.tfa_enter_code') }}</p>
             <div class="flex gap-3">
               <input v-model="totpCode" class="input font-mono tracking-widest text-center w-44"
                 placeholder="000000" maxlength="6" inputmode="numeric" />
               <button @click="verify2FA" :disabled="totpCode.length !== 6 || verifying" class="btn-primary">
-                {{ verifying ? '...' : '✅ Tasdiqlash' }}
+                {{ verifying ? '...' : '✅ ' + t('settings.tfa_verify') }}
               </button>
-              <button @click="setupData = null; totpCode = ''" class="btn-ghost">Bekor</button>
+              <button @click="setupData = null; totpCode = ''" class="btn-ghost">{{ t('settings.tfa_cancel') }}</button>
             </div>
             <p v-if="setupError" class="text-red-400 text-sm">{{ setupError }}</p>
           </div>
@@ -166,22 +166,22 @@
           <div class="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
             <span class="text-2xl">🛡️</span>
             <div>
-              <div class="text-green-300 font-medium text-sm">2FA faol</div>
-              <div class="text-green-500/70 text-xs mt-0.5">Har safar kirishda Authenticator kodi talab qilinadi</div>
+              <div class="text-green-300 font-medium text-sm">{{ t('settings.tfa_active') }}</div>
+              <div class="text-green-500/70 text-xs mt-0.5">{{ t('settings.tfa_active_desc') }}</div>
             </div>
           </div>
           <div v-if="!showDisable2FA">
-            <button @click="showDisable2FA = true" class="btn-danger text-sm">🔓 2FA ni o'chirish</button>
+            <button @click="showDisable2FA = true" class="btn-danger text-sm">🔓 {{ t('settings.tfa_disable') }}</button>
           </div>
           <div v-else class="space-y-3 p-4 bg-red-500/5 border border-red-500/20 rounded-xl">
-            <p class="text-red-400 text-sm font-medium">⚠️ O'chirish uchun hozirgi Authenticator kodini kiriting:</p>
+            <p class="text-red-400 text-sm font-medium">⚠️ {{ t('settings.tfa_disable_prompt') }}</p>
             <div class="flex gap-3">
               <input v-model="disableTotpCode" type="text" inputmode="numeric"
                 class="input font-mono tracking-widest text-center w-44" placeholder="000000" maxlength="6" />
               <button @click="disable2FA" :disabled="!disableTotpCode || disabling" class="btn-danger">
-                {{ disabling ? '...' : 'O\'chirish' }}
+                {{ disabling ? '...' : t('settings.tfa_disable_btn') }}
               </button>
-              <button @click="showDisable2FA = false; disableTotpCode = ''; disableError = ''" class="btn-ghost">Bekor</button>
+              <button @click="showDisable2FA = false; disableTotpCode = ''; disableError = ''" class="btn-ghost">{{ t('settings.tfa_cancel') }}</button>
             </div>
             <p v-if="disableError" class="text-red-400 text-sm">{{ disableError }}</p>
           </div>
@@ -190,19 +190,19 @@
 
       <!-- Sessiya ma'lumoti -->
       <div class="card p-6">
-        <h3 class="font-semibold text-white mb-4">🔒 Sessiya xavfsizligi</h3>
+        <h3 class="font-semibold text-white mb-4">🔒 {{ t('settings.session_security') }}</h3>
         <div class="space-y-3 text-sm">
           <div class="flex justify-between py-2 border-b border-surface-800">
-            <span class="text-surface-400">Oxirgi kirish</span>
-            <span class="text-surface-200">Hozir (joriy sessiya)</span>
+            <span class="text-surface-400">{{ t('settings.last_login') }}</span>
+            <span class="text-surface-200">{{ t('settings.current_session') }}</span>
           </div>
           <div class="flex justify-between py-2 border-b border-surface-800">
-            <span class="text-surface-400">Token muddati</span>
-            <span class="text-surface-200">24 soat</span>
+            <span class="text-surface-400">{{ t('settings.token_expiry') }}</span>
+            <span class="text-surface-200">{{ t('settings.token_hours') }}</span>
           </div>
           <div class="flex justify-between py-2">
-            <span class="text-surface-400">IP manzil</span>
-            <span class="text-surface-200">{{ currentIp || 'Aniqlanmoqda...' }}</span>
+            <span class="text-surface-400">{{ t('settings.ip_address') }}</span>
+            <span class="text-surface-200">{{ currentIp || t('settings.ip_detecting') }}</span>
           </div>
         </div>
       </div>
@@ -217,9 +217,9 @@
       <div class="card p-6">
         <div class="flex items-start justify-between mb-5">
           <div>
-            <h3 class="font-semibold text-white">Telegram akkauntga bog'lash</h3>
+            <h3 class="font-semibold text-white">{{ t('settings.tg_connect_title') }}</h3>
             <p class="text-surface-500 text-sm mt-1">
-              Bog'lash orqali tayinlangan murojaatlar haqida Telegram xabar olasiz
+              {{ t('settings.tg_connect_desc') }}
             </p>
           </div>
           <span
@@ -227,7 +227,7 @@
               ? 'bg-green-500/15 text-green-400 border-green-500/30'
               : 'bg-surface-700/50 text-surface-400 border-surface-600'"
             class="text-xs px-3 py-1 rounded-full border flex-shrink-0">
-            {{ tgLinked ? '● Bog\'langan' : '○ Bog\'lanmagan' }}
+            {{ tgLinked ? '● ' + t('settings.tg_linked') : '○ ' + t('settings.tg_not_linked') }}
           </span>
         </div>
 
@@ -236,24 +236,24 @@
           <div class="flex items-center gap-3 p-4 bg-green-500/10 border border-green-500/20 rounded-xl">
             <span class="text-3xl">✈️</span>
             <div>
-              <div class="text-green-300 font-medium">Telegram ulangan</div>
+              <div class="text-green-300 font-medium">{{ t('settings.tg_linked_info') }}</div>
               <div class="text-green-500/70 text-xs mt-0.5">
-                Chat ID: <code class="font-mono">{{ tgChatId }}</code>
+                {{ t('settings.tg_chat_id') }} <code class="font-mono">{{ tgChatId }}</code>
               </div>
             </div>
           </div>
           <div v-if="!showUnlink">
             <button @click="showUnlink = true" class="btn-danger text-sm">
-              🔌 Telegram'dan uzish
+              🔌 {{ t('settings.tg_unlink') }}
             </button>
           </div>
           <div v-else class="p-4 bg-red-500/5 border border-red-500/20 rounded-xl space-y-3">
-            <p class="text-red-400 text-sm">⚠️ Telegram bog'lanishini uzishni tasdiqlaysizmi?</p>
+            <p class="text-red-400 text-sm">⚠️ {{ t('settings.tg_unlink_confirm') }}</p>
             <div class="flex gap-2">
               <button @click="unlinkTelegram" :disabled="tgUnlinking" class="btn-danger text-sm">
-                {{ tgUnlinking ? '⏳...' : '✅ Ha, uzish' }}
+                {{ tgUnlinking ? '⏳...' : '✅ ' + t('settings.tg_unlink_yes') }}
               </button>
-              <button @click="showUnlink = false" class="btn-ghost text-sm">Bekor</button>
+              <button @click="showUnlink = false" class="btn-ghost text-sm">{{ t('settings.tg_cancel') }}</button>
             </div>
           </div>
         </div>
@@ -263,12 +263,12 @@
           <div class="flex items-start gap-3 p-4 bg-surface-700/40 border border-surface-700 rounded-xl">
             <span class="text-xl mt-0.5">ℹ️</span>
             <div class="text-surface-400 text-sm space-y-1">
-              <p>Telegram akkauntingizni bog'lash uchun:</p>
+              <p>{{ t('settings.tg_instructions_title') }}</p>
               <ol class="list-decimal list-inside space-y-1 text-surface-500 ml-1">
-                <li>Quyidagi "Havola olish" tugmasini bosing</li>
-                <li>Hosil bo'lgan havolani oching yoki QR kodni skanerlang</li>
-                <li>Telegram botda <code class="bg-surface-800 px-1 rounded">/start</code> ni bosing</li>
-                <li>Bot avtomatik tarzda akkauntingizni bog'laydi</li>
+                <li>{{ t('settings.tg_step_1') }}</li>
+                <li>{{ t('settings.tg_step_2') }}</li>
+                <li>{{ t('settings.tg_step_3') }}</li>
+                <li>{{ t('settings.tg_step_4') }}</li>
               </ol>
             </div>
           </div>
@@ -276,7 +276,7 @@
           <!-- Havola generatsiya -->
           <div v-if="!tgLinkData">
             <button @click="generateTgLink" :disabled="tgLinkLoading" class="btn-primary">
-              {{ tgLinkLoading ? '⏳ Yuklanmoqda...' : '🔗 Havola olish' }}
+              {{ tgLinkLoading ? '⏳ ' + t('settings.tg_loading') : '🔗 ' + t('settings.tg_get_link') }}
             </button>
           </div>
 
@@ -285,8 +285,8 @@
             <!-- Havola + nusxa -->
             <div class="p-4 bg-surface-800 border border-surface-700 rounded-xl space-y-3">
               <div class="flex items-center justify-between">
-                <span class="text-surface-400 text-xs font-medium">Bog'lash havolasi</span>
-                <span class="text-surface-600 text-xs">{{ tgLinkCountdown }}s qoldi</span>
+                <span class="text-surface-400 text-xs font-medium">{{ t('settings.tg_link_label') }}</span>
+                <span class="text-surface-600 text-xs">{{ t('settings.tg_countdown', { seconds: tgLinkCountdown }) }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <code class="flex-1 text-brand-300 text-xs bg-surface-900 px-3 py-2 rounded-lg break-all">
@@ -300,7 +300,7 @@
               <!-- Telegram da ochish tugmasi -->
               <a :href="tgLinkData.link" target="_blank" rel="noopener"
                 class="btn-primary text-sm flex items-center justify-center gap-2 w-full">
-                <span>✈️</span> Telegram da ochish
+                <span>✈️</span> {{ t('settings.tg_open_telegram') }}
               </a>
             </div>
 
@@ -310,9 +310,9 @@
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
               </svg>
-              <span class="text-surface-400 text-sm">Bog'lanish kutilmoqda...</span>
+              <span class="text-surface-400 text-sm">{{ t('settings.tg_waiting') }}</span>
               <button @click="resetTgLink" class="ml-auto text-surface-600 text-xs hover:text-surface-400">
-                Bekor
+                {{ t('settings.tg_cancel') }}
               </button>
             </div>
           </div>
@@ -323,23 +323,23 @@
 
       <!-- Foyda qismi -->
       <div class="card p-5">
-        <h4 class="text-sm font-semibold text-surface-300 mb-3">📲 Nima uchun kerak?</h4>
+        <h4 class="text-sm font-semibold text-surface-300 mb-3">📲 {{ t('settings.tg_why_title') }}</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div class="flex items-start gap-2 text-surface-400">
             <span class="text-green-400 mt-0.5">✓</span>
-            <span>Yangi murojaat tayinlanganda darhol xabar</span>
+            <span>{{ t('settings.tg_benefit_1') }}</span>
           </div>
           <div class="flex items-start gap-2 text-surface-400">
             <span class="text-green-400 mt-0.5">✓</span>
-            <span>Guruh inline tugmalardan foydalanish</span>
+            <span>{{ t('settings.tg_benefit_2') }}</span>
           </div>
           <div class="flex items-start gap-2 text-surface-400">
             <span class="text-green-400 mt-0.5">✓</span>
-            <span>Murojaat holati o'zgarganda bildirishnoma</span>
+            <span>{{ t('settings.tg_benefit_3') }}</span>
           </div>
           <div class="flex items-start gap-2 text-surface-400">
             <span class="text-green-400 mt-0.5">✓</span>
-            <span>Telefon yoki kompyuter — istalgan qurilmadan</span>
+            <span>{{ t('settings.tg_benefit_4') }}</span>
           </div>
         </div>
       </div>
@@ -349,21 +349,21 @@
          4. DEADLINE & BILDIRISHNOMALAR
     ════════════════════════════════════════════ -->
     <div v-if="activeTab === 'deadlines'" class="space-y-5">
-      <div v-if="dlLoading" class="card p-6 text-center text-surface-400">⏳ Yuklanmoqda...</div>
+      <div v-if="dlLoading" class="card p-6 text-center text-surface-400">⏳ {{ t('settings.loading') }}</div>
       <template v-else>
 
         <!-- Deadline bo'limi -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-2">📅 Deadline sozlamalari</h3>
-          <p class="text-surface-500 text-xs mb-5">Har ustuvorlik darajasi uchun avtomatik belgilanadigan muddat (soatlarda)</p>
+          <h3 class="font-semibold text-white mb-2">📅 {{ t('settings.deadline_settings') }}</h3>
+          <p class="text-surface-500 text-xs mb-5">{{ t('settings.deadline_desc') }}</p>
 
           <div class="border border-surface-700 rounded-xl overflow-hidden">
             <table class="w-full text-sm">
               <thead>
                 <tr class="bg-surface-800/60">
-                  <th class="text-left px-4 py-3 text-surface-400 font-medium">Ustuvorlik</th>
-                  <th class="text-left px-4 py-3 text-surface-400 font-medium">Soat</th>
-                  <th class="text-left px-4 py-3 text-surface-400 font-medium">Tavsif</th>
+                  <th class="text-left px-4 py-3 text-surface-400 font-medium">{{ t('settings.deadline_priority') }}</th>
+                  <th class="text-left px-4 py-3 text-surface-400 font-medium">{{ t('settings.deadline_hours') }}</th>
+                  <th class="text-left px-4 py-3 text-surface-400 font-medium">{{ t('settings.deadline_description') }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -392,36 +392,36 @@
             <p v-if="dlMsg" :class="dlMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ dlMsg.text }}</p>
             <span v-else />
             <button @click="saveDeadlines" :disabled="dlSaving" class="btn-primary">
-              {{ dlSaving ? '⏳ Saqlanmoqda...' : '💾 Saqlash' }}
+              {{ dlSaving ? '⏳ ' + t('settings.saving') : '💾 ' + t('settings.save_btn') }}
             </button>
           </div>
         </div>
 
         <!-- Bildirishnoma togglelari -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-2">🔔 Bildirishnoma sozlamalari</h3>
-          <p class="text-surface-500 text-xs mb-5">Qanday hollarda eslatma yuborilishi kerak</p>
+          <h3 class="font-semibold text-white mb-2">🔔 {{ t('settings.notification_settings') }}</h3>
+          <p class="text-surface-500 text-xs mb-5">{{ t('settings.notification_desc') }}</p>
 
           <div class="space-y-4">
             <ToggleSwitch v-model="notifForm.notify_24h_before"
-              label="Deadline dan 24 soat oldin"
-              description="Tayinlangan xodimga eslatma yuboriladi" />
+              :label="t('settings.notify_24h')"
+              :description="t('settings.notify_24h_desc')" />
             <ToggleSwitch v-model="notifForm.notify_2h_before"
-              label="Deadline dan 2 soat oldin"
-              description="Shoshilinch eslatma" />
+              :label="t('settings.notify_2h')"
+              :description="t('settings.notify_2h_desc')" />
             <div class="border-t border-surface-800 pt-4">
               <ToggleSwitch v-model="notifForm.notify_on_overdue"
-                label="Muddat o'tganda darhol"
-                description="Tayinlangan + admin guruhga xabar" />
+                :label="t('settings.notify_overdue')"
+                :description="t('settings.notify_overdue_desc')" />
             </div>
             <ToggleSwitch v-model="notifForm.notify_overdue_daily"
-              label="Muddati o'tgan — kunlik eslatma"
-              description="Har kuni muddati o'tgan murojaatlar haqida" />
+              :label="t('settings.notify_overdue_daily')"
+              :description="t('settings.notify_overdue_daily_desc')" />
           </div>
 
           <!-- Kanal tanlash -->
           <div class="mt-5 pt-4 border-t border-surface-800">
-            <label class="block text-sm font-medium text-surface-300 mb-2">Bildirishnoma kanali</label>
+            <label class="block text-sm font-medium text-surface-300 mb-2">{{ t('settings.notification_channel') }}</label>
             <div class="flex gap-2">
               <button v-for="ch in channelOptions" :key="ch.value"
                 @click="notifForm.notify_channel = ch.value"
@@ -437,16 +437,16 @@
 
         <!-- Hisobot jadvali -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">📊 Avtomatik hisobotlar</h3>
+          <h3 class="font-semibold text-white mb-5">📊 {{ t('settings.auto_reports') }}</h3>
           <div class="space-y-4">
 
             <!-- Kunlik hisobot -->
             <div class="border border-surface-700 rounded-xl p-4 space-y-3">
               <ToggleSwitch v-model="notifForm.daily_report_enabled"
-                label="📅 Kunlik hisobot"
-                description="Har kuni belgilangan vaqtda admin guruhga yuboriladi" />
+                :label="'📅 ' + t('settings.daily_report')"
+                :description="t('settings.daily_report_desc')" />
               <div v-if="notifForm.daily_report_enabled" class="flex items-center gap-3 pt-1 pl-1">
-                <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt (O'zbekiston):</label>
+                <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('settings.daily_report_time') }}</label>
                 <input v-model="notifForm.daily_report_time" type="time" class="input w-28 text-sm" />
                 <span class="text-surface-600 text-xs">UTC+5</span>
                 <button @click="sendTestDaily" :disabled="testDailyLoading"
@@ -464,17 +464,17 @@
             <!-- Haftalik hisobot -->
             <div class="border border-surface-700 rounded-xl p-4 space-y-3">
               <ToggleSwitch v-model="notifForm.weekly_report_enabled"
-                label="📈 Haftalik hisobot"
-                description="Tanlangan kunda tahlil hisoboti yuboriladi" />
+                :label="'📈 ' + t('settings.weekly_report')"
+                :description="t('settings.weekly_report_desc')" />
               <div v-if="notifForm.weekly_report_enabled" class="flex items-center gap-3 flex-wrap pt-1 pl-1">
                 <div class="flex items-center gap-2">
-                  <label class="text-surface-400 text-xs whitespace-nowrap">Kun:</label>
+                  <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('settings.weekly_report_day') }}</label>
                   <select v-model.number="notifForm.weekly_report_day" class="input text-sm w-36">
                     <option v-for="d in dlWeekDays" :key="d.num" :value="d.num">{{ d.label }}</option>
                   </select>
                 </div>
                 <div class="flex items-center gap-2">
-                  <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt:</label>
+                  <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('settings.weekly_report_time') }}</label>
                   <input v-model="notifForm.weekly_report_time" type="time" class="input w-28 text-sm" />
                   <span class="text-surface-600 text-xs">UTC+5</span>
                 </div>
@@ -497,7 +497,7 @@
           <p v-if="notifMsg" :class="notifMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ notifMsg.text }}</p>
           <span v-else />
           <button @click="saveNotifications" :disabled="notifSaving" class="btn-primary">
-            {{ notifSaving ? '⏳ Saqlanmoqda...' : '💾 Bildirishnoma sozlamalarini saqlash' }}
+            {{ notifSaving ? '⏳ ' + t('settings.saving') : '💾 ' + t('settings.save_notifications') }}
           </button>
         </div>
       </template>
@@ -507,39 +507,39 @@
          5. BOT SOZLAMALARI
     ════════════════════════════════════════════ -->
     <div v-if="activeTab === 'bot'" class="space-y-5">
-      <div v-if="sysLoading" class="card p-6 text-center text-surface-400">⏳ Yuklanmoqda...</div>
+      <div v-if="sysLoading" class="card p-6 text-center text-surface-400">⏳ {{ t('settings.loading') }}</div>
       <template v-else>
 
         <!-- Asosiy bot sozlamalari -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">🤖 Bot asosiy sozlamalari</h3>
+          <h3 class="font-semibold text-white mb-5">🤖 {{ t('settings.bot_settings') }}</h3>
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-1.5">
-                Admin guruh Telegram ID
-                <span class="text-surface-500 font-normal ml-1">(yangi murojaatlar shu guruhga yuboriladi)</span>
+                {{ t('settings.bot_admin_group_id') }}
+                <span class="text-surface-500 font-normal ml-1">({{ t('settings.bot_admin_group_hint') }})</span>
               </label>
               <input v-model="sysForm.bot_admin_group_id" type="text" class="input w-full font-mono"
                 placeholder="-100xxxxxxxxxx" />
-              <p class="text-surface-600 text-xs mt-1">Guruh ID ni olish: guruhga @userinfobot ni qo'shing</p>
+              <p class="text-surface-600 text-xs mt-1">{{ t('settings.bot_admin_group_tip') }}</p>
             </div>
 
             <!-- Ish vaqti -->
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-2">
-                Murojaat qabul qilish vaqt oralig'i
+                {{ t('settings.bot_working_hours') }}
               </label>
               <div class="flex items-center gap-3">
                 <input v-model="sysForm.bot_working_hours_start" type="time" class="input w-36" />
                 <span class="text-surface-400">—</span>
                 <input v-model="sysForm.bot_working_hours_end" type="time" class="input w-36" />
               </div>
-              <p class="text-surface-600 text-xs mt-1">Ish vaqtidan tashqarida kelgan murojaatlar ham qabul qilinadi, faqat xabar ko'rsatiladi</p>
+              <p class="text-surface-600 text-xs mt-1">{{ t('settings.bot_working_hours_hint') }}</p>
             </div>
 
             <!-- Ish kunlari -->
             <div>
-              <label class="block text-sm font-medium text-surface-300 mb-2">Ish kunlari</label>
+              <label class="block text-sm font-medium text-surface-300 mb-2">{{ t('settings.bot_working_days') }}</label>
               <div class="flex gap-2 flex-wrap">
                 <button v-for="day in weekDays" :key="day.num"
                   @click="toggleWorkDay(day.num)"
@@ -554,7 +554,7 @@
 
             <!-- Qabul qilish tillari -->
             <div>
-              <label class="block text-sm font-medium text-surface-300 mb-2">Qabul qilinadigan tillar</label>
+              <label class="block text-sm font-medium text-surface-300 mb-2">{{ t('settings.bot_languages') }}</label>
               <div class="flex gap-2">
                 <button v-for="lang in botLangs" :key="lang.code"
                   @click="toggleBotLang(lang.code)"
@@ -571,35 +571,35 @@
 
         <!-- Bot xabarlari -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">💬 Bot xabarlari</h3>
+          <h3 class="font-semibold text-white mb-5">💬 {{ t('settings.bot_messages') }}</h3>
           <div class="space-y-4">
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-1.5">
-                Xush kelibsiz xabari
-                <span class="text-surface-500 font-normal ml-1">(/start buyrug'ida ko'rsatiladi)</span>
+                {{ t('settings.bot_welcome_msg') }}
+                <span class="text-surface-500 font-normal ml-1">({{ t('settings.bot_welcome_hint') }})</span>
               </label>
               <textarea v-model="sysForm.bot_welcome_message" rows="3"
                 class="input w-full resize-none"
-                placeholder="Xush kelibsiz! Bu bot orqali anonim murojaat yuborishingiz mumkin." />
+                :placeholder="t('settings.bot_welcome_placeholder')" />
             </div>
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-1.5">
-                Ish vaqtidan tashqari xabar
+                {{ t('settings.bot_outside_hours_msg') }}
               </label>
               <textarea v-model="sysForm.bot_outside_hours_message" rows="2"
                 class="input w-full resize-none"
-                placeholder="Ish vaqti 08:00-18:00. Murojaatingiz qabul qilindi." />
+                :placeholder="t('settings.bot_outside_hours_placeholder')" />
             </div>
           </div>
         </div>
 
         <!-- Webhook -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-2">🔗 Telegram Webhook</h3>
-          <p class="text-surface-400 text-sm mb-4">Bot polling rejimida ishlaса bu kerak emas. Webhook rejimida ulash uchun bosing.</p>
+          <h3 class="font-semibold text-white mb-2">🔗 {{ t('settings.bot_webhook_title') }}</h3>
+          <p class="text-surface-400 text-sm mb-4">{{ t('settings.bot_webhook_desc') }}</p>
           <div class="flex items-center gap-3 flex-wrap">
             <button @click="setWebhook" :disabled="webhookLoading" class="btn-ghost text-sm">
-              {{ webhookLoading ? '⏳ Ulanmoqda...' : '🔗 Webhook ulash' }}
+              {{ webhookLoading ? '⏳ ...' : '🔗 Webhook' }}
             </button>
             <p v-if="webhookMsg" :class="webhookMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ webhookMsg.text }}</p>
           </div>
@@ -610,7 +610,7 @@
           <p v-if="sysMsg" :class="sysMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ sysMsg.text }}</p>
           <span v-else />
           <button @click="saveSysSettings" :disabled="sysSaving" class="btn-primary">
-            {{ sysSaving ? '⏳ Saqlanmoqda...' : '💾 Bot sozlamalarini saqlash' }}
+            {{ sysSaving ? '⏳ ' + t('settings.saving') : '💾 ' + t('settings.save_btn') }}
           </button>
         </div>
       </template>
@@ -620,22 +620,22 @@
          5. TIZIM SOZLAMALARI
     ════════════════════════════════════════════ -->
     <div v-if="activeTab === 'system'" class="space-y-5">
-      <div v-if="sysLoading" class="card p-6 text-center text-surface-400">⏳ Yuklanmoqda...</div>
+      <div v-if="sysLoading" class="card p-6 text-center text-surface-400">⏳ {{ t('settings.loading') }}</div>
       <template v-else>
 
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">🏢 Tizim sozlamalari</h3>
+          <h3 class="font-semibold text-white mb-5">🏢 {{ t('settings.section_system') }}</h3>
           <div class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-surface-300 mb-1.5">Kompaniya nomi</label>
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.company_name') }}</label>
               <input v-model="sysForm.company_name" type="text" class="input w-full"
                 placeholder="Company LLC" />
-              <p class="text-surface-600 text-xs mt-1">Bot xabarlarida va hisobotlarda ko'rsatiladi</p>
+              <p class="text-surface-600 text-xs mt-1">Bot xabarlarida va hisobotlarda</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label class="block text-sm font-medium text-surface-300 mb-1.5">Tizim tili</label>
+                <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.system_lang') }}</label>
                 <select v-model="sysForm.system_language" class="input w-full">
                   <option value="uz">🇺🇿 O'zbek</option>
                   <option value="ru">🇷🇺 Русский</option>
@@ -643,7 +643,7 @@
                 </select>
               </div>
               <div>
-                <label class="block text-sm font-medium text-surface-300 mb-1.5">Vaqt zonasi</label>
+                <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.timezone') }}</label>
                 <select v-model="sysForm.timezone" class="input w-full">
                   <option value="Asia/Tashkent">Asia/Tashkent (UTC+5)</option>
                   <option value="Asia/Almaty">Asia/Almaty (UTC+5)</option>
@@ -658,15 +658,15 @@
 
         <!-- Bildirishnomalar -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-5">📊 Avtomatik Hisobotlar</h3>
+          <h3 class="font-semibold text-white mb-5">📊 {{ t('settings.auto_reports') }}</h3>
           <div class="space-y-4">
 
             <!-- Kunlik hisobot -->
             <div class="border border-surface-700 rounded-xl p-4 space-y-3">
               <div class="flex items-center justify-between">
                 <div>
-                  <div class="text-sm font-medium text-white">📅 Kunlik hisobot</div>
-                  <div class="text-xs text-surface-500 mt-0.5">Har kuni belgilangan vaqtda ADMIN_CHAT_ID ga yuboriladi</div>
+                  <div class="text-sm font-medium text-white">📅 {{ t('settings.daily_report') }}</div>
+                  <div class="text-xs text-surface-500 mt-0.5">{{ t('settings.daily_report_desc') }}</div>
                 </div>
                 <button
                   @click="sysForm.notify_daily_report = sysForm.notify_daily_report === 'true' ? 'false' : 'true'"
@@ -678,7 +678,7 @@
                 </button>
               </div>
               <div v-if="sysForm.notify_daily_report === 'true'" class="flex items-center gap-3 pt-1">
-                <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt (O'zbekiston):</label>
+                <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('settings.daily_report_time') }}</label>
                 <input v-model="sysForm.notify_daily_report_time" type="time"
                   class="input w-28 text-sm" />
                 <span class="text-surface-600 text-xs">UTC+5</span>
@@ -689,8 +689,8 @@
             <div class="border border-surface-700 rounded-xl p-4 space-y-3">
               <div class="flex items-center justify-between">
                 <div>
-                  <div class="text-sm font-medium text-white">📈 Haftalik hisobot</div>
-                  <div class="text-xs text-surface-500 mt-0.5">Tanlangan kunda haftalik tahlil yuboriladi</div>
+                  <div class="text-sm font-medium text-white">📈 {{ t('settings.weekly_report') }}</div>
+                  <div class="text-xs text-surface-500 mt-0.5">{{ t('settings.weekly_report_desc') }}</div>
                 </div>
                 <button
                   @click="sysForm.notify_weekly_report = sysForm.notify_weekly_report === 'true' ? 'false' : 'true'"
@@ -703,13 +703,13 @@
               </div>
               <div v-if="sysForm.notify_weekly_report === 'true'" class="flex items-center gap-3 flex-wrap pt-1">
                 <div class="flex items-center gap-2">
-                  <label class="text-surface-400 text-xs whitespace-nowrap">Kun:</label>
+                  <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('settings.weekly_report_day') }}</label>
                   <select v-model="sysForm.notify_weekly_report_day" class="input text-sm w-36">
                     <option v-for="d in reportWeekDays" :key="d.num" :value="String(d.num)">{{ d.label }}</option>
                   </select>
                 </div>
                 <div class="flex items-center gap-2">
-                  <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt:</label>
+                  <label class="text-surface-400 text-xs whitespace-nowrap">{{ t('settings.weekly_report_time') }}</label>
                   <input v-model="sysForm.notify_weekly_report_time" type="time" class="input w-28 text-sm" />
                   <span class="text-surface-600 text-xs">UTC+5</span>
                 </div>
@@ -725,9 +725,9 @@
                   <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                 </svg>
                 <span v-else>🧪</span>
-                Test hisobot yuborish
+                Test
               </button>
-              <span class="text-surface-600 text-xs">Darhol kunlik hisobot yuboriladi</span>
+              <span class="text-surface-600 text-xs">{{ t('settings.test') }}</span>
             </div>
 
           </div>
@@ -757,7 +757,7 @@
           <p v-if="sysMsg" :class="sysMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ sysMsg.text }}</p>
           <span v-else />
           <button @click="saveSysSettings" :disabled="sysSaving" class="btn-primary">
-            {{ sysSaving ? '⏳ Saqlanmoqda...' : '💾 Tizim sozlamalarini saqlash' }}
+            {{ sysSaving ? '⏳ ' + t('settings.saving') : '💾 ' + t('settings.save_btn') }}
           </button>
         </div>
       </template>
@@ -783,21 +783,28 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
 import ToggleSwitch from '@/components/ToggleSwitch.vue'
+import { useI18n } from '@/composables/useI18n'
 
 const auth = useAuthStore()
+const { t, setLang } = useI18n()
 const activeTab = ref('profile')
 
-const tabs = [
-  { id: 'profile',   icon: '👤', label: 'Profil'    },
-  { id: 'security',  icon: '🔐', label: 'Xavfsizlik' },
-  { id: 'telegram',  icon: '✈️', label: 'Telegram'   },
-  { id: 'deadlines', icon: '⏰', label: 'Deadline & Bildirishnomalar' },
-  { id: 'bot',       icon: '🤖', label: 'Bot'        },
-  { id: 'system',    icon: '⚙️', label: 'Tizim'      },
-]
+const tabs = computed(() => [
+  { id: 'profile',   icon: '👤', label: t('settings.tab_profile')    },
+  { id: 'security',  icon: '🔐', label: t('settings.tab_security')   },
+  { id: 'telegram',  icon: '✈️', label: t('settings.tab_telegram')   },
+  { id: 'deadlines', icon: '⏰', label: t('settings.tab_deadlines')  },
+  { id: 'bot',       icon: '🤖', label: t('settings.tab_bot')        },
+  { id: 'system',    icon: '⚙️', label: 'System'      },
+])
 
-const roleLabels = { admin: 'Administrator', investigator: 'Terguvchi', viewer: 'Kuzatuvchi' }
-const roleLabel = computed(() => roleLabels[auth.user?.role] || auth.user?.role || '')
+const roleLabel = computed(() => {
+  const r = auth.user?.role
+  if (r === 'admin') return t('users.role_admin')
+  if (r === 'investigator') return t('users.role_investigator')
+  if (r === 'viewer') return t('users.role_viewer')
+  return r || ''
+})
 const initials = computed(() => {
   const name = auth.user?.fullName || auth.user?.username || 'U'
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
@@ -840,9 +847,9 @@ async function sendTestReport() {
   testReportLoading.value = true
   try {
     const { data } = await api.post('/v1/settings/test-report')
-    showToast(`✅ Test hisobot yuborildi (chat_id: ${data.chat_id})`)
+    showToast('✅ ' + t('settings.test_report_sent') + ` (chat_id: ${data.chat_id})`)
   } catch (e) {
-    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+    showToast('❌ ' + (e.response?.data?.detail || t('settings.error')), false)
   } finally {
     testReportLoading.value = false
   }
@@ -859,12 +866,12 @@ const dlForm = ref({
   low_hours: 720,
 })
 
-const deadlinePriorities = [
-  { key: 'critical_hours', emoji: '🔴', label: 'Kritik' },
-  { key: 'high_hours',     emoji: '🟠', label: 'Yuqori' },
-  { key: 'medium_hours',   emoji: '🟡', label: "O'rta" },
-  { key: 'low_hours',      emoji: '⚪', label: 'Past' },
-]
+const deadlinePriorities = computed(() => [
+  { key: 'critical_hours', emoji: '🔴', label: t('priority.critical') },
+  { key: 'high_hours',     emoji: '🟠', label: t('priority.high') },
+  { key: 'medium_hours',   emoji: '🟡', label: t('priority.medium') },
+  { key: 'low_hours',      emoji: '⚪', label: t('priority.low') },
+])
 
 const dlWeekDays = [
   { num: 0, label: 'Dushanba'  },
@@ -886,18 +893,18 @@ const dlValidationError = computed(() => {
   const h = dlForm.value.high_hours
   const m = dlForm.value.medium_hours
   const l = dlForm.value.low_hours
-  if (!c || !h || !m || !l) return "Barcha maydonlar to'ldirilishi kerak"
-  if (c < 1) return "Kritik kamida 1 soat bo'lishi kerak"
-  if (!(c < h && h < m && m < l)) return "Tartib: Kritik < Yuqori < O'rta < Past bo'lishi shart"
+  if (!c || !h || !m || !l) return t('settings.validation_all_required')
+  if (c < 1) return t('settings.validation_min_1h')
+  if (!(c < h && h < m && m < l)) return t('settings.validation_order')
   return ''
 })
 
 function formatDeadlineHours(h) {
   if (!h || h < 1) return '—'
-  if (h < 24) return `${h} soat`
+  if (h < 24) return `${h} ${t('common.hours')}`
   const d = Math.floor(h / 24)
   const rem = h % 24
-  return rem ? `${d} kun ${rem} soat` : `${d} kun`
+  return rem ? `${d} ${t('common.days')} ${rem} ${t('common.hours')}` : `${d} ${t('common.days')}`
 }
 
 const notifForm = ref({
@@ -942,11 +949,11 @@ async function saveDeadlines() {
   dlMsg.value = null
   try {
     await api.put('/v1/settings/deadlines', dlForm.value)
-    dlMsg.value = { ok: true, text: '✅ Deadline sozlamalari saqlandi' }
-    showToast('✅ Deadline sozlamalari saqlandi va qo\'llanildi')
+    dlMsg.value = { ok: true, text: '✅ ' + t('settings.deadline_saved') }
+    showToast('✅ ' + t('settings.deadline_applied'))
     setTimeout(() => { dlMsg.value = null }, 3000)
   } catch (e) {
-    dlMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || 'Xatolik') }
+    dlMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || t('settings.error')) }
   } finally {
     dlSaving.value = false
   }
@@ -959,11 +966,11 @@ async function saveNotifications() {
     await api.put('/v1/settings/notifications', notifForm.value)
     // Apply scheduler
     try { await api.post('/v1/settings/notifications/apply') } catch { /* ok */ }
-    notifMsg.value = { ok: true, text: '✅ Sozlamalar saqlandi va qo\'llanildi' }
-    showToast('✅ Sozlamalar saqlandi va qo\'llanildi')
+    notifMsg.value = { ok: true, text: '✅ ' + t('settings.notif_saved') }
+    showToast('✅ ' + t('settings.notif_saved'))
     setTimeout(() => { notifMsg.value = null }, 3000)
   } catch (e) {
-    notifMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || 'Xatolik') }
+    notifMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || t('settings.error')) }
   } finally {
     notifSaving.value = false
   }
@@ -973,9 +980,9 @@ async function sendTestDaily() {
   testDailyLoading.value = true
   try {
     const { data } = await api.post('/v1/settings/test-report')
-    showToast(`✅ Kunlik test hisobot yuborildi (chat_id: ${data.chat_id})`)
+    showToast('✅ ' + t('settings.test_daily_sent') + ` (chat_id: ${data.chat_id})`)
   } catch (e) {
-    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+    showToast('❌ ' + (e.response?.data?.detail || t('settings.error')), false)
   } finally {
     testDailyLoading.value = false
   }
@@ -985,9 +992,9 @@ async function sendTestWeekly() {
   testWeeklyLoading.value = true
   try {
     const { data } = await api.post('/v1/settings/test-weekly-report')
-    showToast(`✅ Haftalik test hisobot yuborildi (chat_id: ${data.chat_id})`)
+    showToast('✅ ' + t('settings.test_weekly_sent') + ` (chat_id: ${data.chat_id})`)
   } catch (e) {
-    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+    showToast('❌ ' + (e.response?.data?.detail || t('settings.error')), false)
   } finally {
     testWeeklyLoading.value = false
   }
@@ -1028,11 +1035,11 @@ async function saveProfile() {
       localStorage.setItem('user', JSON.stringify(auth.user))
     }
     // Interfeys tilini saqlash
-    localStorage.setItem('ui_lang', profileForm.value.ui_lang)
-    profileMsg.value = { ok: true, text: '✅ Profil saqlandi' }
+    setLang(profileForm.value.ui_lang)
+    profileMsg.value = { ok: true, text: '✅ ' + t('settings.profile_saved') }
     setTimeout(() => { profileMsg.value = null }, 3000)
   } catch (e) {
-    profileMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || 'Xatolik') }
+    profileMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || t('settings.error')) }
   } finally {
     profileSaving.value = false
   }
@@ -1046,11 +1053,11 @@ async function changePassword() {
       current_password: pwdForm.value.current,
       new_password: pwdForm.value.new1,
     })
-    pwdMsg.value = { ok: true, text: '✅ Parol muvaffaqiyatli o\'zgartirildi' }
+    pwdMsg.value = { ok: true, text: '✅ ' + t('settings.password_changed') }
     pwdForm.value = { current: '', new1: '', new2: '' }
     setTimeout(() => { pwdMsg.value = null }, 4000)
   } catch (e) {
-    pwdMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || 'Xatolik') }
+    pwdMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || t('settings.error')) }
   } finally {
     pwdSaving.value = false
   }
@@ -1075,7 +1082,7 @@ async function setup2FA() {
     const { data } = await api.post('/v1/auth/setup-2fa')
     setupData.value = data
   } catch (e) {
-    alert(e.response?.data?.detail || 'Xatolik')
+    alert(e.response?.data?.detail || t('settings.error'))
   } finally {
     twoFaLoading.value = false
   }
@@ -1091,7 +1098,7 @@ async function verify2FA() {
     setupData.value = null
     totpCode.value = ''
   } catch {
-    setupError.value = 'Noto\'g\'ri kod. Qayta urinib ko\'ring.'
+    setupError.value = t('settings.wrong_code')
   } finally {
     verifying.value = false
   }
@@ -1108,7 +1115,7 @@ async function disable2FA() {
     disableTotpCode.value = ''
   } catch (e) {
     disableError.value = e.response?.data?.detail === 'Invalid 2FA code'
-      ? 'Noto\'g\'ri kod.' : (e.response?.data?.detail || 'Xatolik')
+      ? t('settings.wrong_code') : (e.response?.data?.detail || t('settings.error'))
   } finally {
     disabling.value = false
   }
@@ -1157,12 +1164,12 @@ async function generateTgLink() {
         tgLinked.value  = true
         tgChatId.value  = st.telegram_chat_id
         resetTgLink()
-        showToast('✅ Telegram muvaffaqiyatli bog\'landi!')
+        showToast('✅ ' + t('settings.tg_linked_success'))
       }
     }, 3000)
 
   } catch (e) {
-    tgLinkError.value = '❌ ' + (e.response?.data?.detail || 'Xatolik yuz berdi')
+    tgLinkError.value = '❌ ' + (e.response?.data?.detail || t('settings.error'))
   } finally {
     tgLinkLoading.value = false
   }
@@ -1184,9 +1191,9 @@ async function unlinkTelegram() {
     tgLinked.value   = false
     tgChatId.value   = null
     showUnlink.value = false
-    showToast('Telegram bog\'lanishi uzildi')
+    showToast(t('settings.tg_unlinked'))
   } catch (e) {
-    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+    showToast('❌ ' + (e.response?.data?.detail || t('settings.error')), false)
   } finally {
     tgUnlinking.value = false
   }
@@ -1264,10 +1271,10 @@ async function saveSysSettings() {
   sysMsg.value = null
   try {
     await api.put('/v1/settings', sysForm.value)
-    sysMsg.value = { ok: true, text: '✅ Sozlamalar saqlandi' }
+    sysMsg.value = { ok: true, text: '✅ ' + t('settings.settings_saved') }
     setTimeout(() => { sysMsg.value = null }, 3000)
   } catch (e) {
-    sysMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || 'Xatolik') }
+    sysMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || t('settings.error')) }
   } finally {
     sysSaving.value = false
   }
@@ -1282,7 +1289,7 @@ async function setWebhook() {
   webhookMsg.value = null
   try {
     await api.post('/telegram/set-webhook')
-    webhookMsg.value = { ok: true, text: '✅ Webhook muvaffaqiyatli ulandi!' }
+    webhookMsg.value = { ok: true, text: '✅ ' + t('settings.webhook_success') }
   } catch (e) {
     webhookMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || e.message) }
   } finally {

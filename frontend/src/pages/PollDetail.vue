@@ -1,6 +1,6 @@
 <template>
   <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
-    <button @click="$router.back()" class="btn-ghost text-sm mb-4 -ml-2">← Orqaga</button>
+    <button @click="$router.back()" class="btn-ghost text-sm mb-4 -ml-2">← {{ t('poll_detail.back') }}</button>
 
     <div v-if="loading" class="flex items-center justify-center h-48">
       <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
@@ -16,7 +16,7 @@
             <span v-if="poll.status === 'active'"
               class="flex items-center gap-1.5 text-xs text-green-400">
               <span class="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
-              Jonli
+              {{ t('poll_detail.live') }}
             </span>
           </div>
           <p v-if="poll.description" class="text-surface-400 text-sm">{{ poll.description }}</p>
@@ -25,13 +25,13 @@
         <!-- Telegram delivery info -->
         <div v-if="poll.status === 'active' && hasTelegramPoll"
           class="bg-blue-500/10 border border-blue-500/20 rounded-xl px-3 py-2 text-sm">
-          <div class="text-blue-400 font-medium">📤 Telegram'da faol</div>
-          <div class="text-surface-400 text-xs">Ovozlar avtomatik yangilanadi</div>
+          <div class="text-blue-400 font-medium">📤 {{ t('poll_detail.tg_active') }}</div>
+          <div class="text-surface-400 text-xs">{{ t('poll_detail.tg_votes_auto') }}</div>
         </div>
         <div v-else-if="poll.status === 'active' && !hasTelegramPoll"
           class="bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-3 py-2 text-sm">
-          <div class="text-yellow-400 font-medium">⚠️ Telegram'ga yuborilmadi</div>
-          <div class="text-surface-400 text-xs">POLL_CHAT_ID sozlanmagan</div>
+          <div class="text-yellow-400 font-medium">⚠️ {{ t('poll_detail.tg_not_sent') }}</div>
+          <div class="text-surface-400 text-xs">{{ t('poll_detail.tg_not_configured') }}</div>
         </div>
       </div>
 
@@ -41,21 +41,21 @@
           <div class="w-9 h-9 bg-brand-600/20 rounded-xl flex items-center justify-center text-lg">📊</div>
           <div>
             <div class="text-white font-bold text-xl">{{ totalVotes }}</div>
-            <div class="text-surface-500 text-xs">Jami ovoz</div>
+            <div class="text-surface-500 text-xs">{{ t('poll_detail.total_votes') }}</div>
           </div>
         </div>
         <div class="card p-4 flex items-center gap-3">
           <div class="w-9 h-9 bg-purple-500/20 rounded-xl flex items-center justify-center text-lg">❓</div>
           <div>
             <div class="text-white font-bold text-xl">{{ poll.questions?.length || 0 }}</div>
-            <div class="text-surface-500 text-xs">Savol</div>
+            <div class="text-surface-500 text-xs">{{ t('poll_detail.questions') }}</div>
           </div>
         </div>
         <div v-if="lastVoteAt" class="card p-4 flex items-center gap-3">
           <div class="w-9 h-9 bg-green-500/20 rounded-xl flex items-center justify-center text-lg">🕐</div>
           <div>
             <div class="text-white font-bold text-sm">{{ lastVoteAt }}</div>
-            <div class="text-surface-500 text-xs">Oxirgi ovoz</div>
+            <div class="text-surface-500 text-xs">{{ t('poll_detail.last_vote') }}</div>
           </div>
         </div>
       </div>
@@ -66,7 +66,7 @@
           <div class="flex items-center justify-between mb-5">
             <h3 class="font-semibold text-white">{{ q.question_text }}</h3>
             <span class="text-surface-500 text-xs">
-              {{ q.options.reduce((s, o) => s + o.vote_count, 0) }} ovoz
+              {{ q.options.reduce((s, o) => s + o.vote_count, 0) }} {{ t('poll_detail.votes') }}
             </span>
           </div>
           <div class="space-y-3">
@@ -99,8 +99,10 @@ import { useRoute } from 'vue-router'
 import api from '@/utils/api'
 import { useNotificationStore } from '@/stores/notifications'
 import { watch } from 'vue'
+import { useI18n } from '@/composables/useI18n'
 
 const route = useRoute()
+const { t } = useI18n()
 const loading = ref(true)
 const poll = ref(null)
 const lastVoteAt = ref(null)
@@ -155,7 +157,7 @@ function statusClass(s) {
     : 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20'
 }
 function statusLabel(s) {
-  return s === 'active' ? '● Faol' : s === 'closed' ? 'Yopiq' : 'Qoralama'
+  return s === 'active' ? t('polls.status_active') : s === 'closed' ? t('polls.status_closed') : t('polls.status_draft')
 }
 
 onMounted(async () => {

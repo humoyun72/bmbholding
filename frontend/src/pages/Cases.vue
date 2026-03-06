@@ -3,8 +3,8 @@
     <!-- Header -->
     <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
-        <h1 class="text-xl sm:text-2xl font-bold text-white">Murojaatlar</h1>
-        <p class="text-surface-400 text-sm mt-1">Barcha kelgan murojaatlar ro'yxati</p>
+        <h1 class="text-xl sm:text-2xl font-bold text-white">{{ t('cases.title') }}</h1>
+        <p class="text-surface-400 text-sm mt-1">{{ t('cases.subtitle') }}</p>
       </div>
     </div>
 
@@ -12,28 +12,28 @@
     <div class="card p-4 mb-6 space-y-3">
       <div class="flex items-center gap-3 flex-wrap">
         <select v-model="filters.status" class="input flex-1 min-w-32" @change="onFilterChange">
-          <option value="">Barcha holatlar</option>
+          <option value="">{{ t('cases.all_statuses') }}</option>
           <option v-for="s in statusOptions" :key="s.value" :value="s.value">{{ s.label }}</option>
         </select>
         <select v-model="filters.category" class="input flex-1 min-w-32" @change="onFilterChange">
-          <option value="">Barcha kategoriyalar</option>
+          <option value="">{{ t('cases.all_categories') }}</option>
           <option v-for="c in categoryOptions" :key="c.value" :value="c.value">{{ c.label }}</option>
         </select>
         <select v-model="filters.priority" class="input flex-1 min-w-32" @change="onFilterChange">
-          <option value="">Barcha ustuvorliklar</option>
+          <option value="">{{ t('cases.all_priorities') }}</option>
           <option v-for="p in priorityOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
         </select>
       </div>
       <div class="flex items-center gap-3 flex-wrap">
         <div class="flex items-center gap-2 flex-1 min-w-48">
-          <label class="text-surface-500 text-xs whitespace-nowrap">Dan:</label>
+          <label class="text-surface-500 text-xs whitespace-nowrap">{{ t('cases.from') }}</label>
           <input type="date" v-model="filters.from_date" @change="onFilterChange" class="input flex-1 text-sm" />
         </div>
         <div class="flex items-center gap-2 flex-1 min-w-48">
-          <label class="text-surface-500 text-xs whitespace-nowrap">Gacha:</label>
+          <label class="text-surface-500 text-xs whitespace-nowrap">{{ t('cases.to') }}</label>
           <input type="date" v-model="filters.to_date" @change="onFilterChange" class="input flex-1 text-sm" />
         </div>
-        <button @click="resetFilters" class="btn-ghost text-sm whitespace-nowrap">Filtrni tozalash</button>
+        <button @click="resetFilters" class="btn-ghost text-sm whitespace-nowrap">{{ t('cases.clear_filter') }}</button>
 
         <!-- Export dropdown -->
         <div class="relative" ref="exportMenuRef">
@@ -43,7 +43,7 @@
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            <span v-else>📥</span> Eksport
+            <span v-else>📥</span> {{ t('cases.export') }}
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
@@ -53,11 +53,11 @@
               class="absolute right-0 top-full mt-1 w-48 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-50 overflow-hidden">
               <button @click="doExport('xlsx')"
                 class="w-full text-left px-4 py-3 text-sm text-surface-200 hover:bg-surface-700 transition-colors flex items-center gap-2">
-                <span>📊</span> Excel (.xlsx)
+                <span>📊</span> {{ t('cases.export_excel') }}
               </button>
               <button @click="doExport('pdf')"
                 class="w-full text-left px-4 py-3 text-sm text-surface-200 hover:bg-surface-700 transition-colors flex items-center gap-2 border-t border-surface-700">
-                <span>📄</span> PDF (.pdf)
+                <span>📄</span> {{ t('cases.export_pdf') }}
               </button>
             </div>
           </Transition>
@@ -69,15 +69,15 @@
     <Transition name="slide-down">
       <div v-if="selectedIds.size > 0"
         class="card p-3 mb-4 flex items-center gap-3 flex-wrap bg-brand-500/5 border-brand-500/20">
-        <span class="text-brand-300 text-sm font-medium">{{ selectedIds.size }} ta tanlandi</span>
+        <span class="text-brand-300 text-sm font-medium">{{ t('cases.selected_count', { count: selectedIds.size }) }}</span>
         <button @click="bulkAssign" class="btn-ghost text-sm flex items-center gap-1.5">
-          👤 Tayinlash
+          👤 {{ t('cases.bulk_assign') }}
         </button>
         <button @click="bulkExport" class="btn-ghost text-sm flex items-center gap-1.5">
-          📊 Excel eksport
+          📊 {{ t('cases.bulk_export') }}
         </button>
         <button @click="selectedIds.clear()" class="btn-ghost text-sm text-surface-500">
-          ✕ Bekor qilish
+          ✕ {{ t('cases.bulk_cancel') }}
         </button>
       </div>
     </Transition>
@@ -92,13 +92,13 @@
                 <input type="checkbox" :checked="allSelected" @change="toggleAll"
                   class="accent-brand-500 w-4 h-4 rounded cursor-pointer" />
               </th>
-              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Murojaat ID</th>
-              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Kategoriya</th>
-              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Ustuvorlik</th>
-              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Holat</th>
-              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Muddat</th>
-              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Sana</th>
-              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Amallar</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_id') }}</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_category') }}</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_priority') }}</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_status') }}</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_deadline') }}</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_date') }}</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_actions') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -131,9 +131,9 @@
               <td colspan="8">
                 <EmptyState
                   :icon="hasFilters ? '🔍' : '📭'"
-                  :title="hasFilters ? 'Natija topilmadi' : 'Murojaatlar yo\'q'"
-                  :description="hasFilters ? 'Ushbu filtrlar bo\'yicha hech qanday murojaat topilmadi' : 'Yangi murojaat hali kelmagan'"
-                  :action="hasFilters ? 'Filterni tozalash' : ''"
+                  :title="hasFilters ? t('cases.no_result') : t('cases.no_cases_empty')"
+                  :description="hasFilters ? t('cases.no_result_desc') : t('cases.no_cases_empty_desc')"
+                  :action="hasFilters ? t('cases.clear_filter') : ''"
                   :action-fn="hasFilters ? resetFilters : null" />
               </td>
             </tr>
@@ -204,13 +204,13 @@
       </div>
       <!-- Pagination -->
       <div v-if="pagination.pages > 1" class="flex items-center justify-between px-5 py-4 border-t border-surface-800 flex-wrap gap-3">
-        <span class="text-surface-500 text-sm">Jami {{ pagination.total }} ta murojaat</span>
+        <span class="text-surface-500 text-sm">{{ t('cases.total_cases', { total: pagination.total }) }}</span>
         <div class="flex items-center gap-2">
           <button @click="changePage(pagination.page - 1)" :disabled="pagination.page <= 1"
-            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">← Oldingi</button>
+            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">{{ t('cases.prev_page') }}</button>
           <span class="text-surface-400 text-sm">{{ pagination.page }} / {{ pagination.pages }}</span>
           <button @click="changePage(pagination.page + 1)" :disabled="pagination.page >= pagination.pages"
-            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">Keyingi →</button>
+            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed px-3 py-1.5">{{ t('cases.next_page') }}</button>
         </div>
       </div>
     </div>
@@ -243,9 +243,9 @@
       <!-- Mobile empty -->
       <EmptyState v-else-if="!cases.length"
         :icon="hasFilters ? '🔍' : '📭'"
-        :title="hasFilters ? 'Natija topilmadi' : 'Murojaatlar yo\'q'"
-        :description="hasFilters ? 'Ushbu filtrlar bo\'yicha hech qanday murojaat topilmadi' : 'Yangi murojaat hali kelmagan'"
-        :action="hasFilters ? 'Filterni tozalash' : ''"
+        :title="hasFilters ? t('cases.no_result') : t('cases.no_cases_empty')"
+        :description="hasFilters ? t('cases.no_result_desc') : t('cases.no_cases_empty_desc')"
+        :action="hasFilters ? t('cases.clear_filter') : ''"
         :action-fn="hasFilters ? resetFilters : null" />
       <div v-for="c in cases" :key="'m'+c.id"
         class="card p-4 transition-colors relative"
@@ -277,10 +277,10 @@
       </div>
       <div v-if="pagination.pages > 1" class="flex items-center justify-center gap-3 py-2">
         <button @click="changePage(pagination.page - 1)" :disabled="pagination.page <= 1"
-          class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">← Oldingi</button>
+          class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">{{ t('cases.prev_page') }}</button>
         <span class="text-surface-400 text-sm">{{ pagination.page }} / {{ pagination.pages }}</span>
         <button @click="changePage(pagination.page + 1)" :disabled="pagination.page >= pagination.pages"
-          class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">Keyingi →</button>
+          class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">{{ t('cases.next_page') }}</button>
       </div>
     </div>
 
@@ -310,14 +310,14 @@
 
             <div class="mb-5">
               <label class="block text-sm font-medium text-surface-300 mb-1.5">
-                Izoh {{ statusModal.reasonRequired ? '(majburiy)' : '(ixtiyoriy)' }}
+                {{ t('cases.status_modal_reason', { note: statusModal.reasonRequired ? t('cases.reason_required') : t('cases.reason_optional') }) }}
               </label>
               <textarea v-model="statusModal.reason" rows="3"
-                class="input w-full resize-none" placeholder="Sabab yoki izoh yozing..." />
+                class="input w-full resize-none" :placeholder="t('cases.reason_placeholder')" />
             </div>
 
             <div class="flex justify-end gap-3">
-              <button @click="statusModal.open = false" class="btn-ghost">Bekor</button>
+              <button @click="statusModal.open = false" class="btn-ghost">{{ t('cases.cancel') }}</button>
               <button @click="confirmStatusChange"
                 :disabled="statusModal.reasonRequired && !statusModal.reason.trim()"
                 :class="statusModal.danger ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-800' : 'btn-primary'"
@@ -337,13 +337,13 @@
           @click.self="assignModal.open = false">
           <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="assignModal.open = false"></div>
           <div class="relative bg-surface-800 border border-surface-700 rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
-            <h3 class="text-lg font-semibold text-white mb-1">👤 Tayinlash</h3>
+            <h3 class="text-lg font-semibold text-white mb-1">👤 {{ t('cases.assign_modal_title') }}</h3>
             <p class="text-surface-400 text-sm mb-5">
               <template v-if="assignModal.caseIds.length === 1">
-                <span class="font-mono text-brand-400">{{ assignModal.caseIds[0] }}</span> ni ijrochiga tayinlash
+                {{ t('cases.assign_single_desc', { id: assignModal.caseIds[0] }) }}
               </template>
               <template v-else>
-                {{ assignModal.caseIds.length }} ta murojaatni ijrochiga tayinlash
+                {{ t('cases.assign_multi_desc', { count: assignModal.caseIds.length }) }}
               </template>
             </p>
 
@@ -364,15 +364,15 @@
                 </div>
               </label>
               <div v-if="!users.length" class="text-surface-500 text-sm text-center py-4">
-                Terguvchi topilmadi
+                {{ t('cases.investigator_not_found') }}
               </div>
             </div>
 
             <div class="flex justify-end gap-3">
-              <button @click="assignModal.open = false" class="btn-ghost">Bekor</button>
+              <button @click="assignModal.open = false" class="btn-ghost">{{ t('cases.cancel') }}</button>
               <button @click="confirmAssign" :disabled="!assignModal.userId"
                 class="btn-primary disabled:opacity-50">
-                Tayinlash
+                {{ t('cases.assign') }}
               </button>
             </div>
           </div>
@@ -391,9 +391,11 @@ import api from '@/utils/api'
 import CaseRowActions from '@/components/CaseRowActions.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import ErrorState from '@/components/ErrorState.vue'
+import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const loading = ref(true)
 const loadError = ref('')
@@ -437,28 +439,28 @@ const filters = reactive({
   from_date: '', to_date: '',
 })
 
-const statusOptions = [
-  { value: 'new', label: 'Yangi' },
-  { value: 'in_progress', label: "Ko'rib chiqilmoqda" },
-  { value: 'needs_info', label: "Ma'lumot kerak" },
-  { value: 'completed', label: 'Yakunlandi' },
-  { value: 'rejected', label: 'Rad etildi' },
-]
-const categoryOptions = [
-  { value: 'corruption', label: 'Korrupsiya' },
-  { value: 'conflict_of_interest', label: "Manfaatlar to'qnashuvi" },
-  { value: 'fraud', label: 'Firibgarlik' },
-  { value: 'safety', label: 'Xavfsizlik' },
-  { value: 'discrimination', label: 'Kamsitish' },
-  { value: 'procurement', label: 'Tender' },
-  { value: 'other', label: 'Boshqa' },
-]
-const priorityOptions = [
-  { value: 'critical', label: '🔴 Kritik' },
-  { value: 'high', label: '🟠 Yuqori' },
-  { value: 'medium', label: "🟡 O'rta" },
-  { value: 'low', label: '🟢 Past' },
-]
+const statusOptions = computed(() => [
+  { value: 'new', label: t('status.new') },
+  { value: 'in_progress', label: t('status.in_progress') },
+  { value: 'needs_info', label: t('status.needs_info') },
+  { value: 'completed', label: t('status.completed') },
+  { value: 'rejected', label: t('status.rejected') },
+])
+const categoryOptions = computed(() => [
+  { value: 'corruption', label: t('category.corruption') },
+  { value: 'conflict_of_interest', label: t('category.conflict_of_interest') },
+  { value: 'fraud', label: t('category.fraud') },
+  { value: 'safety', label: t('category.safety') },
+  { value: 'discrimination', label: t('category.discrimination') },
+  { value: 'procurement', label: t('category.procurement') },
+  { value: 'other', label: t('category.other') },
+])
+const priorityOptions = computed(() => [
+  { value: 'critical', label: '🔴 ' + t('priority.critical') },
+  { value: 'high', label: '🟠 ' + t('priority.high') },
+  { value: 'medium', label: '🟡 ' + t('priority.medium') },
+  { value: 'low', label: '🟢 ' + t('priority.low') },
+])
 
 function buildParams(extra = {}) {
   const params = { ...extra }
@@ -484,7 +486,7 @@ async function loadCases() {
   } catch (e) {
     if (e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
       console.error('Cases yuklanmadi:', e)
-      loadError.value = e.response?.data?.detail || "Ma'lumotlarni yuklashda xatolik yuz berdi"
+      loadError.value = e.response?.data?.detail || t('cases.load_error')
     }
   } finally {
     loading.value = false
@@ -559,13 +561,13 @@ async function loadUsers() {
 function handleRowAction(action, c) {
   switch (action) {
     case 'start':
-      openStatusModal(c, 'in_progress', '▶️ Boshlash', "Murojaatni ko'rib chiqishni boshlaysizmi?", false)
+      openStatusModal(c, 'in_progress', '▶️ ' + t('case_actions.start'), t('case_detail.start_review') + '?', false)
       break
     case 'complete':
-      openStatusModal(c, 'completed', '✅ Yakunlash', 'Murojaatni yakunlaysizmi?', false)
+      openStatusModal(c, 'completed', '✅ ' + t('case_actions.complete'), t('case_detail.complete') + '?', false)
       break
     case 'reject':
-      openStatusModal(c, 'rejected', '❌ Rad etish', 'Murojaatni rad etasizmi?', true, true)
+      openStatusModal(c, 'rejected', '❌ ' + t('case_actions.reject'), t('case_detail.reject') + '?', true, true)
       break
     case 'assign':
       assignModal.caseIds = [c.external_id]
@@ -605,9 +607,9 @@ async function confirmStatusChange() {
     })
     const item = cases.value.find(c => c.external_id === caseId)
     if (item) item.status = newStatus
-    showToast('✅ Holat o\'zgartirildi')
+    showToast('✅ ' + t('cases.status_changed'))
   } catch (e) {
-    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+    showToast('❌ ' + (e.response?.data?.detail || t('cases.status_change_error')), false)
   } finally {
     rowLoading.value = null
   }
@@ -625,11 +627,15 @@ async function confirmAssign() {
       const item = cases.value.find(c => c.external_id === caseId)
       if (item) item.assigned_to = userId
     } catch (e) {
-      showToast(`❌ ${caseId}: ` + (e.response?.data?.detail || 'Xatolik'), false)
+      showToast(`❌ ${caseId}: ` + (e.response?.data?.detail || t('common.error')), false)
     }
   }
   rowLoading.value = null
-  showToast(`✅ ${caseIds.length > 1 ? caseIds.length + ' ta murojaat' : 'Murojaat'} tayinlandi`)
+  if (caseIds.length > 1) {
+    showToast('✅ ' + t('cases.assigned_multi', { count: caseIds.length }))
+  } else {
+    showToast('✅ ' + t('cases.assigned_single'))
+  }
   selectedIds.clear()
 }
 
@@ -652,9 +658,9 @@ async function bulkExport() {
     const a = document.createElement('a')
     a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
-    showToast(`✅ ${selectedIds.size} ta murojaat eksport qilindi`)
+    showToast('✅ ' + t('cases.selected_exported', { count: selectedIds.size }))
   } catch (e) {
-    showToast('❌ Eksport muvaffaqiyatsiz: ' + (e.response?.data?.detail || e.message), false)
+    showToast('❌ ' + t('cases.export_error', { error: e.response?.data?.detail || e.message }), false)
   } finally {
     exporting.value = false
   }
@@ -669,15 +675,14 @@ async function exportSinglePdf(caseId) {
     const a = document.createElement('a')
     a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
-    showToast(`✅ PDF yuklandi: ${filename}`)
+    showToast('✅ ' + t('cases.pdf_downloaded', { filename }))
   } catch (e) {
-    showToast('❌ PDF eksport xatosi: ' + (e.response?.data?.detail || e.message), false)
+    showToast('❌ ' + t('cases.pdf_error', { error: e.response?.data?.detail || e.message }), false)
   } finally {
     rowLoading.value = null
   }
 }
 
-// ── Export ───────────────────────────────────────────────
 async function doExport(fmt) {
   exportOpen.value = false
   exporting.value = true
@@ -691,9 +696,9 @@ async function doExport(fmt) {
     const a = document.createElement('a')
     a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
-    showToast(`✅ Fayl yuklab olindi: ${filename}`)
+    showToast('✅ ' + t('cases.export_success', { filename }))
   } catch (e) {
-    showToast('❌ Eksport muvaffaqiyatsiz: ' + (e.response?.data?.detail || e.message), false)
+    showToast('❌ ' + t('cases.export_error', { error: e.response?.data?.detail || e.message }), false)
   } finally {
     exporting.value = false
   }
@@ -719,15 +724,15 @@ onUnmounted(() => {
 const StatusBadge = defineComponent({
   props: ['status'],
   setup(props) {
-    const map = {
-      new: { text: 'Yangi', cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
-      in_progress: { text: "Ko'rib chiqilmoqda", cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20' },
-      needs_info: { text: "Ma'lumot kerak", cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/20' },
-      completed: { text: 'Yakunlandi', cls: 'bg-green-500/15 text-green-400 border border-green-500/20' },
-      rejected: { text: 'Rad etildi', cls: 'bg-red-500/15 text-red-400 border border-red-500/20' },
-      archived: { text: 'Arxivlandi', cls: 'bg-surface-700/50 text-surface-400' },
-    }
     return () => {
+      const map = {
+        new: { text: t('status.new'), cls: 'bg-blue-500/15 text-blue-400 border border-blue-500/20' },
+        in_progress: { text: t('status.in_progress'), cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20' },
+        needs_info: { text: t('status.needs_info'), cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/20' },
+        completed: { text: t('status.completed'), cls: 'bg-green-500/15 text-green-400 border border-green-500/20' },
+        rejected: { text: t('status.rejected'), cls: 'bg-red-500/15 text-red-400 border border-red-500/20' },
+        archived: { text: t('status.archived'), cls: 'bg-surface-700/50 text-surface-400' },
+      }
       const s = map[props.status] || { text: props.status, cls: 'bg-surface-700 text-surface-400' }
       return h('span', { class: `badge ${s.cls}` }, s.text)
     }
@@ -737,29 +742,31 @@ const StatusBadge = defineComponent({
 const CategoryBadge = defineComponent({
   props: ['category'],
   setup(props) {
-    const map = {
-      corruption: '🔴 Korrupsiya',
-      conflict_of_interest: "⚖️ Manfaat",
-      fraud: '💸 Firibgarlik',
-      safety: '⚠️ Xavfsizlik',
-      discrimination: '🚫 Kamsitish',
-      procurement: '📋 Tender',
-      other: '❓ Boshqa',
+    return () => {
+      const map = {
+        corruption: '🔴 ' + t('category_short.corruption'),
+        conflict_of_interest: '⚖️ ' + t('category_short.conflict_of_interest'),
+        fraud: '💸 ' + t('category_short.fraud'),
+        safety: '⚠️ ' + t('category_short.safety'),
+        discrimination: '🚫 ' + t('category_short.discrimination'),
+        procurement: '📋 ' + t('category_short.procurement'),
+        other: '❓ ' + t('category_short.other'),
+      }
+      return h('span', { class: 'text-surface-300 text-sm' }, map[props.category] || props.category)
     }
-    return () => h('span', { class: 'text-surface-300 text-sm' }, map[props.category] || props.category)
   }
 })
 
 const PriorityBadge = defineComponent({
   props: ['priority'],
   setup(props) {
-    const map = {
-      critical: { text: 'Kritik', cls: 'bg-red-500/15 text-red-400 border border-red-500/20' },
-      high: { text: 'Yuqori', cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/20' },
-      medium: { text: "O'rta", cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20' },
-      low: { text: 'Past', cls: 'bg-green-500/15 text-green-400 border border-green-500/20' },
-    }
     return () => {
+      const map = {
+        critical: { text: t('priority.critical'), cls: 'bg-red-500/15 text-red-400 border border-red-500/20' },
+        high: { text: t('priority.high'), cls: 'bg-orange-500/15 text-orange-400 border border-orange-500/20' },
+        medium: { text: t('priority.medium'), cls: 'bg-yellow-500/15 text-yellow-400 border border-yellow-500/20' },
+        low: { text: t('priority.low'), cls: 'bg-green-500/15 text-green-400 border border-green-500/20' },
+      }
       const p = map[props.priority] || { text: props.priority, cls: '' }
       return h('span', { class: `badge ${p.cls}` }, p.text)
     }
