@@ -6,9 +6,14 @@
         <h1 class="text-xl sm:text-2xl font-bold text-white">Audit jurnali</h1>
         <p class="text-surface-400 text-sm mt-1">Tizimda bajarilgan barcha amallar</p>
       </div>
-      <button @click="loadLogs" class="btn-ghost text-sm flex items-center gap-2 whitespace-nowrap">
-        <span :class="{ 'animate-spin': loading }">🔄</span> Yangilash
-      </button>
+      <div class="flex items-center gap-2">
+        <button @click="exportExcel" :disabled="exporting" class="btn-ghost text-sm flex items-center gap-2 whitespace-nowrap">
+          <span :class="{ 'animate-spin': exporting }">📥</span> Excel
+        </button>
+        <button @click="loadLogs" class="btn-ghost text-sm flex items-center gap-2 whitespace-nowrap">
+          <span :class="{ 'animate-spin': loading }">🔄</span> Yangilash
+        </button>
+      </div>
     </div>
 
     <!-- Filters -->
@@ -22,12 +27,26 @@
           <option value="">Barcha foydalanuvchilar</option>
           <option v-for="u in users" :key="u.id" :value="u.id">{{ u.full_name || u.username }}</option>
         </select>
+        <input
+          v-model="filters.from_date"
+          type="date"
+          class="input flex-1 min-w-40"
+          placeholder="Boshlanish sanasi"
+          @change="resetAndLoad"
+        />
+        <input
+          v-model="filters.to_date"
+          type="date"
+          class="input flex-1 min-w-40"
+          placeholder="Tugash sanasi"
+          @change="resetAndLoad"
+        />
         <button @click="clearFilters" class="btn-ghost text-sm whitespace-nowrap">Filtrni tozalash</button>
       </div>
     </div>
 
     <!-- Desktop table -->
-    <div class="card overflow-hidden hidden sm:block">
+    <div ref="tableRef" class="card overflow-hidden hidden sm:block">
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
@@ -39,19 +58,38 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading">
-              <td colspan="5" class="py-16 text-center">
-                <div class="flex flex-col items-center gap-3">
-                  <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span class="text-surface-500 text-sm">Yuklanmoqda...</span>
-                </div>
-              </td>
-            </tr>
+            <!-- Skeleton loading -->
+            <template v-if="loading">
+              <tr v-for="i in 5" :key="'sk-' + i" class="border-b border-surface-800/50">
+                <td class="px-5 py-3.5">
+                  <div class="flex items-center gap-2">
+                    <div class="w-7 h-7 rounded-full bg-surface-700 animate-pulse"></div>
+                    <div class="space-y-1.5">
+                      <div class="h-3.5 w-24 bg-surface-700 rounded animate-pulse"></div>
+                      <div class="h-2.5 w-16 bg-surface-800 rounded animate-pulse"></div>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-5 py-3.5"><div class="h-6 w-20 bg-surface-700 rounded-full animate-pulse"></div></td>
+                <td class="px-5 py-3.5"><div class="h-3.5 w-20 bg-surface-700 rounded animate-pulse"></div></td>
+                <td class="px-5 py-3.5"><div class="h-3.5 w-24 bg-surface-700 rounded animate-pulse"></div></td>
+                <td class="px-5 py-3.5">
+                  <div class="space-y-1.5">
+                    <div class="h-3.5 w-20 bg-surface-700 rounded animate-pulse"></div>
+                    <div class="h-2.5 w-16 bg-surface-800 rounded animate-pulse"></div>
+                  </div>
+                </td>
+              </tr>
+            </template>
+
+            <!-- Empty state -->
             <tr v-else-if="!logs.length">
-              <td colspan="5" class="py-16 text-center text-surface-600 text-sm">
-                Audit yozuvlari topilmadi
+              <td colspan="5" class="py-16 text-center text-surface-500 text-sm">
+                📋 Hech qanday yozuv topilmadi
               </td>
             </tr>
+
+            <!-- Data rows -->
             <tr v-else v-for="log in logs" :key="log.id"
               class="border-b border-surface-800/50 hover:bg-surface-800/30 transition-colors">
               <td class="px-5 py-3.5">
@@ -95,28 +133,37 @@
       </div>
 
       <!-- Pagination -->
-      <div v-if="totalPages > 1" class="flex items-center justify-between px-5 py-4 border-t border-surface-800 flex-wrap gap-3">
-        <span class="text-surface-500 text-sm">Jami {{ total }} yozuv</span>
-        <div class="flex items-center gap-2">
-          <button @click="changePage(currentPage - 1)" :disabled="currentPage <= 1"
-            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed">← Oldingi</button>
-          <span class="text-surface-400 text-sm">{{ currentPage }} / {{ totalPages }}</span>
-          <button @click="changePage(currentPage + 1)" :disabled="currentPage >= totalPages"
-            class="btn-ghost text-sm disabled:opacity-30 disabled:cursor-not-allowed">Keyingi →</button>
-        </div>
-      </div>
-      <div v-else-if="!loading && logs.length" class="px-5 py-3 border-t border-surface-800">
-        <span class="text-surface-500 text-sm">Jami {{ total }} yozuv</span>
-      </div>
+      <Pagination
+        v-if="!loading && pagination.pages > 0"
+        v-model="pagination"
+        @change="onPageChange"
+      />
     </div>
 
     <!-- Mobile card list -->
     <div class="sm:hidden space-y-3">
-      <div v-if="loading" class="card p-8 text-center">
-        <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-      </div>
-      <div v-else-if="!logs.length" class="card p-8 text-center text-surface-600 text-sm">
-        Audit yozuvlari topilmadi
+      <!-- Skeleton loading -->
+      <template v-if="loading">
+        <div v-for="i in 5" :key="'msk-' + i" class="card p-4">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-full bg-surface-700 animate-pulse"></div>
+              <div class="space-y-1.5">
+                <div class="h-3.5 w-24 bg-surface-700 rounded animate-pulse"></div>
+                <div class="h-2.5 w-16 bg-surface-800 rounded animate-pulse"></div>
+              </div>
+            </div>
+            <div class="space-y-1.5 text-right">
+              <div class="h-2.5 w-16 bg-surface-700 rounded animate-pulse ml-auto"></div>
+              <div class="h-2.5 w-12 bg-surface-800 rounded animate-pulse ml-auto"></div>
+            </div>
+          </div>
+          <div class="h-5 w-24 bg-surface-700 rounded-full animate-pulse"></div>
+        </div>
+      </template>
+
+      <div v-else-if="!logs.length" class="card p-8 text-center text-surface-500 text-sm">
+        📋 Hech qanday yozuv topilmadi
       </div>
       <div v-else v-for="log in logs" :key="log.id" class="card p-4">
         <div class="flex items-start justify-between gap-3 mb-2">
@@ -144,41 +191,48 @@
           </router-link>
         </div>
       </div>
-      <div v-if="totalPages > 1" class="flex items-center justify-center gap-3 py-2">
-        <button @click="changePage(currentPage - 1)" :disabled="currentPage <= 1"
-          class="btn-ghost text-sm disabled:opacity-30">← Oldingi</button>
-        <span class="text-surface-400 text-sm">{{ currentPage }} / {{ totalPages }}</span>
-        <button @click="changePage(currentPage + 1)" :disabled="currentPage >= totalPages"
-          class="btn-ghost text-sm disabled:opacity-30">Keyingi →</button>
-      </div>
+
+      <!-- Mobile Pagination -->
+      <Pagination
+        v-if="!loading && pagination.pages > 0"
+        v-model="pagination"
+        @change="onPageChange"
+      />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
+import Pagination from '@/components/Pagination.vue'
+
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
+const exporting = ref(false)
 const logs = ref([])
-const total = ref(0)
-const currentPage = ref(1)
-const perPage = 50
 const actions = ref([])
 const users = ref([])
+const tableRef = ref(null)
 
-const filters = ref({ action: '', user_id: '' })
+const pagination = reactive({
+  page: 1,
+  per_page: 50,
+  total: 0,
+  pages: 0,
+})
+
+const filters = reactive({
+  action: '',
+  user_id: '',
+  from_date: '',
+  to_date: '',
+})
 
 const columns = ['Foydalanuvchi', 'Amal', 'Murojaat / Ob\'ekt', 'IP manzil', 'Vaqt']
-
-const totalPages = computed(() => Math.max(1, Math.ceil(total.value / perPage)))
-const visiblePages = computed(() => {
-  const pages = []
-  const start = Math.max(1, currentPage.value - 2)
-  const end = Math.min(totalPages.value, currentPage.value + 2)
-  for (let i = start; i <= end; i++) pages.push(i)
-  return pages
-})
 
 const ACTION_META = {
   login:               { label: 'Kirish',        icon: '🔑', badge: 'bg-green-500/20 text-green-400' },
@@ -210,15 +264,49 @@ function formatTime(dt) {
   return new Date(dt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
+// ── URL Sync ──────────────────────────────────────────────────────────
+
+function readFromURL() {
+  const q = route.query
+  if (q.page)      pagination.page     = Number(q.page)
+  if (q.per_page)  pagination.per_page = Number(q.per_page)
+  if (q.action)    filters.action      = String(q.action)
+  if (q.user_id)   filters.user_id     = String(q.user_id)
+  if (q.from_date) filters.from_date   = String(q.from_date)
+  if (q.to_date)   filters.to_date     = String(q.to_date)
+}
+
+function syncToURL() {
+  const query = {}
+  if (pagination.page > 1)          query.page      = String(pagination.page)
+  if (pagination.per_page !== 50)   query.per_page   = String(pagination.per_page)
+  if (filters.action)               query.action     = filters.action
+  if (filters.user_id)              query.user_id    = filters.user_id
+  if (filters.from_date)            query.from_date  = filters.from_date
+  if (filters.to_date)              query.to_date    = filters.to_date
+
+  router.replace({ query }).catch(() => {})
+}
+
+// ── API calls ─────────────────────────────────────────────────────────
+
+function buildParams() {
+  const params = { page: pagination.page, per_page: pagination.per_page }
+  if (filters.action)    params.action    = filters.action
+  if (filters.user_id)   params.user_id   = filters.user_id
+  if (filters.from_date) params.from_date = filters.from_date
+  if (filters.to_date)   params.to_date   = filters.to_date
+  return params
+}
+
 async function loadLogs() {
   loading.value = true
   try {
-    const params = { page: currentPage.value, per_page: perPage }
-    if (filters.value.action)  params.action  = filters.value.action
-    if (filters.value.user_id) params.user_id = filters.value.user_id
-    const { data } = await api.get('/v1/audit', { params })
-    logs.value  = data.items
-    total.value = data.total
+    const { data } = await api.get('/v1/audit', { params: buildParams() })
+    logs.value         = data.items
+    pagination.total   = data.total
+    pagination.pages   = data.pages
+    syncToURL()
   } catch (e) {
     console.error('Audit log yuklanmadi:', e)
   } finally {
@@ -240,22 +328,61 @@ async function loadMeta() {
 }
 
 function resetAndLoad() {
-  currentPage.value = 1
+  pagination.page = 1
   loadLogs()
 }
 
 function clearFilters() {
-  filters.value = { action: '', user_id: '' }
+  filters.action    = ''
+  filters.user_id   = ''
+  filters.from_date = ''
+  filters.to_date   = ''
   resetAndLoad()
 }
 
-function changePage(p) {
-  if (p < 1 || p > totalPages.value) return
-  currentPage.value = p
+function onPageChange() {
   loadLogs()
+  // Jadval tepasiga scroll
+  if (tableRef.value) {
+    tableRef.value.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } else {
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 }
 
+async function exportExcel() {
+  exporting.value = true
+  try {
+    const params = { ...buildParams(), format: 'xlsx' }
+    delete params.page
+    delete params.per_page
+    const response = await api.get('/v1/audit/export', {
+      params,
+      responseType: 'blob',
+    })
+    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const link = document.createElement('a')
+    link.href = url
+    const disposition = response.headers['content-disposition']
+    const filename = disposition
+      ? disposition.split('filename=')[1]?.replace(/"/g, '')
+      : 'audit_log.xlsx'
+    link.setAttribute('download', filename)
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('Eksport xatolik:', e)
+  } finally {
+    exporting.value = false
+  }
+}
+
+// ── Lifecycle ─────────────────────────────────────────────────────────
+
 onMounted(() => {
+  readFromURL()
   loadMeta()
   loadLogs()
 })

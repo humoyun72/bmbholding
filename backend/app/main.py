@@ -23,11 +23,12 @@ _polling_task = None
 _redis_subscriber_task = None
 _retention_task = None
 _report_task = None
+_deadline_task = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _polling_task, _redis_subscriber_task
+    global _polling_task, _redis_subscriber_task, _retention_task, _report_task, _deadline_task
     # ── Secrets backend (Vault / AWS KMS / env) ──────────────────────────
     from app.services.secrets import bootstrap_secrets
     await bootstrap_secrets()
@@ -90,6 +91,10 @@ async def lifespan(app: FastAPI):
     # Start report scheduler (kunlik + haftalik hisobotlar)
     _report_task = asyncio.create_task(_run_report_scheduler())
     logger.info("Report scheduler started ✅")
+
+    # Start deadline reminder scheduler
+    _deadline_task = asyncio.create_task(_run_deadline_scheduler())
+    logger.info("Deadline reminder scheduler started ✅")
 
     # ClamAV holati haqida startup logi
     if settings.CLAMAV_ENABLED:
@@ -170,6 +175,12 @@ async def lifespan(app: FastAPI):
             await _report_task
         except asyncio.CancelledError:
             pass
+    if _deadline_task:
+        _deadline_task.cancel()
+        try:
+            await _deadline_task
+        except asyncio.CancelledError:
+            pass
     if _polling_task:
         _polling_task.cancel()
         try:
@@ -236,6 +247,49 @@ async def _run_retention_scheduler():
         except Exception as e:
             logger.error(f"Data retention xato: {e}", exc_info=True)
             await asyncio.sleep(3600)  # Xato bo'lsa 1 soatdan keyin qayta urinish
+
+
+async def _run_deadline_scheduler():
+    """
+    Deadline eslatmalarni belgilangan oraliqda yuboradi.
+    Interval SystemSettings dan o'qiladi: "deadline_check_interval_hours" (default: 4 soat).
+    """
+    from app.core.database import AsyncSessionLocal
+    from app.api.v1.settings import get_all_settings
+    from app.bot.reports import send_deadline_reminders
+
+    # Startup da 60 soniya kutish (bot to'liq ishga tushishi uchun)
+    await asyncio.sleep(60)
+    logger.info("Deadline reminder scheduler ishga tushdi")
+
+    while True:
+        try:
+            # SystemSettings dan intervalni o'qish
+            interval_hours = 4  # default
+            try:
+                async with AsyncSessionLocal() as db:
+                    sys_settings = await get_all_settings(db)
+                interval_hours = int(sys_settings.get("deadline_check_interval_hours", "4"))
+                if interval_hours < 1:
+                    interval_hours = 1
+            except Exception as e:
+                logger.warning(f"Deadline interval o'qishda xato, default 4 soat: {e}")
+
+            logger.info(f"Deadline reminder tekshiruvi boshlanmoqda (interval: {interval_hours} soat)")
+
+            try:
+                sent = await send_deadline_reminders()
+                logger.info(f"Deadline reminders yakunlandi: {sent or 0} ta xabar yuborildi ✅")
+            except Exception as e:
+                logger.error(f"Deadline reminders xatosi: {e}", exc_info=True)
+
+            await asyncio.sleep(interval_hours * 3600)
+
+        except asyncio.CancelledError:
+            raise
+        except Exception as e:
+            logger.error(f"Deadline scheduler xato: {e}", exc_info=True)
+            await asyncio.sleep(3600)
 
 
 async def _run_report_scheduler():

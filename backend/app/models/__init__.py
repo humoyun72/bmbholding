@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from sqlalchemy import (
     String, Text, Boolean, Integer, Float, DateTime, ForeignKey,
-    Enum as SAEnum, BigInteger, JSON
+    Enum as SAEnum, BigInteger, JSON, UniqueConstraint
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.dialects.postgresql import UUID
@@ -189,10 +189,14 @@ class AuditLog(Base):
 
 class Notification(Base):
     __tablename__ = "notifications"
+    __table_args__ = (
+        UniqueConstraint("case_id", "notification_type", name="uq_notification_case_type"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
     type: Mapped[NotificationType] = mapped_column(SAEnum(NotificationType))
+    notification_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)  # deadline_warning, overdue_alert
     sent_to: Mapped[str] = mapped_column(String(255))
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     status: Mapped[str] = mapped_column(String(32), default="sent")

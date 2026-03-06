@@ -98,6 +98,17 @@ async def send_daily_report(context=None):
 
     overdue_warn = "🚨 *DIQQAT!* Muddati o'tgan murojaatlar mavjud!\n\n" if stats["overdue"] > 0 else ""
 
+    # Muddati o'tgan murojaatlar batafsil ro'yxati
+    overdue_detail = ""
+    if stats.get("overdue_list"):
+        overdue_detail = "\n🚨 *Muddati o'tgan murojaatlar:*\n"
+        shown = stats["overdue_list"][:5]
+        for item in shown:
+            overdue_detail += f"  • `{item['case_id']}` — {item['days_overdue']} kun — {item['assignee']}\n"
+        remaining = stats["overdue"] - len(shown)
+        if remaining > 0:
+            overdue_detail += f"  _+{remaining} ta ko'proq_\n"
+
     text = (
         f"{overdue_warn}"
         f"📊 *Kunlik Hisobot — {date_str}*\n"
@@ -110,6 +121,7 @@ async def send_daily_report(context=None):
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"⏰ Deadline yaqin:      *{stats['deadline_near']}*\n"
         f"🚨 Muddati o'tgan:      *{stats['overdue']}*\n"
+        f"{overdue_detail}"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"📋 Batafsil: {_admin_url()}"
     )
@@ -129,6 +141,7 @@ async def send_daily_report(context=None):
 async def _collect_daily_stats() -> dict:
     """DB dan kunlik statistika yig'adi — 4 ta query."""
     from sqlalchemy import select, func, and_
+    from sqlalchemy.orm import selectinload
     from app.models import Case, CaseStatus
 
     now = datetime.now(timezone.utc)
@@ -189,6 +202,34 @@ async def _collect_daily_stats() -> dict:
             )
         ) or 0
 
+        # 5. Muddati o'tgan murojaatlar batafsil ro'yxati (top 5 + assignee)
+        overdue_rows = await db.execute(
+            select(Case)
+            .options(selectinload(Case.assignee))
+            .where(
+                and_(
+                    Case.due_at.isnot(None),
+                    Case.due_at < now,
+                    Case.status.notin_([
+                        CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED
+                    ])
+                )
+            )
+            .order_by(Case.due_at.asc())
+            .limit(10)
+        )
+        overdue_list = []
+        for case in overdue_rows.scalars():
+            days_overdue = (now - case.due_at).days
+            assignee_name = "Tayinlanmagan"
+            if case.assignee:
+                assignee_name = case.assignee.full_name or case.assignee.username
+            overdue_list.append({
+                "case_id": case.external_id,
+                "days_overdue": days_overdue,
+                "assignee": assignee_name,
+            })
+
     return {
         "new":             by_status.get("new", 0),
         "in_progress":     by_status.get("in_progress", 0),
@@ -197,7 +238,185 @@ async def _collect_daily_stats() -> dict:
         "rejected_today":  rejected_today,
         "deadline_near":   deadline_near,
         "overdue":         overdue,
+        "overdue_list":    overdue_list,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEADLINE ESLATMALAR
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def send_deadline_reminders(context=None):
+    """
+    Deadline yaqinlashgan va muddati o'tgan murojaatlar haqida eslatma yuboradi.
+    Har 4 soatda bir marta chaqiriladi (SystemSettings dan o'qiladi).
+    Dublikat oldini olish: Notification jadvalida notification_type orqali tekshiriladi.
+    """
+    bot: Optional[Bot] = None
+    if context is not None:
+        bot = context.bot
+    else:
+        bot = _get_bot()
+
+    if bot is None:
+        logger.warning("Deadline reminder uchun bot topilmadi")
+        return
+
+    chat_id = _admin_chat_id()
+
+    from sqlalchemy import select, and_
+    from sqlalchemy.orm import selectinload
+    from app.models import Case, CaseStatus, Notification, NotificationType, User
+
+    now = datetime.now(timezone.utc)
+    deadline_threshold = now + timedelta(hours=24)
+
+    sent_count = 0
+
+    async with AsyncSessionLocal() as db:
+        # ── 1. 24 soatdan kamroq qolgan, ochiq murojaatlar ──────────────
+        near_result = await db.execute(
+            select(Case)
+            .options(selectinload(Case.assignee))
+            .where(
+                and_(
+                    Case.due_at.isnot(None),
+                    Case.due_at <= deadline_threshold,
+                    Case.due_at > now,
+                    Case.status.notin_([
+                        CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED
+                    ])
+                )
+            )
+        )
+        near_cases = near_result.scalars().all()
+
+        for case in near_cases:
+            notif_type = "deadline_warning"
+
+            # Dublikat tekshirish
+            existing = await db.execute(
+                select(Notification).where(
+                    and_(
+                        Notification.case_id == case.id,
+                        Notification.notification_type == notif_type,
+                    )
+                )
+            )
+            if existing.scalar_one_or_none():
+                continue  # allaqachon yuborilgan
+
+            # Assignee ga xabar yuborish
+            if case.assignee and case.assignee.telegram_chat_id:
+                cat_label = CAT_LABELS.get(
+                    case.category.value if hasattr(case.category, "value") else str(case.category),
+                    "Boshqa"
+                )
+                due_str = case.due_at.strftime("%d.%m.%Y %H:%M")
+                text = (
+                    f"⏰ *Deadline yaqinlashmoqda!*\n"
+                    f"📋 `{case.external_id}`\n"
+                    f"📂 {cat_label}\n"
+                    f"Deadline: {due_str} (24 soat qoldi)"
+                )
+                try:
+                    await bot.send_message(
+                        chat_id=case.assignee.telegram_chat_id,
+                        text=text,
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                    sent_count += 1
+                except Exception as e:
+                    logger.warning(f"Deadline reminder yuborishda xato (case={case.external_id}): {e}")
+
+            # Notification jadvaliga yozish (dublikat oldini olish)
+            db.add(Notification(
+                case_id=case.id,
+                type=NotificationType.TELEGRAM,
+                notification_type=notif_type,
+                sent_to=str(case.assignee.telegram_chat_id) if case.assignee and case.assignee.telegram_chat_id else "none",
+            ))
+
+        # ── 2. Muddati o'tgan, ochiq murojaatlar ────────────────────────
+        overdue_result = await db.execute(
+            select(Case)
+            .options(selectinload(Case.assignee))
+            .where(
+                and_(
+                    Case.due_at.isnot(None),
+                    Case.due_at < now,
+                    Case.status.notin_([
+                        CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED
+                    ])
+                )
+            )
+        )
+        overdue_cases = overdue_result.scalars().all()
+
+        for case in overdue_cases:
+            notif_type = "overdue_alert"
+
+            # Dublikat tekshirish
+            existing = await db.execute(
+                select(Notification).where(
+                    and_(
+                        Notification.case_id == case.id,
+                        Notification.notification_type == notif_type,
+                    )
+                )
+            )
+            if existing.scalar_one_or_none():
+                continue  # allaqachon yuborilgan
+
+            days_overdue = (now - case.due_at).days
+            assignee_name = "Tayinlanmagan"
+            due_str = case.due_at.strftime("%d.%m.%Y %H:%M")
+
+            if case.assignee:
+                assignee_name = case.assignee.full_name or case.assignee.username
+
+            text = (
+                f"🚨 *MUROJAAT MUDDATI O'TDI!*\n"
+                f"📋 `{case.external_id}`\n"
+                f"Muddat: {due_str} ({days_overdue} kun o'tdi)\n"
+                f"Tayinlangan: {assignee_name}"
+            )
+
+            # Assignee ga xabar
+            if case.assignee and case.assignee.telegram_chat_id:
+                try:
+                    await bot.send_message(
+                        chat_id=case.assignee.telegram_chat_id,
+                        text=text,
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                    sent_count += 1
+                except Exception as e:
+                    logger.warning(f"Overdue alert yuborishda xato (case={case.external_id}): {e}")
+
+            # Admin guruhga ham xabar
+            if chat_id:
+                try:
+                    await bot.send_message(
+                        chat_id=chat_id,
+                        text=text,
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                except Exception as e:
+                    logger.warning(f"Overdue admin alert xato: {e}")
+
+            # Notification jadvaliga yozish
+            db.add(Notification(
+                case_id=case.id,
+                type=NotificationType.TELEGRAM,
+                notification_type=notif_type,
+                sent_to=str(case.assignee.telegram_chat_id) if case.assignee and case.assignee.telegram_chat_id else "admin",
+            ))
+
+        await db.commit()
+
+    logger.info(f"Deadline reminders: {sent_count} ta xabar yuborildi")
+    return sent_count
 
 
 # ─────────────────────────────────────────────────────────────────────────────

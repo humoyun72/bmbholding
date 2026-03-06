@@ -864,16 +864,20 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             description = context.user_data["description"]
             is_anonymous = context.user_data["is_anonymous"]
 
+            from app.services.deadline import calculate_due_at
+            case_priority = PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM)
+
             case = Case(
                 external_id=case_id,
                 reporter_token=token_hash,
                 telegram_chat_id=update.effective_user.id,
                 is_anonymous=is_anonymous,
                 category=category,
-                priority=PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM),
+                priority=case_priority,
                 status=CaseStatus.NEW,
                 description_encrypted=encrypt_case_content(description),
                 title=f"{description[:100]}..." if len(description) > 100 else description,
+                due_at=calculate_due_at(case_priority),
             )
             db.add(case)
             await db.flush()

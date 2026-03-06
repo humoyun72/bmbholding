@@ -73,6 +73,30 @@
     </div>
 
     <template v-else>
+      <!-- Overdue / Deadline warning banners -->
+      <div v-if="stats?.overdue_count > 0"
+        @click="router.push('/cases?status=in_progress&overdue=true')"
+        class="mb-4 p-4 rounded-xl bg-red-500/15 border border-red-500/30 cursor-pointer hover:bg-red-500/20 transition-colors flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">🚨</span>
+          <span class="text-red-300 font-medium text-sm">
+            {{ stats.overdue_count }} ta murojaat muddatini o'tkazib yubordi
+          </span>
+        </div>
+        <span class="text-red-400 text-xs font-medium whitespace-nowrap">Ko'rish →</span>
+      </div>
+      <div v-if="stats?.deadline_near_count > 0"
+        @click="router.push('/cases?status=in_progress&deadline_near=true')"
+        class="mb-4 p-4 rounded-xl bg-yellow-500/15 border border-yellow-500/30 cursor-pointer hover:bg-yellow-500/20 transition-colors flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <span class="text-2xl">⏰</span>
+          <span class="text-yellow-300 font-medium text-sm">
+            {{ stats.deadline_near_count }} ta murojaat deadline yaqin (24 soat)
+          </span>
+        </div>
+        <span class="text-yellow-400 text-xs font-medium whitespace-nowrap">Ko'rish →</span>
+      </div>
+
       <!-- Stats row -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-5 mb-8">
         <div v-for="stat in statCards" :key="stat.label"

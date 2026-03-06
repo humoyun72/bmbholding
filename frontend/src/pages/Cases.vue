@@ -122,6 +122,13 @@
               <td class="px-5 py-4"><PriorityBadge :priority="c.priority" /></td>
               <td class="px-5 py-4"><StatusBadge :status="c.status" /></td>
               <td class="px-5 py-4">
+                <span :title="c.due_at ? formatDate(c.due_at) : 'Deadline belgilanmagan'"
+                  class="cursor-help">
+                  {{ deadlineIcon(c) }}
+                </span>
+                <span v-if="c.due_at" class="text-surface-500 text-xs ml-1">{{ formatShortDate(c.due_at) }}</span>
+              </td>
+              <td class="px-5 py-4">
                 <span :class="c.is_anonymous ? 'text-surface-400' : 'text-green-400'" class="text-xs">
                   {{ c.is_anonymous ? '🔒 Anonim' : '👤 Ochiq' }}
                 </span>
@@ -170,6 +177,10 @@
         <div class="flex items-center gap-2 flex-wrap mb-2">
           <CategoryBadge :category="c.category" />
           <PriorityBadge :priority="c.priority" />
+          <span :title="c.due_at ? formatDate(c.due_at) : 'Deadline belgilanmagan'" class="text-xs cursor-help">
+            {{ deadlineIcon(c) }}
+            <span v-if="c.due_at" class="text-surface-500 ml-0.5">{{ formatShortDate(c.due_at) }}</span>
+          </span>
           <span :class="c.is_anonymous ? 'text-surface-400' : 'text-green-400'" class="text-xs">
             {{ c.is_anonymous ? '🔒 Anonim' : '👤 Ochiq' }}
           </span>
@@ -219,6 +230,7 @@ const columns = [
   { key: 'category', label: 'Kategoriya' },
   { key: 'priority', label: 'Ustuvorlik' },
   { key: 'status', label: 'Holat' },
+  { key: 'deadline', label: 'Muddat' },
   { key: 'anon', label: 'Tur' },
   { key: 'date', label: 'Sana' },
   { key: 'files', label: 'Fayllar' },
@@ -293,6 +305,21 @@ function resetFilters() {
 
 function goToCase(id) {
   router.push(`/cases/${id}`)
+}
+
+function deadlineIcon(c) {
+  if (!c.due_at) return '⬜'
+  const now = new Date()
+  const due = new Date(c.due_at)
+  if (due < now) return '🔴'
+  const hoursLeft = (due - now) / (1000 * 60 * 60)
+  if (hoursLeft <= 24) return '🟡'
+  return '⬜'
+}
+
+function formatShortDate(d) {
+  if (!d) return ''
+  return format(new Date(d), 'dd.MM')
 }
 
 // ── Export ────────────────────────────────────────────────────────────────────

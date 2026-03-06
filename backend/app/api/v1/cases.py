@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse, RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_
 from sqlalchemy.orm import selectinload
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 import uuid
 import logging
@@ -604,6 +604,34 @@ async def get_stats(
     elif delta_days <= 60:
         trend_label = "hafta"
 
+    # ── Deadline statistikasi ────────────────────────────────────────────
+    deadline_threshold = now + timedelta(hours=24)
+
+    overdue_count = await db.scalar(
+        select(func.count(Case.id)).where(
+            and_(
+                Case.due_at.isnot(None),
+                Case.due_at < now,
+                Case.status.notin_([
+                    CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED
+                ])
+            )
+        )
+    ) or 0
+
+    deadline_near_count = await db.scalar(
+        select(func.count(Case.id)).where(
+            and_(
+                Case.due_at.isnot(None),
+                Case.due_at <= deadline_threshold,
+                Case.due_at > now,
+                Case.status.notin_([
+                    CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED
+                ])
+            )
+        )
+    ) or 0
+
     return {
         "total": total,
         "by_status": status_counts,
@@ -611,6 +639,8 @@ async def get_stats(
         "by_priority": pri_counts,
         "monthly_trend": monthly,
         "trend_label": trend_label,
+        "overdue_count": overdue_count,
+        "deadline_near_count": deadline_near_count,
         "filter": {
             "period": period,
             "from_date": from_dt.date().isoformat() if from_dt else None,
