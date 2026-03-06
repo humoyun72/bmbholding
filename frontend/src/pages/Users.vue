@@ -20,9 +20,30 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-if="loading">
-            <td colspan="8" class="text-center py-16">
-              <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+          <!-- Skeleton loading -->
+          <template v-if="loading">
+            <tr v-for="i in 5" :key="'sk'+i" class="border-b border-surface-800/50">
+              <td class="px-5 py-4">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-surface-800 animate-pulse"></div>
+                  <div class="space-y-1.5">
+                    <div class="h-3.5 w-28 bg-surface-800 rounded animate-pulse"></div>
+                    <div class="h-2.5 w-16 bg-surface-800/60 rounded animate-pulse"></div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-5 py-4"><div class="h-3.5 w-32 bg-surface-800 rounded animate-pulse"></div></td>
+              <td class="px-5 py-4"><div class="h-5 w-20 bg-surface-800 rounded-full animate-pulse"></div></td>
+              <td class="px-5 py-4"><div class="h-4 w-10 bg-surface-800 rounded animate-pulse"></div></td>
+              <td class="px-5 py-4"><div class="h-4 w-10 bg-surface-800 rounded animate-pulse"></div></td>
+              <td class="px-5 py-4"><div class="h-3.5 w-24 bg-surface-800 rounded animate-pulse"></div></td>
+              <td class="px-5 py-4"><div class="h-5 w-14 bg-surface-800 rounded-full animate-pulse"></div></td>
+              <td class="px-5 py-4"><div class="h-6 w-6 bg-surface-800 rounded animate-pulse"></div></td>
+            </tr>
+          </template>
+          <tr v-else-if="!users.length">
+            <td colspan="8">
+              <EmptyState icon="👥" title="Foydalanuvchilar yo'q" description="Hali foydalanuvchi qo'shilmagan" />
             </td>
           </tr>
           <tr v-for="u in users" :key="u.id"
@@ -337,6 +358,7 @@
 import { ref, reactive, onUnmounted, onMounted } from 'vue'
 import { format } from 'date-fns'
 import api from '@/utils/api'
+import EmptyState from '@/components/EmptyState.vue'
 
 // ── State ─────────────────────────────────────────────────────────
 const loading  = ref(true)

@@ -1,4 +1,6 @@
 <template>
+  <TopProgressBar ref="progressBarRef" />
+
   <RouterView v-slot="{ Component }">
     <Transition name="page" mode="out-in">
       <component :is="Component" />
@@ -69,11 +71,17 @@
 
 <script setup>
 import { RouterView } from 'vue-router'
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
-import api from '@/utils/api'
+import api, { setProgressBar } from '@/utils/api'
+import TopProgressBar from '@/components/TopProgressBar.vue'
 
 const authStore = useAuthStore()
+const progressBarRef = ref(null)
+
+onMounted(() => {
+  if (progressBarRef.value) setProgressBar(progressBarRef.value)
+})
 
 const showForcePasswordModal = computed(
   () => authStore.isAuthenticated && authStore.user?.forcePasswordChange === true

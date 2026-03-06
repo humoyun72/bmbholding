@@ -5,9 +5,25 @@ const api = axios.create({
   timeout: 30000,
 })
 
+// ── Progress bar hook ────────────────────────────────────
+let _progressBar = null
+export function setProgressBar(bar) { _progressBar = bar }
+
+api.interceptors.request.use(config => {
+  _progressBar?.start()
+  return config
+}, err => {
+  _progressBar?.finish()
+  return Promise.reject(err)
+})
+
 api.interceptors.response.use(
-  res => res,
+  res => {
+    _progressBar?.finish()
+    return res
+  },
   err => {
+    _progressBar?.finish()
     const isLoginEndpoint = err.config?.url?.includes('/auth/token')
     const is401 = err.response?.status === 401
 

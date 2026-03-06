@@ -84,8 +84,13 @@
 
             <!-- Empty state -->
             <tr v-else-if="!logs.length">
-              <td colspan="5" class="py-16 text-center text-surface-500 text-sm">
-                📋 Hech qanday yozuv topilmadi
+              <td colspan="5">
+                <EmptyState
+                  :icon="hasAuditFilters ? '🔍' : '📋'"
+                  :title="hasAuditFilters ? 'Natija topilmadi' : 'Hech qanday yozuv topilmadi'"
+                  :description="hasAuditFilters ? 'Ushbu filtrlar bo\'yicha yozuv topilmadi' : 'Audit jurnali hali bo\'sh'"
+                  :action="hasAuditFilters ? 'Filterni tozalash' : ''"
+                  :action-fn="hasAuditFilters ? resetFilters : null" />
               </td>
             </tr>
 
@@ -162,9 +167,12 @@
         </div>
       </template>
 
-      <div v-else-if="!logs.length" class="card p-8 text-center text-surface-500 text-sm">
-        📋 Hech qanday yozuv topilmadi
-      </div>
+      <EmptyState v-else-if="!logs.length"
+        :icon="hasAuditFilters ? '🔍' : '📋'"
+        :title="hasAuditFilters ? 'Natija topilmadi' : 'Hech qanday yozuv topilmadi'"
+        :description="hasAuditFilters ? 'Ushbu filtrlar bo\'yicha yozuv topilmadi' : ''"
+        :action="hasAuditFilters ? 'Filterni tozalash' : ''"
+        :action-fn="hasAuditFilters ? resetFilters : null" />
       <div v-else v-for="log in logs" :key="log.id" class="card p-4">
         <div class="flex items-start justify-between gap-3 mb-2">
           <div class="flex items-center gap-2">
@@ -203,10 +211,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import api from '@/utils/api'
 import Pagination from '@/components/Pagination.vue'
+import EmptyState from '@/components/EmptyState.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -231,6 +240,15 @@ const filters = reactive({
   from_date: '',
   to_date: '',
 })
+
+const hasAuditFilters = computed(() =>
+  !!(filters.action || filters.user_id || filters.from_date || filters.to_date)
+)
+
+function resetFilters() {
+  filters.action = ''; filters.user_id = ''; filters.from_date = ''; filters.to_date = ''
+  pagination.page = 1; loadLogs()
+}
 
 const columns = ['Foydalanuvchi', 'Amal', 'Murojaat / Ob\'ekt', 'IP manzil', 'Vaqt']
 

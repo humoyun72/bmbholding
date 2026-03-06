@@ -2,9 +2,9 @@
   <div class="p-4 sm:p-6 lg:p-8 animate-fade-in max-w-6xl">
     <button @click="$router.back()" class="btn-ghost text-sm mb-4 -ml-2">← Orqaga</button>
 
-    <div v-if="loading" class="flex items-center justify-center h-64">
-      <div class="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-    </div>
+    <SkeletonLoader v-if="loading" type="detail" />
+
+    <ErrorState v-else-if="loadError" :message="loadError" :retry="loadCase" />
 
     <template v-else-if="caseData">
       <!-- Title row -->
@@ -386,9 +386,12 @@ import { ref, reactive, computed, onMounted, onUnmounted, nextTick, defineCompon
 import { useRoute } from 'vue-router'
 import { format } from 'date-fns'
 import api from '@/utils/api'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import ErrorState from '@/components/ErrorState.vue'
 
 const route = useRoute()
 const loading = ref(true)
+const loadError = ref('')
 const sending = ref(false)
 const caseData = ref(null)
 const users = ref([])
@@ -532,11 +535,14 @@ function openPreview(att) {
 // ── Data loading ─────────────────────────────────────────────────────────────
 async function loadCase() {
   loading.value = true
+  loadError.value = ''
   try {
     const { data } = await api.get(`/v1/cases/${route.params.id}`)
     caseData.value = data
     assignedTo.value = data.assigned_to || ''
     await loadAllBlobs()
+  } catch (e) {
+    loadError.value = e.response?.data?.detail || "Murojaatni yuklashda xatolik yuz berdi"
   } finally {
     loading.value = false
   }

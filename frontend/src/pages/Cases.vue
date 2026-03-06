@@ -102,17 +102,39 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-if="loading">
-              <td colspan="8" class="text-center py-20">
-                <div class="flex flex-col items-center gap-3">
-                  <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span class="text-surface-500 text-sm">Yuklanmoqda...</span>
-                </div>
+            <!-- Skeleton loading -->
+            <template v-if="loading">
+              <tr v-for="i in 8" :key="'sk'+i" class="border-b border-surface-800/50">
+                <td class="px-3 py-4 w-10"><div class="w-4 h-4 bg-surface-800 rounded animate-pulse"></div></td>
+                <td class="px-5 py-4">
+                  <div class="space-y-1.5">
+                    <div class="h-4 w-20 bg-surface-800 rounded animate-pulse"></div>
+                    <div class="h-2.5 w-32 bg-surface-800/60 rounded animate-pulse"></div>
+                  </div>
+                </td>
+                <td class="px-5 py-4"><div class="h-4 w-20 bg-surface-800 rounded animate-pulse"></div></td>
+                <td class="px-5 py-4"><div class="h-5 w-14 bg-surface-800 rounded-full animate-pulse"></div></td>
+                <td class="px-5 py-4"><div class="h-5 w-24 bg-surface-800 rounded-full animate-pulse"></div></td>
+                <td class="px-5 py-4"><div class="h-3.5 w-12 bg-surface-800 rounded animate-pulse"></div></td>
+                <td class="px-5 py-4"><div class="h-3.5 w-28 bg-surface-800 rounded animate-pulse"></div></td>
+                <td class="px-5 py-4"><div class="h-6 w-14 bg-surface-800 rounded-lg animate-pulse"></div></td>
+              </tr>
+            </template>
+            <!-- Error state -->
+            <tr v-else-if="loadError">
+              <td colspan="8">
+                <ErrorState :message="loadError" :retry="loadCases" />
               </td>
             </tr>
+            <!-- Empty state -->
             <tr v-else-if="!cases.length">
-              <td colspan="8" class="text-center py-20">
-                <div class="text-surface-500 text-sm">📋 Hech qanday yozuv topilmadi</div>
+              <td colspan="8">
+                <EmptyState
+                  :icon="hasFilters ? '🔍' : '📭'"
+                  :title="hasFilters ? 'Natija topilmadi' : 'Murojaatlar yo\'q'"
+                  :description="hasFilters ? 'Ushbu filtrlar bo\'yicha hech qanday murojaat topilmadi' : 'Yangi murojaat hali kelmagan'"
+                  :action="hasFilters ? 'Filterni tozalash' : ''"
+                  :action-fn="hasFilters ? resetFilters : null" />
               </td>
             </tr>
             <template v-for="c in cases" :key="c.id">
@@ -195,12 +217,36 @@
 
     <!-- Mobile card list -->
     <div class="sm:hidden space-y-3">
-      <div v-if="loading" class="card p-8 text-center">
-        <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-      </div>
-      <div v-else-if="!cases.length" class="card p-8 text-center text-surface-500 text-sm">
-        📋 Hech qanday yozuv topilmadi
-      </div>
+      <!-- Mobile skeleton -->
+      <template v-if="loading">
+        <div v-for="i in 5" :key="'msk'+i" class="card p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-4 h-4 bg-surface-800 rounded animate-pulse"></div>
+              <div class="h-4 w-20 bg-surface-800 rounded animate-pulse"></div>
+            </div>
+            <div class="h-5 w-24 bg-surface-800 rounded-full animate-pulse"></div>
+          </div>
+          <div class="h-3 w-3/4 bg-surface-800/60 rounded animate-pulse"></div>
+          <div class="flex gap-2">
+            <div class="h-4 w-20 bg-surface-800 rounded animate-pulse"></div>
+            <div class="h-5 w-14 bg-surface-800 rounded-full animate-pulse"></div>
+          </div>
+          <div class="flex justify-between">
+            <div class="h-3 w-28 bg-surface-800/60 rounded animate-pulse"></div>
+            <div class="h-3 w-16 bg-surface-800/60 rounded animate-pulse"></div>
+          </div>
+        </div>
+      </template>
+      <!-- Mobile error -->
+      <ErrorState v-else-if="loadError" :message="loadError" :retry="loadCases" />
+      <!-- Mobile empty -->
+      <EmptyState v-else-if="!cases.length"
+        :icon="hasFilters ? '🔍' : '📭'"
+        :title="hasFilters ? 'Natija topilmadi' : 'Murojaatlar yo\'q'"
+        :description="hasFilters ? 'Ushbu filtrlar bo\'yicha hech qanday murojaat topilmadi' : 'Yangi murojaat hali kelmagan'"
+        :action="hasFilters ? 'Filterni tozalash' : ''"
+        :action-fn="hasFilters ? resetFilters : null" />
       <div v-for="c in cases" :key="'m'+c.id"
         class="card p-4 transition-colors relative"
         :class="{ 'opacity-50': rowLoading === c.external_id }">
@@ -343,11 +389,14 @@ import { format } from 'date-fns'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
 import CaseRowActions from '@/components/CaseRowActions.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import ErrorState from '@/components/ErrorState.vue'
 
 const router = useRouter()
 const auth = useAuthStore()
 
 const loading = ref(true)
+const loadError = ref('')
 const cases = ref([])
 const pagination = reactive({ page: 1, pages: 1, total: 0, per_page: 20 })
 const exporting = ref(false)
@@ -356,6 +405,10 @@ const exportMenuRef = ref(null)
 const toast = reactive({ show: false, ok: true, msg: '' })
 const rowLoading = ref(null)
 let loadAbortCtrl = null
+
+const hasFilters = computed(() =>
+  !!(filters.status || filters.category || filters.priority || filters.from_date || filters.to_date)
+)
 
 // ── Selection ───────────────────────────────────────────
 const selectedIds = reactive(new Set())
@@ -422,6 +475,7 @@ async function loadCases() {
   if (loadAbortCtrl) loadAbortCtrl.abort()
   loadAbortCtrl = new AbortController()
   loading.value = true
+  loadError.value = ''
   try {
     const params = buildParams({ page: pagination.page, per_page: pagination.per_page })
     const { data } = await api.get('/v1/cases', { params, signal: loadAbortCtrl.signal })
@@ -430,6 +484,7 @@ async function loadCases() {
   } catch (e) {
     if (e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
       console.error('Cases yuklanmadi:', e)
+      loadError.value = e.response?.data?.detail || "Ma'lumotlarni yuklashda xatolik yuz berdi"
     }
   } finally {
     loading.value = false

@@ -64,13 +64,45 @@
       </button>
     </div>
 
-    <!-- Loading -->
-    <div v-if="loading" class="flex items-center justify-center h-64">
-      <div class="flex flex-col items-center gap-3">
-        <div class="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
-        <span class="text-surface-400 text-sm">Ma'lumotlar yuklanmoqda...</span>
+    <!-- Loading skeleton -->
+    <div v-if="loading" class="space-y-8">
+      <!-- Stats skeleton -->
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-5">
+        <SkeletonLoader type="card" :count="4" />
+      </div>
+      <!-- Charts skeleton -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <SkeletonLoader type="chart" class="lg:col-span-2" />
+        <div class="card p-6 space-y-3">
+          <div class="h-4 w-28 bg-surface-800 rounded animate-pulse mb-4"></div>
+          <div v-for="i in 7" :key="i" class="flex items-center gap-3">
+            <div class="w-2.5 h-2.5 rounded-full bg-surface-800 animate-pulse"></div>
+            <div class="h-3 flex-1 bg-surface-800/70 rounded animate-pulse"></div>
+            <div class="h-1.5 w-20 bg-surface-800 rounded-full animate-pulse"></div>
+            <div class="h-3 w-4 bg-surface-800 rounded animate-pulse"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Status/Priority skeleton -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div v-for="s in 2" :key="s" class="card p-6 space-y-4">
+          <div class="h-4 w-24 bg-surface-800 rounded animate-pulse"></div>
+          <div v-for="i in 5" :key="i" class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <div class="w-2 h-2 rounded-full bg-surface-800 animate-pulse"></div>
+              <div class="h-3 w-24 bg-surface-800/70 rounded animate-pulse"></div>
+            </div>
+            <div class="flex items-center gap-3">
+              <div class="h-1.5 w-24 bg-surface-800 rounded-full animate-pulse"></div>
+              <div class="h-3 w-5 bg-surface-800 rounded animate-pulse"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- Error state -->
+    <ErrorState v-else-if="loadError" :message="loadError" :retry="loadStats" />
 
     <template v-else>
       <!-- Overdue / Deadline warning banners -->
@@ -209,11 +241,14 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { format, differenceInDays, parseISO } from 'date-fns'
 import api from '@/utils/api'
+import SkeletonLoader from '@/components/SkeletonLoader.vue'
+import ErrorState from '@/components/ErrorState.vue'
 
 const router = useRouter()
 const route  = useRoute()
 
 const loading    = ref(true)
+const loadError  = ref('')
 const stats      = ref(null)
 const activePeriod = ref('')   // 'today' | 'week' | 'month' | 'year' | ''
 const customOpen = ref(false)
@@ -289,6 +324,7 @@ async function loadStats() {
   abortCtrl = new AbortController()
 
   loading.value = true
+  loadError.value = ''
   try {
     const params = {}
     if (customFrom.value && customTo.value && !customOpen.value) {
@@ -305,6 +341,7 @@ async function loadStats() {
   } catch (e) {
     if (e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
       console.error('Stats yuklab bo\'lmadi:', e)
+      loadError.value = e.response?.data?.detail || "Ma'lumotlarni yuklashda xatolik yuz berdi"
     }
   } finally {
     loading.value = false
