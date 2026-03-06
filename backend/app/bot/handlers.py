@@ -24,9 +24,16 @@ from app.models import (
     User, UserRole, AuditLog, AuditAction,
 )
 from app.services.storage import save_telegram_file
-from app.services.notification import notify_admins
+from app.services.notification import (
+    notify_admins,
+    format_group_message,
+    build_status_keyboard,
+    update_group_message,
+    ALLOWED_TRANSITIONS,
+    STATUS_LABELS,
+)
 from app.services.bot_users import get_or_create_bot_user, update_bot_user_lang, get_bot_user_lang as db_get_user_lang
-from app.bot.rate_limit import check_rate_limit, rate_limited
+from app.bot.rate_limit import check_rate_limit, check_case_rate_limit, rate_limited
 from app.bot.i18n import t, get_user_lang, set_user_lang, get_language_keyboard, SUPPORTED_LANGS
 
 logger = logging.getLogger(__name__)
@@ -2078,6 +2085,530 @@ async def handle_back_case_callback(update: Update, context: ContextTypes.DEFAUL
         logger.warning(f"handle_back_case_callback failed: {e}")
 
 
+# ─── 7. Holat o'zgartirish callback handleri (ALLOWED_TRANSITIONS bilan) ─────
+
+async def handle_status_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    status_{case_id}_{new_status} — murojaat holatini ALLOWED_TRANSITIONS ga qarab o'zgartiradi.
+    "rejected" yoki "completed" uchun sabab so'raydi.
+    """
+    query = update.callback_query
+
+    # Faqat guruhda ishlaydi
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        await query.answer("❌ Bu amal faqat guruhda ishlaydi", show_alert=True)
+        return
+
+    if not await _check_admin_permission(query):
+        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        return
+
+    # Callback data: status_{case_id}_{new_status}
+    # Masalan: status_CASE-20260305-00001_in_progress
+    parts = query.data.split("_", 2)  # ["status", "CASE-20260305-00001", "in_progress"] yoki ko'proq
+    if len(parts) < 3:
+        await query.answer("❌ Noto'g'ri format", show_alert=True)
+        return
+
+    # Case ID va status ni ajratish
+    rest = query.data[len("status_"):]  # "CASE-20260305-00001_in_progress"
+    # Oxirgi _ dan keyin status keladi
+    last_underscore = rest.rfind("_")
+    if last_underscore == -1:
+        await query.answer("❌ Noto'g'ri format", show_alert=True)
+        return
+
+    case_external_id = rest[:last_underscore]
+    new_status_str = rest[last_underscore + 1:]
+
+    # Status ni CaseStatus enumga aylantirish
+    try:
+        new_status = CaseStatus(new_status_str)
+    except ValueError:
+        await query.answer(f"❌ Noto'g'ri status: {new_status_str}", show_alert=True)
+        return
+
+    # Case rate limit tekshiruvi
+    allowed, retry_after = await check_case_rate_limit(case_external_id)
+    if not allowed:
+        await query.answer(
+            f"⏳ Juda ko'p amal. {retry_after} soniyadan keyin urinib ko'ring.",
+            show_alert=True
+        )
+        return
+
+    await query.answer("⏳ O'zgartirilmoqda...")
+
+    actor_telegram_id = query.from_user.id
+
+    async with AsyncSessionLocal() as db:
+        case_result = await db.execute(
+            select(Case).where(Case.external_id == case_external_id)
+        )
+        case = case_result.scalar_one_or_none()
+
+        if not case:
+            await query.answer("❌ Murojaat topilmadi", show_alert=True)
+            return
+
+        old_status = case.status
+
+        # ALLOWED_TRANSITIONS tekshiruvi
+        allowed_next = ALLOWED_TRANSITIONS.get(old_status, [])
+        if new_status not in allowed_next:
+            await query.answer(
+                f"⚠️ {old_status.value} → {new_status.value} o'tish mumkin emas",
+                show_alert=True
+            )
+            return
+
+    # "rejected" yoki "completed" uchun sabab so'rash
+    if new_status in (CaseStatus.REJECTED, CaseStatus.COMPLETED):
+        status_label = "rad etish" if new_status == CaseStatus.REJECTED else "yakunlash"
+        context.user_data["pending_status_change"] = {
+            "case_external_id": case_external_id,
+            "new_status": new_status.value,
+            "message_id": query.message.message_id,
+            "chat_id": query.message.chat_id,
+            "actor_telegram_id": actor_telegram_id,
+        }
+
+        try:
+            await query.message.reply_text(
+                f"✍️ *{case_external_id}* murojaatini {status_label} uchun sabab/izoh yozing:",
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=ForceReply(selective=True),
+            )
+        except Exception as e:
+            logger.warning(f"handle_status_callback ForceReply failed: {e}")
+        return
+
+    # Boshqa statuslar uchun to'g'ridan status o'zgartirish
+    await _apply_status_change(
+        context=context,
+        case_external_id=case_external_id,
+        new_status=new_status,
+        actor_telegram_id=actor_telegram_id,
+        reason=None,
+        original_message_id=query.message.message_id,
+        chat_id=query.message.chat_id,
+    )
+
+
+async def _apply_status_change(
+    context: ContextTypes.DEFAULT_TYPE,
+    case_external_id: str,
+    new_status: CaseStatus,
+    actor_telegram_id: int,
+    reason: str | None,
+    original_message_id: int,
+    chat_id: int,
+):
+    """Status o'zgartirishni bajaradi va guruh xabarini yangilaydi."""
+
+    async with AsyncSessionLocal() as db:
+        async with db.begin():
+            case_result = await db.execute(
+                select(Case).where(Case.external_id == case_external_id).with_for_update()
+            )
+            case = case_result.scalar_one_or_none()
+
+            if not case:
+                return
+
+            old_status = case.status
+            case.status = new_status
+
+            # Closed date ni belgilash
+            if new_status in (CaseStatus.COMPLETED, CaseStatus.REJECTED):
+                case.closed_at = datetime.now(timezone.utc)
+
+            # Actor
+            actor_result = await db.execute(
+                select(User).where(User.telegram_chat_id == actor_telegram_id)
+            )
+            actor = actor_result.scalar_one_or_none()
+
+            # Audit log
+            db.add(AuditLog(
+                user_id=actor.id if actor else None,
+                case_id=case.id,
+                action=AuditAction.CASE_UPDATE,
+                payload={
+                    "old_status": old_status.value,
+                    "new_status": new_status.value,
+                    "reason": reason,
+                    "source": "telegram_group_callback",
+                },
+            ))
+
+            # Sabab bilan comment qo'shish
+            if reason:
+                db.add(CaseComment(
+                    case_id=case.id,
+                    author_id=actor.id if actor else None,
+                    is_from_reporter=False,
+                    is_internal=True,
+                    content_encrypted=encrypt_comment_content(
+                        f"[Status o'zgartirildi: {old_status.value} → {new_status.value}]\n{reason}"
+                    ),
+                ))
+
+            # Assignee va case ma'lumotlarini olish (session yopilishidan oldin)
+            case_ext_id = case.external_id
+            case_data = {
+                "external_id": case.external_id,
+                "category": case.category,
+                "priority": case.priority,
+                "status": case.status,
+                "assigned_to": case.assigned_to,
+                "created_at": case.created_at,
+                "due_at": case.due_at,
+                "group_message_id": case.group_message_id,
+            }
+
+    # Guruh xabarini yangilash
+    try:
+        # Case ni DB dan qayta o'qish (assignee bilan)
+        async with AsyncSessionLocal() as db:
+            case_result = await db.execute(
+                select(Case).where(Case.external_id == case_ext_id)
+            )
+            case_for_update = case_result.scalar_one_or_none()
+
+            if case_for_update:
+                new_msg = await update_group_message(context.bot, case_for_update, chat_id)
+
+                # Yangi xabar ID ni saqlash (agar o'zgargan bo'lsa)
+                if new_msg and new_msg.message_id != case_for_update.group_message_id:
+                    case_for_update.group_message_id = new_msg.message_id
+                    await db.commit()
+    except Exception as e:
+        logger.warning(f"_apply_status_change update message failed: {e}")
+
+    # Javob xabari
+    status_label = STATUS_LABELS.get(new_status, new_status.value)
+    now_str = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M")
+    result_text = f"{status_label}: `{case_ext_id}`\n🕐 {now_str}"
+    if reason:
+        result_text += f"\n📝 *Sabab:* {reason[:200]}"
+
+    try:
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text=result_text,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+    except Exception as e:
+        logger.warning(f"_apply_status_change result message failed: {e}")
+
+
+async def handle_status_reason(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Status o'zgartirish uchun sabab xabarini qabul qiladi."""
+    if not update.message:
+        return
+
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        return
+
+    pending = context.user_data.get("pending_status_change")
+    if not pending:
+        return
+
+    # Ruxsatni tekshirish
+    telegram_id = update.effective_user.id
+    if telegram_id != pending.get("actor_telegram_id"):
+        return  # Boshqa foydalanuvchi
+
+    actor = await _get_admin_user(telegram_id)
+    if not actor:
+        return
+
+    reason = update.message.text.strip()
+    if len(reason) < 3:
+        await update.message.reply_text("⚠️ Sabab juda qisqa. Iltimos, batafsil yozing.")
+        return
+
+    # Pending ma'lumotlarni olish va tozalash
+    case_external_id = pending["case_external_id"]
+    new_status_str = pending["new_status"]
+    original_message_id = pending["message_id"]
+    chat_id = pending["chat_id"]
+    context.user_data.pop("pending_status_change", None)
+
+    try:
+        new_status = CaseStatus(new_status_str)
+    except ValueError:
+        await update.message.reply_text("❌ Noto'g'ri status")
+        return
+
+    await _apply_status_change(
+        context=context,
+        case_external_id=case_external_id,
+        new_status=new_status,
+        actor_telegram_id=telegram_id,
+        reason=reason,
+        original_message_id=original_message_id,
+        chat_id=chat_id,
+    )
+
+
+# ─── 8. /note buyrug'i — ichki izoh qo'shish ─────────────────────────────────
+
+async def handle_note_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /note CASE-00042 Tekshiruv boshlandi
+    Faqat guruhda ishlaydi. case_comments ga is_internal=True bilan saqlaydi.
+    """
+    if not update.message:
+        return
+
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        await update.message.reply_text(
+            "❌ Bu buyruq faqat guruhda ishlaydi.",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    # Ruxsatni tekshirish
+    telegram_id = update.effective_user.id
+    actor = await _get_admin_user(telegram_id)
+    if not actor:
+        await update.message.reply_text("❌ Ruxsatingiz yo'q")
+        return
+
+    # Matnni ajratish: /note CASE-XXXXX izoh matni
+    text = update.message.text
+    parts = text.split(maxsplit=2)  # ["/note", "CASE-XXXXX", "izoh matni"]
+
+    if len(parts) < 3:
+        await update.message.reply_text(
+            "⚠️ Format: `/note CASE-XXXXX Izoh matni`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    case_id = parts[1].upper()
+    note_text = parts[2].strip()
+
+    if not re.match(r"CASE-\d{8}-\d{5}", case_id):
+        await update.message.reply_text(
+            "⚠️ Noto'g'ri murojaat raqami. Masalan: `CASE-20260305-00001`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    if len(note_text) < 3:
+        await update.message.reply_text("⚠️ Izoh juda qisqa.")
+        return
+
+    async with AsyncSessionLocal() as db:
+        case_result = await db.execute(
+            select(Case).where(Case.external_id == case_id)
+        )
+        case = case_result.scalar_one_or_none()
+
+        if not case:
+            await update.message.reply_text(f"❌ Murojaat topilmadi: `{case_id}`", parse_mode=ParseMode.MARKDOWN)
+            return
+
+        # Ichki izoh qo'shish
+        comment = CaseComment(
+            case_id=case.id,
+            author_id=actor.id,
+            is_from_reporter=False,
+            is_internal=True,  # Ichki izoh
+            content_encrypted=encrypt_comment_content(note_text),
+        )
+        db.add(comment)
+
+        # Audit log
+        db.add(AuditLog(
+            user_id=actor.id,
+            case_id=case.id,
+            action=AuditAction.CASE_COMMENT,
+            payload={"type": "internal_note", "source": "telegram_group"},
+        ))
+
+        await db.commit()
+
+    await update.message.reply_text(
+        f"📝 Ichki izoh saqlandi: `{case_id}`",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
+# ─── 9. /search buyrug'i — murojaat qidirish ─────────────────────────────────
+
+async def handle_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /search CASE-00042 yoki /search korrupsiya
+    Faqat guruhda ishlaydi. Natija faqat so'ragan foydalanuvchiga ko'rinadi.
+    """
+    if not update.message:
+        return
+
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        await update.message.reply_text("❌ Bu buyruq faqat guruhda ishlaydi.")
+        return
+
+    # Ruxsatni tekshirish
+    telegram_id = update.effective_user.id
+    actor = await _get_admin_user(telegram_id)
+    if not actor:
+        await update.message.reply_text("❌ Ruxsatingiz yo'q")
+        return
+
+    # Qidiruv so'zi
+    text = update.message.text
+    parts = text.split(maxsplit=1)
+
+    if len(parts) < 2:
+        await update.message.reply_text(
+            "⚠️ Format: `/search CASE-XXXXX` yoki `/search kalit_soz`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        return
+
+    search_term = parts[1].strip()
+
+    async with AsyncSessionLocal() as db:
+        # Avval external_id bo'yicha qidirish
+        if re.match(r"CASE-\d{8}-\d{5}", search_term.upper()):
+            result = await db.execute(
+                select(Case).where(Case.external_id == search_term.upper())
+            )
+            cases = [result.scalar_one_or_none()]
+            cases = [c for c in cases if c]
+        else:
+            # Kalit so'z bo'yicha qidirish (title va external_id da)
+            search_pattern = f"%{search_term}%"
+            result = await db.execute(
+                select(Case).where(
+                    (Case.external_id.ilike(search_pattern)) |
+                    (Case.title.ilike(search_pattern))
+                ).order_by(Case.created_at.desc()).limit(10)
+            )
+            cases = result.scalars().all()
+
+    if not cases:
+        # Foydalanuvchiga shaxsiy xabar yuborish
+        try:
+            await context.bot.send_message(
+                chat_id=telegram_id,
+                text=f"🔍 *Qidiruv:* `{search_term}`\n\n❌ Natija topilmadi.",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            await update.message.reply_text("📬 Natija shaxsiy xabarda yuborildi.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Natija topilmadi: `{search_term}`", parse_mode=ParseMode.MARKDOWN)
+        return
+
+    # Natijalarni formatlash
+    result_text = f"🔍 *Qidiruv:* `{search_term}`\n\n*Natijalar:* {len(cases)} ta\n\n"
+
+    status_emoji = {
+        CaseStatus.NEW: "🆕", CaseStatus.IN_PROGRESS: "🔄",
+        CaseStatus.NEEDS_INFO: "❓", CaseStatus.COMPLETED: "✅",
+        CaseStatus.REJECTED: "❌", CaseStatus.ARCHIVED: "📦",
+    }
+
+    for case in cases:
+        emoji = status_emoji.get(case.status, "•")
+        date_str = case.created_at.strftime("%d.%m.%Y") if case.created_at else "—"
+        title_short = (case.title[:40] + "...") if case.title and len(case.title) > 40 else (case.title or "—")
+        result_text += f"{emoji} `{case.external_id}` · {date_str}\n   _{title_short}_\n\n"
+
+    # Foydalanuvchiga shaxsiy xabar yuborish
+    try:
+        await context.bot.send_message(
+            chat_id=telegram_id,
+            text=result_text,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        await update.message.reply_text("📬 Natija shaxsiy xabarda yuborildi.")
+    except Exception as e:
+        logger.warning(f"handle_search_command send failed: {e}")
+        await update.message.reply_text("❌ Natijani yuborishda xatolik. Bot bilan shaxsiy chat oching.")
+
+
+# ─── 10. Guruh reply → murojaat izohiga ──────────────────────────────────────
+
+async def handle_group_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Guruhda murojaat xabariga reply qilinsa — izoh sifatida saqlaydi.
+    """
+    if not update.message:
+        return
+
+    chat = update.effective_chat
+    if chat.type not in ("group", "supergroup"):
+        return
+
+    # Reply mavjudligini tekshirish
+    reply_to = update.message.reply_to_message
+    if not reply_to:
+        return
+
+    # Ruxsatni tekshirish
+    telegram_id = update.effective_user.id
+    actor = await _get_admin_user(telegram_id)
+    if not actor:
+        return  # Oddiy foydalanuvchi — e'tiborsiz qoldiramiz
+
+    # Reply qilingan xabardan case_id ni topish
+    reply_text = reply_to.text or ""
+
+    # Case ID ni topish (CASE-XXXXXXXX-XXXXX formatida)
+    case_match = re.search(r"CASE-\d{8}-\d{5}", reply_text)
+    if not case_match:
+        return  # Bu murojaat xabari emas
+
+    case_external_id = case_match.group(0)
+    comment_text = update.message.text.strip()
+
+    if len(comment_text) < 2:
+        return
+
+    async with AsyncSessionLocal() as db:
+        case_result = await db.execute(
+            select(Case).where(Case.external_id == case_external_id)
+        )
+        case = case_result.scalar_one_or_none()
+
+        if not case:
+            return
+
+        # Izoh qo'shish (tashqi izoh — reporter ko'ra oladi)
+        comment = CaseComment(
+            case_id=case.id,
+            author_id=actor.id,
+            is_from_reporter=False,
+            is_internal=False,  # Tashqi izoh
+            content_encrypted=encrypt_comment_content(comment_text),
+        )
+        db.add(comment)
+
+        # Audit log
+        db.add(AuditLog(
+            user_id=actor.id,
+            case_id=case.id,
+            action=AuditAction.CASE_COMMENT,
+            payload={"type": "group_reply", "source": "telegram_group"},
+        ))
+
+        await db.commit()
+
+    await update.message.reply_text(
+        f"✅ Izoh `{case_external_id}` ga saqlandi",
+        parse_mode=ParseMode.MARKDOWN,
+    )
+
+
 def build_application() -> Application:
     app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
 
@@ -2207,10 +2738,29 @@ def build_application() -> Application:
     app.add_handler(CallbackQueryHandler(handle_view_callback,      pattern=r"^view_"))
     app.add_handler(CallbackQueryHandler(handle_back_case_callback, pattern=r"^back_case_"))
 
+    # ✅ Status o'zgartirish callback handleri (ALLOWED_TRANSITIONS bilan)
+    app.add_handler(CallbackQueryHandler(handle_status_callback,    pattern=r"^status_"))
+
+    # ✅ Admin guruh buyruqlari: /note va /search
+    app.add_handler(CommandHandler("note", handle_note_command))
+    app.add_handler(CommandHandler("search", handle_search_command))
+
     # ✅ Admin guruh: rad etish sababi xabari (guruh chati)
     app.add_handler(MessageHandler(
         filters.ChatType.GROUPS & filters.TEXT & ~filters.COMMAND,
         handle_reject_reason,
+    ))
+
+    # ✅ Admin guruh: status o'zgartirish sababi xabari (pending_status_change)
+    app.add_handler(MessageHandler(
+        filters.ChatType.GROUPS & filters.TEXT & ~filters.COMMAND & filters.REPLY,
+        handle_status_reason,
+    ))
+
+    # ✅ Admin guruh: reply → murojaat izohiga
+    app.add_handler(MessageHandler(
+        filters.ChatType.GROUPS & filters.TEXT & ~filters.COMMAND & filters.REPLY,
+        handle_group_reply,
     ))
 
     # ✅ Global error handler — barcha xatolarni ushlaydi

@@ -23,6 +23,7 @@ RATE_LIMITS: dict[str, tuple[int, int]] = {
     "file_upload":  (10, 60),
     "check_status": (20, 60),
     "followup":     (10, 60),
+    "group_action": (5, 60),   # Bitta case ga 1 daqiqada 5 ta guruh amali
     "default":      (30, 60),
 }
 
@@ -72,6 +73,38 @@ async def check_rate_limit(user_id: int, action: str) -> tuple[bool, int]:
     except Exception as e:
         # Redis ishlamasa — bloklamaymiz (availability ustunligi)
         logger.error(f"Rate limit Redis xato: {e} — so'rov o'tkazib yuborildi")
+        return True, 0
+
+
+async def check_case_rate_limit(case_id: str) -> tuple[bool, int]:
+    """
+    Bitta case uchun guruh amallarini limitlaydi.
+    1 daqiqada 5 tadan ko'p amal bo'lmasligi kerak.
+
+    Returns:
+        (allowed: bool, retry_after: int)
+    """
+    limit, window = RATE_LIMITS.get("group_action", (5, 60))
+    key = f"bot:rl:case:{case_id}:group_action"
+
+    try:
+        redis = _get_redis()
+        count = await redis.incr(key)
+        if count == 1:
+            await redis.expire(key, window)
+
+        if count > limit:
+            ttl = await redis.ttl(key)
+            logger.warning(
+                f"Case rate limit exceeded: case_id={case_id} "
+                f"count={count} limit={limit}"
+            )
+            return False, max(ttl, 1)
+
+        return True, 0
+
+    except Exception as e:
+        logger.error(f"Case rate limit Redis xato: {e} — so'rov o'tkazib yuborildi")
         return True, 0
 
 

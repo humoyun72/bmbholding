@@ -4,10 +4,30 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from telegram.constants import ParseMode
+from telegram.error import BadRequest
 from app.core.config import settings
-from app.models import CaseCategory
+from app.models import CaseCategory, CaseStatus, CasePriority
 
 logger = logging.getLogger(__name__)
+
+# ─── Status holat mashinasi (handlers.py bilan sinxronlash uchun) ─────────────
+ALLOWED_TRANSITIONS: dict[CaseStatus, list[CaseStatus]] = {
+    CaseStatus.NEW:         [CaseStatus.IN_PROGRESS, CaseStatus.REJECTED, CaseStatus.NEEDS_INFO],
+    CaseStatus.IN_PROGRESS: [CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.NEEDS_INFO],
+    CaseStatus.NEEDS_INFO:  [CaseStatus.IN_PROGRESS, CaseStatus.REJECTED],
+    CaseStatus.COMPLETED:   [],
+    CaseStatus.REJECTED:    [],
+    CaseStatus.ARCHIVED:    [],
+}
+
+STATUS_LABELS = {
+    CaseStatus.NEW: "🆕 Yangi",
+    CaseStatus.IN_PROGRESS: "🔄 Ko'rib chiqilmoqda",
+    CaseStatus.NEEDS_INFO: "❓ Ma'lumot kerak",
+    CaseStatus.COMPLETED: "✅ Yakunlandi",
+    CaseStatus.REJECTED: "❌ Rad etildi",
+    CaseStatus.ARCHIVED: "📦 Arxivlandi",
+}
 
 CATEGORY_LABELS = {
     CaseCategory.CORRUPTION: "🔴 Korrupsiya / Pora",
@@ -26,6 +46,152 @@ PRIORITY_LABELS = {
     "medium":   "🟡 O'rta",
     "low":      "🟢 Past",
 }
+
+
+def build_status_keyboard(case_external_id: str, current_status: CaseStatus) -> InlineKeyboardMarkup:
+    """
+    Hozirgi status va ALLOWED_TRANSITIONS ga qarab inline keyboard yaratadi.
+    """
+    allowed_statuses = ALLOWED_TRANSITIONS.get(current_status, [])
+
+    # Status → tugma label va callback
+    status_buttons = {
+        CaseStatus.IN_PROGRESS: ("▶️ Boshlash", f"status_{case_external_id}_in_progress"),
+        CaseStatus.NEEDS_INFO: ("❓ Ma'lumot so'rash", f"status_{case_external_id}_needs_info"),
+        CaseStatus.COMPLETED: ("✅ Yakunlash", f"status_{case_external_id}_completed"),
+        CaseStatus.REJECTED: ("❌ Rad etish", f"status_{case_external_id}_rejected"),
+        CaseStatus.NEW: ("🔄 Qayta ochish", f"status_{case_external_id}_new"),
+    }
+
+    buttons = []
+    row = []
+    for status in allowed_statuses:
+        if status in status_buttons:
+            label, callback = status_buttons[status]
+            row.append(InlineKeyboardButton(label, callback_data=callback))
+            if len(row) == 2:
+                buttons.append(row)
+                row = []
+    if row:
+        buttons.append(row)
+
+    # Har doim admin panel va tayinlash tugmalari
+    buttons.append([
+        InlineKeyboardButton("👤 Tayinlash", callback_data=f"assign_{case_external_id}"),
+        InlineKeyboardButton("🔍 Admin panelda ko'r", callback_data=f"view_{case_external_id}"),
+    ])
+
+    return InlineKeyboardMarkup(buttons)
+
+
+def format_group_message(case) -> str:
+    """
+    Guruh uchun murojaat xabarini formatlash.
+
+    Args:
+        case: Case modeli (id, external_id, category, priority, status, assigned_to,
+              created_at, due_at, assignee attributelari)
+
+    Returns:
+        Formatlangan Markdown xabar matni
+    """
+    cat_label = CATEGORY_LABELS.get(case.category, str(case.category.value if hasattr(case.category, "value") else case.category))
+    pri_label = PRIORITY_LABELS.get(
+        case.priority.value if hasattr(case.priority, "value") else str(case.priority),
+        str(case.priority)
+    )
+    status_label = STATUS_LABELS.get(case.status, str(case.status.value if hasattr(case.status, "value") else case.status))
+
+    # Asosiy ma'lumotlar
+    text = (
+        f"📋 *Murojaat: `{case.external_id}`*\n\n"
+        f"📂 *Kategoriya:* {cat_label}\n"
+        f"⚠️ *Ustuvorlik:* {pri_label}\n"
+        f"📊 *Holat:* {status_label}\n"
+    )
+
+    # Tayinlangan ijrochi (agar bo'lsa)
+    if case.assignee:
+        assignee_name = case.assignee.full_name or case.assignee.username
+        text += f"👤 *Ijrochi:* {assignee_name}\n"
+    elif case.assigned_to:
+        text += f"👤 *Ijrochi:* _Tayinlangan (ID: {str(case.assigned_to)[:8]}...)_\n"
+    else:
+        text += f"👤 *Ijrochi:* _Tayinlanmagan_\n"
+
+    # Sanalar
+    created_str = case.created_at.strftime("%d.%m.%Y %H:%M") if case.created_at else "—"
+    text += f"📅 *Yaratilgan:* {created_str}\n"
+
+    if case.due_at:
+        due_str = case.due_at.strftime("%d.%m.%Y")
+        text += f"⏰ *Deadline:* {due_str}\n"
+
+    text += f"\n👉 [Admin panelda ko'ring]({settings.WEBHOOK_URL.replace('/api/telegram/webhook', '')}/admin/cases/{case.external_id})"
+
+    return text
+
+
+async def update_group_message(bot: Bot, case, chat_id: int = None) -> "Message | None":
+    """
+    Guruh xabarini yangi holat bilan tahrirlash.
+    Agar xabar ID DB da yo'q bo'lsa — yangi xabar yuboriladi.
+
+    Args:
+        bot: Telegram Bot instance
+        case: Case modeli (group_message_id, external_id, ...)
+        chat_id: Admin guruh ID (default: settings.ADMIN_CHAT_ID)
+
+    Returns:
+        Message object yoki None
+    """
+    if chat_id is None:
+        chat_id = settings.ADMIN_CHAT_ID
+
+    text = format_group_message(case)
+    keyboard = build_status_keyboard(case.external_id, case.status)
+
+    message_id = getattr(case, "group_message_id", None)
+
+    if message_id:
+        # Mavjud xabarni tahrirlash
+        try:
+            edited = await bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=message_id,
+                text=text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=keyboard,
+            )
+            return edited
+        except BadRequest as e:
+            error_msg = str(e).lower()
+            if "message is not modified" in error_msg:
+                # Xabar o'zgartirilmagan — xato emas
+                logger.debug(f"Message not modified for case {case.external_id}")
+                return None
+            elif "message to edit not found" in error_msg:
+                # Xabar o'chirilgan — yangi yuborish
+                logger.warning(f"Message not found for case {case.external_id}, sending new")
+            else:
+                logger.error(f"update_group_message edit failed: {e}")
+                return None
+        except Exception as e:
+            logger.error(f"update_group_message edit failed: {e}")
+            return None
+
+    # Yangi xabar yuborish
+    try:
+        sent = await bot.send_message(
+            chat_id=chat_id,
+            text=text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=keyboard,
+        )
+        return sent
+    except Exception as e:
+        logger.error(f"update_group_message send failed: {e}")
+        return None
 
 
 async def notify_assignee(
