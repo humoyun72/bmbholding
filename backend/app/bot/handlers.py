@@ -866,6 +866,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             from app.services.deadline import calculate_due_at
             case_priority = PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM)
+            case_due_at = await calculate_due_at(case_priority)
 
             case = Case(
                 external_id=case_id,
@@ -877,7 +878,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 status=CaseStatus.NEW,
                 description_encrypted=encrypt_case_content(description),
                 title=f"{description[:100]}..." if len(description) > 100 else description,
-                due_at=calculate_due_at(case_priority),
+                due_at=case_due_at,
             )
             db.add(case)
             await db.flush()

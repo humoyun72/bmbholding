@@ -346,7 +346,165 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         4. BOT SOZLAMALARI
+         4. DEADLINE & BILDIRISHNOMALAR
+    ════════════════════════════════════════════ -->
+    <div v-if="activeTab === 'deadlines'" class="space-y-5">
+      <div v-if="dlLoading" class="card p-6 text-center text-surface-400">⏳ Yuklanmoqda...</div>
+      <template v-else>
+
+        <!-- Deadline bo'limi -->
+        <div class="card p-6">
+          <h3 class="font-semibold text-white mb-2">📅 Deadline sozlamalari</h3>
+          <p class="text-surface-500 text-xs mb-5">Har ustuvorlik darajasi uchun avtomatik belgilanadigan muddat (soatlarda)</p>
+
+          <div class="border border-surface-700 rounded-xl overflow-hidden">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="bg-surface-800/60">
+                  <th class="text-left px-4 py-3 text-surface-400 font-medium">Ustuvorlik</th>
+                  <th class="text-left px-4 py-3 text-surface-400 font-medium">Soat</th>
+                  <th class="text-left px-4 py-3 text-surface-400 font-medium">Tavsif</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in deadlinePriorities" :key="p.key"
+                  class="border-t border-surface-800">
+                  <td class="px-4 py-3">
+                    <span class="flex items-center gap-2 text-surface-200 font-medium">
+                      {{ p.emoji }} {{ p.label }}
+                    </span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <input type="number" min="1" v-model.number="dlForm[p.key]"
+                      class="input w-24 text-center text-sm" />
+                  </td>
+                  <td class="px-4 py-3 text-surface-500 text-xs">
+                    ≈ {{ formatDeadlineHours(dlForm[p.key]) }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p v-if="dlValidationError" class="text-red-400 text-xs mt-3">⚠️ {{ dlValidationError }}</p>
+
+          <div class="flex items-center justify-between pt-4">
+            <p v-if="dlMsg" :class="dlMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ dlMsg.text }}</p>
+            <span v-else />
+            <button @click="saveDeadlines" :disabled="dlSaving" class="btn-primary">
+              {{ dlSaving ? '⏳ Saqlanmoqda...' : '💾 Saqlash' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- Bildirishnoma togglelari -->
+        <div class="card p-6">
+          <h3 class="font-semibold text-white mb-2">🔔 Bildirishnoma sozlamalari</h3>
+          <p class="text-surface-500 text-xs mb-5">Qanday hollarda eslatma yuborilishi kerak</p>
+
+          <div class="space-y-4">
+            <ToggleSwitch v-model="notifForm.notify_24h_before"
+              label="Deadline dan 24 soat oldin"
+              description="Tayinlangan xodimga eslatma yuboriladi" />
+            <ToggleSwitch v-model="notifForm.notify_2h_before"
+              label="Deadline dan 2 soat oldin"
+              description="Shoshilinch eslatma" />
+            <div class="border-t border-surface-800 pt-4">
+              <ToggleSwitch v-model="notifForm.notify_on_overdue"
+                label="Muddat o'tganda darhol"
+                description="Tayinlangan + admin guruhga xabar" />
+            </div>
+            <ToggleSwitch v-model="notifForm.notify_overdue_daily"
+              label="Muddati o'tgan — kunlik eslatma"
+              description="Har kuni muddati o'tgan murojaatlar haqida" />
+          </div>
+
+          <!-- Kanal tanlash -->
+          <div class="mt-5 pt-4 border-t border-surface-800">
+            <label class="block text-sm font-medium text-surface-300 mb-2">Bildirishnoma kanali</label>
+            <div class="flex gap-2">
+              <button v-for="ch in channelOptions" :key="ch.value"
+                @click="notifForm.notify_channel = ch.value"
+                :class="notifForm.notify_channel === ch.value
+                  ? 'border-brand-500 bg-brand-500/15 text-brand-300'
+                  : 'border-surface-600 text-surface-400 hover:border-surface-500'"
+                class="flex items-center gap-2 px-4 py-2 rounded-xl border text-sm font-medium transition-all">
+                {{ ch.icon }} {{ ch.label }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hisobot jadvali -->
+        <div class="card p-6">
+          <h3 class="font-semibold text-white mb-5">📊 Avtomatik hisobotlar</h3>
+          <div class="space-y-4">
+
+            <!-- Kunlik hisobot -->
+            <div class="border border-surface-700 rounded-xl p-4 space-y-3">
+              <ToggleSwitch v-model="notifForm.daily_report_enabled"
+                label="📅 Kunlik hisobot"
+                description="Har kuni belgilangan vaqtda admin guruhga yuboriladi" />
+              <div v-if="notifForm.daily_report_enabled" class="flex items-center gap-3 pt-1 pl-1">
+                <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt (O'zbekiston):</label>
+                <input v-model="notifForm.daily_report_time" type="time" class="input w-28 text-sm" />
+                <span class="text-surface-600 text-xs">UTC+5</span>
+                <button @click="sendTestDaily" :disabled="testDailyLoading"
+                  class="btn-ghost text-xs px-3 py-1.5 ml-auto flex items-center gap-1.5">
+                  <svg v-if="testDailyLoading" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <span v-else>🧪</span>
+                  Test
+                </button>
+              </div>
+            </div>
+
+            <!-- Haftalik hisobot -->
+            <div class="border border-surface-700 rounded-xl p-4 space-y-3">
+              <ToggleSwitch v-model="notifForm.weekly_report_enabled"
+                label="📈 Haftalik hisobot"
+                description="Tanlangan kunda tahlil hisoboti yuboriladi" />
+              <div v-if="notifForm.weekly_report_enabled" class="flex items-center gap-3 flex-wrap pt-1 pl-1">
+                <div class="flex items-center gap-2">
+                  <label class="text-surface-400 text-xs whitespace-nowrap">Kun:</label>
+                  <select v-model.number="notifForm.weekly_report_day" class="input text-sm w-36">
+                    <option v-for="d in dlWeekDays" :key="d.num" :value="d.num">{{ d.label }}</option>
+                  </select>
+                </div>
+                <div class="flex items-center gap-2">
+                  <label class="text-surface-400 text-xs whitespace-nowrap">Vaqt:</label>
+                  <input v-model="notifForm.weekly_report_time" type="time" class="input w-28 text-sm" />
+                  <span class="text-surface-600 text-xs">UTC+5</span>
+                </div>
+                <button @click="sendTestWeekly" :disabled="testWeeklyLoading"
+                  class="btn-ghost text-xs px-3 py-1.5 ml-auto flex items-center gap-1.5">
+                  <svg v-if="testWeeklyLoading" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                  </svg>
+                  <span v-else>🧪</span>
+                  Test
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Saqlash -->
+        <div class="flex items-center justify-between">
+          <p v-if="notifMsg" :class="notifMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ notifMsg.text }}</p>
+          <span v-else />
+          <button @click="saveNotifications" :disabled="notifSaving" class="btn-primary">
+            {{ notifSaving ? '⏳ Saqlanmoqda...' : '💾 Bildirishnoma sozlamalarini saqlash' }}
+          </button>
+        </div>
+      </template>
+    </div>
+
+    <!-- ════════════════════════════════════════════
+         5. BOT SOZLAMALARI
     ════════════════════════════════════════════ -->
     <div v-if="activeTab === 'bot'" class="space-y-5">
       <div v-if="sysLoading" class="card p-6 text-center text-surface-400">⏳ Yuklanmoqda...</div>
@@ -624,16 +782,18 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
+import ToggleSwitch from '@/components/ToggleSwitch.vue'
 
 const auth = useAuthStore()
 const activeTab = ref('profile')
 
 const tabs = [
-  { id: 'profile',  icon: '👤', label: 'Profil'    },
-  { id: 'security', icon: '🔐', label: 'Xavfsizlik' },
-  { id: 'telegram', icon: '✈️', label: 'Telegram'   },
-  { id: 'bot',      icon: '🤖', label: 'Bot'        },
-  { id: 'system',   icon: '⚙️', label: 'Tizim'      },
+  { id: 'profile',   icon: '👤', label: 'Profil'    },
+  { id: 'security',  icon: '🔐', label: 'Xavfsizlik' },
+  { id: 'telegram',  icon: '✈️', label: 'Telegram'   },
+  { id: 'deadlines', icon: '⏰', label: 'Deadline & Bildirishnomalar' },
+  { id: 'bot',       icon: '🤖', label: 'Bot'        },
+  { id: 'system',    icon: '⚙️', label: 'Tizim'      },
 ]
 
 const roleLabels = { admin: 'Administrator', investigator: 'Terguvchi', viewer: 'Kuzatuvchi' }
@@ -688,6 +848,151 @@ async function sendTestReport() {
   }
 }
 
+// ── DEADLINE & BILDIRISHNOMALAR ─────────────────────────────────
+const dlLoading = ref(true)
+const dlSaving = ref(false)
+const dlMsg = ref(null)
+const dlForm = ref({
+  critical_hours: 24,
+  high_hours: 72,
+  medium_hours: 168,
+  low_hours: 720,
+})
+
+const deadlinePriorities = [
+  { key: 'critical_hours', emoji: '🔴', label: 'Kritik' },
+  { key: 'high_hours',     emoji: '🟠', label: 'Yuqori' },
+  { key: 'medium_hours',   emoji: '🟡', label: "O'rta" },
+  { key: 'low_hours',      emoji: '⚪', label: 'Past' },
+]
+
+const dlWeekDays = [
+  { num: 0, label: 'Dushanba'  },
+  { num: 1, label: 'Seshanba'  },
+  { num: 2, label: 'Chorshanba'},
+  { num: 3, label: 'Payshanba' },
+  { num: 4, label: 'Juma'      },
+  { num: 5, label: 'Shanba'    },
+  { num: 6, label: 'Yakshanba' },
+]
+
+const channelOptions = [
+  { value: 'telegram', icon: '✈️', label: 'Telegram' },
+  { value: 'both',     icon: '📬', label: 'Ikkalasi' },
+]
+
+const dlValidationError = computed(() => {
+  const c = dlForm.value.critical_hours
+  const h = dlForm.value.high_hours
+  const m = dlForm.value.medium_hours
+  const l = dlForm.value.low_hours
+  if (!c || !h || !m || !l) return "Barcha maydonlar to'ldirilishi kerak"
+  if (c < 1) return "Kritik kamida 1 soat bo'lishi kerak"
+  if (!(c < h && h < m && m < l)) return "Tartib: Kritik < Yuqori < O'rta < Past bo'lishi shart"
+  return ''
+})
+
+function formatDeadlineHours(h) {
+  if (!h || h < 1) return '—'
+  if (h < 24) return `${h} soat`
+  const d = Math.floor(h / 24)
+  const rem = h % 24
+  return rem ? `${d} kun ${rem} soat` : `${d} kun`
+}
+
+const notifForm = ref({
+  notify_24h_before: true,
+  notify_2h_before: false,
+  notify_on_overdue: true,
+  notify_overdue_daily: true,
+  notify_channel: 'telegram',
+  daily_report_enabled: true,
+  daily_report_time: '18:00',
+  weekly_report_enabled: true,
+  weekly_report_day: 0,
+  weekly_report_time: '09:00',
+})
+const notifSaving = ref(false)
+const notifMsg = ref(null)
+const testDailyLoading = ref(false)
+const testWeeklyLoading = ref(false)
+
+async function loadDeadlineSettings() {
+  dlLoading.value = true
+  try {
+    const [dlResp, notifResp] = await Promise.all([
+      api.get('/v1/settings/deadlines'),
+      api.get('/v1/settings/notifications'),
+    ])
+    Object.assign(dlForm.value, dlResp.data)
+    Object.assign(notifForm.value, notifResp.data)
+  } catch (e) {
+    console.error('Deadline/notif settings yuklanmadi:', e)
+  } finally {
+    dlLoading.value = false
+  }
+}
+
+async function saveDeadlines() {
+  if (dlValidationError.value) {
+    dlMsg.value = { ok: false, text: '❌ ' + dlValidationError.value }
+    return
+  }
+  dlSaving.value = true
+  dlMsg.value = null
+  try {
+    await api.put('/v1/settings/deadlines', dlForm.value)
+    dlMsg.value = { ok: true, text: '✅ Deadline sozlamalari saqlandi' }
+    showToast('✅ Deadline sozlamalari saqlandi va qo\'llanildi')
+    setTimeout(() => { dlMsg.value = null }, 3000)
+  } catch (e) {
+    dlMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || 'Xatolik') }
+  } finally {
+    dlSaving.value = false
+  }
+}
+
+async function saveNotifications() {
+  notifSaving.value = true
+  notifMsg.value = null
+  try {
+    await api.put('/v1/settings/notifications', notifForm.value)
+    // Apply scheduler
+    try { await api.post('/v1/settings/notifications/apply') } catch { /* ok */ }
+    notifMsg.value = { ok: true, text: '✅ Sozlamalar saqlandi va qo\'llanildi' }
+    showToast('✅ Sozlamalar saqlandi va qo\'llanildi')
+    setTimeout(() => { notifMsg.value = null }, 3000)
+  } catch (e) {
+    notifMsg.value = { ok: false, text: '❌ ' + (e.response?.data?.detail || 'Xatolik') }
+  } finally {
+    notifSaving.value = false
+  }
+}
+
+async function sendTestDaily() {
+  testDailyLoading.value = true
+  try {
+    const { data } = await api.post('/v1/settings/test-report')
+    showToast(`✅ Kunlik test hisobot yuborildi (chat_id: ${data.chat_id})`)
+  } catch (e) {
+    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+  } finally {
+    testDailyLoading.value = false
+  }
+}
+
+async function sendTestWeekly() {
+  testWeeklyLoading.value = true
+  try {
+    const { data } = await api.post('/v1/settings/test-weekly-report')
+    showToast(`✅ Haftalik test hisobot yuborildi (chat_id: ${data.chat_id})`)
+  } catch (e) {
+    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+  } finally {
+    testWeeklyLoading.value = false
+  }
+}
+
 // ── PROFIL ──────────────────────────────────────────────────────
 const profileForm = ref({ full_name: '', email: '', ui_lang: 'uz' })
 const profileSaving = ref(false)
@@ -705,6 +1010,8 @@ onMounted(async () => {
   await loadTgStatus()
   // Bot & system settings yuklash
   await loadSysSettings()
+  // Deadline & bildirishnoma settings
+  await loadDeadlineSettings()
 })
 
 async function saveProfile() {
