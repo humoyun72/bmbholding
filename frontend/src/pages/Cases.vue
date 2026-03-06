@@ -24,33 +24,26 @@
           <option v-for="p in priorityOptions" :key="p.value" :value="p.value">{{ p.label }}</option>
         </select>
       </div>
-      <!-- Date range + actions row -->
       <div class="flex items-center gap-3 flex-wrap">
         <div class="flex items-center gap-2 flex-1 min-w-48">
           <label class="text-surface-500 text-xs whitespace-nowrap">Dan:</label>
-          <input type="date" v-model="filters.from_date" @change="onFilterChange"
-            class="input flex-1 text-sm" />
+          <input type="date" v-model="filters.from_date" @change="onFilterChange" class="input flex-1 text-sm" />
         </div>
         <div class="flex items-center gap-2 flex-1 min-w-48">
           <label class="text-surface-500 text-xs whitespace-nowrap">Gacha:</label>
-          <input type="date" v-model="filters.to_date" @change="onFilterChange"
-            class="input flex-1 text-sm" />
+          <input type="date" v-model="filters.to_date" @change="onFilterChange" class="input flex-1 text-sm" />
         </div>
-        <button @click="resetFilters" class="btn-ghost text-sm whitespace-nowrap">
-          Filtrni tozalash
-        </button>
+        <button @click="resetFilters" class="btn-ghost text-sm whitespace-nowrap">Filtrni tozalash</button>
 
         <!-- Export dropdown -->
         <div class="relative" ref="exportMenuRef">
-          <button @click="exportOpen = !exportOpen"
-            :disabled="exporting"
+          <button @click="exportOpen = !exportOpen" :disabled="exporting"
             class="btn-ghost text-sm whitespace-nowrap flex items-center gap-2 disabled:opacity-50">
             <svg v-if="exporting" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
               <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
             </svg>
-            <span v-else>📥</span>
-            Eksport
+            <span v-else>📥</span> Eksport
             <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
             </svg>
@@ -72,33 +65,45 @@
       </div>
     </div>
 
-    <!-- Toast -->
-    <Teleport to="body">
-      <Transition name="toast">
-        <div v-if="toast.show"
-          class="fixed bottom-6 right-6 z-[99999] flex items-center gap-3 bg-green-900/90 border border-green-700 text-green-200 px-4 py-3 rounded-xl shadow-xl backdrop-blur-sm">
-          <span>✅</span>
-          <span class="text-sm font-medium">{{ toast.msg }}</span>
-        </div>
-      </Transition>
-    </Teleport>
+    <!-- Bulk actions bar -->
+    <Transition name="slide-down">
+      <div v-if="selectedIds.size > 0"
+        class="card p-3 mb-4 flex items-center gap-3 flex-wrap bg-brand-500/5 border-brand-500/20">
+        <span class="text-brand-300 text-sm font-medium">{{ selectedIds.size }} ta tanlandi</span>
+        <button @click="bulkAssign" class="btn-ghost text-sm flex items-center gap-1.5">
+          👤 Tayinlash
+        </button>
+        <button @click="bulkExport" class="btn-ghost text-sm flex items-center gap-1.5">
+          📊 Excel eksport
+        </button>
+        <button @click="selectedIds.clear()" class="btn-ghost text-sm text-surface-500">
+          ✕ Bekor qilish
+        </button>
+      </div>
+    </Transition>
 
-    <!-- Table -->
     <!-- Desktop table -->
     <div class="card overflow-hidden hidden sm:block">
       <div class="overflow-x-auto">
         <table class="w-full">
           <thead>
             <tr class="border-b border-surface-800">
-              <th v-for="col in columns" :key="col.key"
-                class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">
-                {{ col.label }}
+              <th class="px-3 py-4 w-10">
+                <input type="checkbox" :checked="allSelected" @change="toggleAll"
+                  class="accent-brand-500 w-4 h-4 rounded cursor-pointer" />
               </th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Murojaat ID</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Kategoriya</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Ustuvorlik</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Holat</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Muddat</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Sana</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">Amallar</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="loading">
-              <td :colspan="columns.length" class="text-center py-20">
+              <td colspan="8" class="text-center py-20">
                 <div class="flex flex-col items-center gap-3">
                   <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
                   <span class="text-surface-500 text-sm">Yuklanmoqda...</span>
@@ -106,43 +111,72 @@
               </td>
             </tr>
             <tr v-else-if="!cases.length">
-              <td :colspan="columns.length" class="text-center py-20">
-                <div class="text-surface-500 text-sm">Murojaatlar topilmadi</div>
+              <td colspan="8" class="text-center py-20">
+                <div class="text-surface-500 text-sm">📋 Hech qanday yozuv topilmadi</div>
               </td>
             </tr>
-            <tr v-for="c in cases" :key="c.id"
-              @click="goToCase(c.external_id)"
-              class="border-b border-surface-800/50 hover:bg-surface-800/30 cursor-pointer transition-colors group">
-              <td class="px-5 py-4">
-                <span class="font-mono text-brand-400 text-sm group-hover:text-brand-300 transition-colors">
-                  {{ c.external_id }}
-                </span>
-              </td>
-              <td class="px-5 py-4"><CategoryBadge :category="c.category" /></td>
-              <td class="px-5 py-4"><PriorityBadge :priority="c.priority" /></td>
-              <td class="px-5 py-4"><StatusBadge :status="c.status" /></td>
-              <td class="px-5 py-4">
-                <span :title="c.due_at ? formatDate(c.due_at) : 'Deadline belgilanmagan'"
-                  class="cursor-help">
-                  {{ deadlineIcon(c) }}
-                </span>
-                <span v-if="c.due_at" class="text-surface-500 text-xs ml-1">{{ formatShortDate(c.due_at) }}</span>
-              </td>
-              <td class="px-5 py-4">
-                <span :class="c.is_anonymous ? 'text-surface-400' : 'text-green-400'" class="text-xs">
-                  {{ c.is_anonymous ? '🔒 Anonim' : '👤 Ochiq' }}
-                </span>
-              </td>
-              <td class="px-5 py-4 text-surface-400 text-sm">{{ formatDate(c.created_at) }}</td>
-              <td class="px-5 py-4">
-                <span v-if="c.attachments_count" class="text-surface-400 text-xs flex items-center gap-1">
-                  <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
-                  {{ c.attachments_count }}
-                </span>
-              </td>
-            </tr>
+            <template v-for="c in cases" :key="c.id">
+              <tr class="border-b border-surface-800/50 hover:bg-surface-800/30 transition-colors group relative"
+                :class="{ 'opacity-50 pointer-events-none': rowLoading === c.external_id }">
+                <!-- Loading overlay -->
+                <td v-if="rowLoading === c.external_id" colspan="8"
+                  class="absolute inset-0 bg-surface-900/40 z-10 flex items-center justify-center">
+                  <div class="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+                </td>
+
+                <!-- Checkbox -->
+                <td class="px-3 py-4 w-10" @click.stop>
+                  <input type="checkbox" :checked="selectedIds.has(c.external_id)"
+                    @change="toggleSelect(c.external_id)"
+                    class="accent-brand-500 w-4 h-4 rounded cursor-pointer" />
+                </td>
+
+                <!-- ID + deadline dot + description tooltip -->
+                <td class="px-5 py-4 cursor-pointer" @click="goToCase(c.external_id)">
+                  <div class="flex items-center gap-2">
+                    <span v-if="deadlineIcon(c)" :title="c.due_at ? `Deadline: ${formatDate(c.due_at)}` : ''"
+                      class="flex-shrink-0 text-xs leading-none">{{ deadlineIcon(c) }}</span>
+                    <span class="font-mono text-brand-400 text-sm group-hover:text-brand-300 transition-colors">
+                      {{ c.external_id }}
+                    </span>
+                  </div>
+                  <div v-if="c.title" class="text-surface-600 text-xs mt-0.5 truncate max-w-[180px]"
+                    :title="c.title">
+                    {{ c.title?.length > 50 ? c.title.slice(0, 50) + '...' : c.title }}
+                  </div>
+                </td>
+
+                <td class="px-5 py-4 cursor-pointer" @click="goToCase(c.external_id)">
+                  <CategoryBadge :category="c.category" />
+                </td>
+                <td class="px-5 py-4 cursor-pointer" @click="goToCase(c.external_id)">
+                  <PriorityBadge :priority="c.priority" />
+                </td>
+                <td class="px-5 py-4 cursor-pointer" @click="goToCase(c.external_id)">
+                  <StatusBadge :status="c.status" />
+                </td>
+                <td class="px-5 py-4 cursor-pointer" @click="goToCase(c.external_id)">
+                  <span v-if="c.due_at" class="text-surface-400 text-xs"
+                    :title="`Deadline: ${formatDate(c.due_at)}`">
+                    {{ formatShortDate(c.due_at) }}
+                  </span>
+                  <span v-else class="text-surface-600 text-xs">—</span>
+                </td>
+                <td class="px-5 py-4 text-surface-400 text-sm cursor-pointer" @click="goToCase(c.external_id)">
+                  {{ formatDate(c.created_at) }}
+                </td>
+
+                <!-- Actions -->
+                <td class="px-5 py-4" @click.stop>
+                  <div class="flex items-center gap-1">
+                    <CaseRowActions
+                      :caseItem="c"
+                      @view="goToCase(c.external_id)"
+                      @action="handleRowAction($event, c)" />
+                  </div>
+                </td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -165,34 +199,36 @@
         <div class="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
       </div>
       <div v-else-if="!cases.length" class="card p-8 text-center text-surface-500 text-sm">
-        Murojaatlar topilmadi
+        📋 Hech qanday yozuv topilmadi
       </div>
-      <div v-for="c in cases" :key="c.id"
-        @click="goToCase(c.external_id)"
-        class="card p-4 cursor-pointer hover:border-surface-700 transition-colors active:bg-surface-800/50">
+      <div v-for="c in cases" :key="'m'+c.id"
+        class="card p-4 transition-colors relative"
+        :class="{ 'opacity-50': rowLoading === c.external_id }">
         <div class="flex items-center justify-between mb-3">
-          <span class="font-mono text-brand-400 text-sm font-semibold">{{ c.external_id }}</span>
-          <StatusBadge :status="c.status" />
+          <div class="flex items-center gap-2">
+            <input type="checkbox" :checked="selectedIds.has(c.external_id)"
+              @change.stop="toggleSelect(c.external_id)"
+              class="accent-brand-500 w-4 h-4 rounded cursor-pointer" />
+            <span v-if="deadlineIcon(c)" class="text-xs" :title="c.due_at ? `Deadline: ${formatDate(c.due_at)}` : ''">{{ deadlineIcon(c) }}</span>
+            <span class="font-mono text-brand-400 text-sm font-semibold cursor-pointer" @click="goToCase(c.external_id)">{{ c.external_id }}</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <StatusBadge :status="c.status" />
+            <CaseRowActions :caseItem="c" @view="goToCase(c.external_id)" @action="handleRowAction($event, c)" />
+          </div>
+        </div>
+        <div v-if="c.title" class="text-surface-600 text-xs mb-2 truncate" :title="c.title">
+          {{ c.title?.length > 50 ? c.title.slice(0, 50) + '...' : c.title }}
         </div>
         <div class="flex items-center gap-2 flex-wrap mb-2">
           <CategoryBadge :category="c.category" />
           <PriorityBadge :priority="c.priority" />
-          <span :title="c.due_at ? formatDate(c.due_at) : 'Deadline belgilanmagan'" class="text-xs cursor-help">
-            {{ deadlineIcon(c) }}
-            <span v-if="c.due_at" class="text-surface-500 ml-0.5">{{ formatShortDate(c.due_at) }}</span>
-          </span>
-          <span :class="c.is_anonymous ? 'text-surface-400' : 'text-green-400'" class="text-xs">
-            {{ c.is_anonymous ? '🔒 Anonim' : '👤 Ochiq' }}
-          </span>
         </div>
         <div class="flex items-center justify-between mt-2">
           <span class="text-surface-500 text-xs">{{ formatDate(c.created_at) }}</span>
-          <span v-if="c.attachments_count" class="text-surface-500 text-xs flex items-center gap-1">
-            📎 {{ c.attachments_count }}
-          </span>
+          <span v-if="c.due_at" class="text-surface-500 text-xs">⏰ {{ formatShortDate(c.due_at) }}</span>
         </div>
       </div>
-      <!-- Mobile pagination -->
       <div v-if="pagination.pages > 1" class="flex items-center justify-center gap-3 py-2">
         <button @click="changePage(pagination.page - 1)" :disabled="pagination.page <= 1"
           class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">← Oldingi</button>
@@ -201,40 +237,152 @@
           class="btn-ghost text-sm disabled:opacity-30 px-3 py-1.5">Keyingi →</button>
       </div>
     </div>
+
+    <!-- ═══ Toast ═══ -->
+    <Teleport to="body">
+      <Transition name="toast">
+        <div v-if="toast.show"
+          :class="toast.ok !== false ? 'bg-green-900/90 border-green-700 text-green-200' : 'bg-red-900/90 border-red-700 text-red-200'"
+          class="fixed bottom-6 right-6 z-[99999] flex items-center gap-3 border px-4 py-3 rounded-xl shadow-xl backdrop-blur-sm">
+          <span>{{ toast.ok !== false ? '✅' : '❌' }}</span>
+          <span class="text-sm font-medium">{{ toast.msg }}</span>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ═══ Status Modal ═══ -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="statusModal.open" class="fixed inset-0 z-[99997] flex items-center justify-center p-4"
+          @click.self="statusModal.open = false">
+          <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="statusModal.open = false"></div>
+          <div class="relative bg-surface-800 border border-surface-700 rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
+            <h3 class="text-lg font-semibold text-white mb-1">{{ statusModal.title }}</h3>
+            <p class="text-surface-400 text-sm mb-5">
+              <span class="font-mono text-brand-400">{{ statusModal.caseId }}</span> — {{ statusModal.subtitle }}
+            </p>
+
+            <div class="mb-5">
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">
+                Izoh {{ statusModal.reasonRequired ? '(majburiy)' : '(ixtiyoriy)' }}
+              </label>
+              <textarea v-model="statusModal.reason" rows="3"
+                class="input w-full resize-none" placeholder="Sabab yoki izoh yozing..." />
+            </div>
+
+            <div class="flex justify-end gap-3">
+              <button @click="statusModal.open = false" class="btn-ghost">Bekor</button>
+              <button @click="confirmStatusChange"
+                :disabled="statusModal.reasonRequired && !statusModal.reason.trim()"
+                :class="statusModal.danger ? 'bg-red-600 hover:bg-red-700 disabled:bg-red-800' : 'btn-primary'"
+                class="px-5 py-2 rounded-xl text-white text-sm font-medium transition-colors disabled:opacity-50">
+                {{ statusModal.confirmLabel }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ═══ Assign Modal ═══ -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="assignModal.open" class="fixed inset-0 z-[99997] flex items-center justify-center p-4"
+          @click.self="assignModal.open = false">
+          <div class="fixed inset-0 bg-black/60 backdrop-blur-sm" @click="assignModal.open = false"></div>
+          <div class="relative bg-surface-800 border border-surface-700 rounded-2xl shadow-2xl w-full max-w-md p-6 z-10">
+            <h3 class="text-lg font-semibold text-white mb-1">👤 Tayinlash</h3>
+            <p class="text-surface-400 text-sm mb-5">
+              <template v-if="assignModal.caseIds.length === 1">
+                <span class="font-mono text-brand-400">{{ assignModal.caseIds[0] }}</span> ni ijrochiga tayinlash
+              </template>
+              <template v-else>
+                {{ assignModal.caseIds.length }} ta murojaatni ijrochiga tayinlash
+              </template>
+            </p>
+
+            <div v-if="usersLoading" class="flex items-center justify-center py-6">
+              <div class="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <div v-else class="space-y-2 max-h-60 overflow-y-auto mb-5">
+              <label v-for="u in users" :key="u.id"
+                class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all"
+                :class="assignModal.userId === u.id
+                  ? 'border-brand-500 bg-brand-500/10'
+                  : 'border-surface-700 hover:border-surface-600'">
+                <input type="radio" :value="u.id" v-model="assignModal.userId"
+                  class="accent-brand-500" />
+                <div>
+                  <div class="text-sm text-white">{{ u.full_name || u.username }}</div>
+                  <div class="text-xs text-surface-500">{{ u.role }} · {{ u.email || '' }}</div>
+                </div>
+              </label>
+              <div v-if="!users.length" class="text-surface-500 text-sm text-center py-4">
+                Terguvchi topilmadi
+              </div>
+            </div>
+
+            <div class="flex justify-end gap-3">
+              <button @click="assignModal.open = false" class="btn-ghost">Bekor</button>
+              <button @click="confirmAssign" :disabled="!assignModal.userId"
+                class="btn-primary disabled:opacity-50">
+                Tayinlash
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, defineComponent, h } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, defineComponent, h } from 'vue'
 import { useRouter } from 'vue-router'
 import { format } from 'date-fns'
+import { useAuthStore } from '@/stores/auth'
 import api from '@/utils/api'
+import CaseRowActions from '@/components/CaseRowActions.vue'
 
 const router = useRouter()
+const auth = useAuthStore()
+
 const loading = ref(true)
 const cases = ref([])
 const pagination = reactive({ page: 1, pages: 1, total: 0, per_page: 20 })
 const exporting = ref(false)
 const exportOpen = ref(false)
 const exportMenuRef = ref(null)
-const toast = reactive({ show: false, msg: '' })
+const toast = reactive({ show: false, ok: true, msg: '' })
+const rowLoading = ref(null)
 let loadAbortCtrl = null
 
+// ── Selection ───────────────────────────────────────────
+const selectedIds = reactive(new Set())
+
+const allSelected = computed(() => {
+  if (!cases.value.length) return false
+  return cases.value.every(c => selectedIds.has(c.external_id))
+})
+
+function toggleAll() {
+  if (allSelected.value) {
+    cases.value.forEach(c => selectedIds.delete(c.external_id))
+  } else {
+    cases.value.forEach(c => selectedIds.add(c.external_id))
+  }
+}
+
+function toggleSelect(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id)
+  else selectedIds.add(id)
+}
+
+// ── Filters ─────────────────────────────────────────────
 const filters = reactive({
   status: '', category: '', priority: '',
   from_date: '', to_date: '',
 })
-
-const columns = [
-  { key: 'id', label: 'Murojaat ID' },
-  { key: 'category', label: 'Kategoriya' },
-  { key: 'priority', label: 'Ustuvorlik' },
-  { key: 'status', label: 'Holat' },
-  { key: 'deadline', label: 'Muddat' },
-  { key: 'anon', label: 'Tur' },
-  { key: 'date', label: 'Sana' },
-  { key: 'files', label: 'Fayllar' },
-]
 
 const statusOptions = [
   { value: 'new', label: 'Yangi' },
@@ -269,6 +417,7 @@ function buildParams(extra = {}) {
   return params
 }
 
+// ── Data loading ────────────────────────────────────────
 async function loadCases() {
   if (loadAbortCtrl) loadAbortCtrl.abort()
   loadAbortCtrl = new AbortController()
@@ -287,15 +436,8 @@ async function loadCases() {
   }
 }
 
-function onFilterChange() {
-  pagination.page = 1
-  loadCases()
-}
-
-function changePage(p) {
-  pagination.page = p
-  loadCases()
-}
+function onFilterChange() { pagination.page = 1; loadCases() }
+function changePage(p)    { pagination.page = p; loadCases() }
 
 function resetFilters() {
   Object.assign(filters, { status: '', category: '', priority: '', from_date: '', to_date: '' })
@@ -303,18 +445,17 @@ function resetFilters() {
   loadCases()
 }
 
-function goToCase(id) {
-  router.push(`/cases/${id}`)
-}
+function goToCase(id) { router.push(`/cases/${id}`) }
 
+// ── Helpers ─────────────────────────────────────────────
 function deadlineIcon(c) {
-  if (!c.due_at) return '⬜'
+  if (!c.due_at) return ''
   const now = new Date()
   const due = new Date(c.due_at)
   if (due < now) return '🔴'
   const hoursLeft = (due - now) / (1000 * 60 * 60)
   if (hoursLeft <= 24) return '🟡'
-  return '⬜'
+  return ''
 }
 
 function formatShortDate(d) {
@@ -322,45 +463,194 @@ function formatShortDate(d) {
   return format(new Date(d), 'dd.MM')
 }
 
-// ── Export ────────────────────────────────────────────────────────────────────
-async function doExport(fmt) {
-  exportOpen.value = false
+function formatDate(d) {
+  return d ? format(new Date(d), 'dd.MM.yyyy HH:mm') : '—'
+}
+
+function showToast(msg, ok = true) {
+  toast.msg = msg
+  toast.ok = ok
+  toast.show = true
+  setTimeout(() => { toast.show = false }, 3500)
+}
+
+// ── Row actions ─────────────────────────────────────────
+const statusModal = reactive({
+  open: false, title: '', subtitle: '', caseId: '', newStatus: '',
+  reasonRequired: false, reason: '',
+  confirmLabel: 'Tasdiqlash', danger: false,
+})
+
+const assignModal = reactive({
+  open: false, caseIds: [], userId: null,
+})
+
+const users = ref([])
+const usersLoading = ref(false)
+
+async function loadUsers() {
+  if (users.value.length) return
+  usersLoading.value = true
+  try {
+    const { data } = await api.get('/v1/users')
+    users.value = data.filter(u => u.role === 'admin' || u.role === 'investigator')
+  } catch (e) {
+    console.error('Users yuklanmadi:', e)
+  } finally {
+    usersLoading.value = false
+  }
+}
+
+function handleRowAction(action, c) {
+  switch (action) {
+    case 'start':
+      openStatusModal(c, 'in_progress', '▶️ Boshlash', "Murojaatni ko'rib chiqishni boshlaysizmi?", false)
+      break
+    case 'complete':
+      openStatusModal(c, 'completed', '✅ Yakunlash', 'Murojaatni yakunlaysizmi?', false)
+      break
+    case 'reject':
+      openStatusModal(c, 'rejected', '❌ Rad etish', 'Murojaatni rad etasizmi?', true, true)
+      break
+    case 'assign':
+      assignModal.caseIds = [c.external_id]
+      assignModal.userId = null
+      assignModal.open = true
+      loadUsers()
+      break
+    case 'pdf':
+      exportSinglePdf(c.external_id)
+      break
+  }
+}
+
+function openStatusModal(c, newStatus, title, subtitle, reasonRequired = false, danger = false) {
+  statusModal.caseId = c.external_id
+  statusModal.newStatus = newStatus
+  statusModal.title = title
+  statusModal.subtitle = subtitle
+  statusModal.reasonRequired = reasonRequired
+  statusModal.reason = ''
+  statusModal.confirmLabel = title.replace(/[^\p{L}\s]/gu, '').trim()
+  statusModal.danger = danger
+  statusModal.open = true
+}
+
+async function confirmStatusChange() {
+  const caseId = statusModal.caseId
+  const newStatus = statusModal.newStatus
+  const reason = statusModal.reason.trim()
+  statusModal.open = false
+  rowLoading.value = caseId
+
+  try {
+    await api.post(`/v1/cases/${caseId}/status`, {
+      status: newStatus,
+      reason: reason || null,
+    })
+    const item = cases.value.find(c => c.external_id === caseId)
+    if (item) item.status = newStatus
+    showToast('✅ Holat o\'zgartirildi')
+  } catch (e) {
+    showToast('❌ ' + (e.response?.data?.detail || 'Xatolik'), false)
+  } finally {
+    rowLoading.value = null
+  }
+}
+
+async function confirmAssign() {
+  const userId = assignModal.userId
+  const caseIds = [...assignModal.caseIds]
+  assignModal.open = false
+
+  for (const caseId of caseIds) {
+    rowLoading.value = caseId
+    try {
+      await api.post(`/v1/cases/${caseId}/assign`, { user_id: userId })
+      const item = cases.value.find(c => c.external_id === caseId)
+      if (item) item.assigned_to = userId
+    } catch (e) {
+      showToast(`❌ ${caseId}: ` + (e.response?.data?.detail || 'Xatolik'), false)
+    }
+  }
+  rowLoading.value = null
+  showToast(`✅ ${caseIds.length > 1 ? caseIds.length + ' ta murojaat' : 'Murojaat'} tayinlandi`)
+  selectedIds.clear()
+}
+
+// ── Bulk ────────────────────────────────────────────────
+function bulkAssign() {
+  assignModal.caseIds = [...selectedIds]
+  assignModal.userId = null
+  assignModal.open = true
+  loadUsers()
+}
+
+async function bulkExport() {
   exporting.value = true
   try {
-    const params = buildParams({ format: fmt })
-    const resp = await api.get('/v1/cases/export', {
-      params,
-      responseType: 'blob',
-    })
+    const params = buildParams({ format: 'xlsx', ids: [...selectedIds].join(',') })
+    const resp = await api.get('/v1/cases/export', { params, responseType: 'blob' })
     const today = new Date().toISOString().slice(0, 10)
-    const ext = fmt === 'pdf' ? 'pdf' : 'xlsx'
-    const filename = `integrity_report_${today}.${ext}`
+    const filename = `integrity_selected_${today}.xlsx`
     const url = URL.createObjectURL(resp.data)
     const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
+    a.href = url; a.download = filename; a.click()
     URL.revokeObjectURL(url)
-    showToast(`✅ Fayl yuklab olindi: ${filename}`)
+    showToast(`✅ ${selectedIds.size} ta murojaat eksport qilindi`)
   } catch (e) {
-    showToast('❌ Eksport muvaffaqiyatsiz: ' + (e.response?.data?.detail || e.message))
+    showToast('❌ Eksport muvaffaqiyatsiz: ' + (e.response?.data?.detail || e.message), false)
   } finally {
     exporting.value = false
   }
 }
 
-function showToast(msg) {
-  toast.msg = msg
-  toast.show = true
-  setTimeout(() => { toast.show = false }, 3500)
+async function exportSinglePdf(caseId) {
+  rowLoading.value = caseId
+  try {
+    const resp = await api.get(`/v1/cases/${caseId}/export`, { params: { format: 'pdf' }, responseType: 'blob' })
+    const filename = `case_${caseId}.pdf`
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+    showToast(`✅ PDF yuklandi: ${filename}`)
+  } catch (e) {
+    showToast('❌ PDF eksport xatosi: ' + (e.response?.data?.detail || e.message), false)
+  } finally {
+    rowLoading.value = null
+  }
 }
 
-// Dropdown tashqariga bosilsa yopilsin
+// ── Export ───────────────────────────────────────────────
+async function doExport(fmt) {
+  exportOpen.value = false
+  exporting.value = true
+  try {
+    const params = buildParams({ format: fmt })
+    const resp = await api.get('/v1/cases/export', { params, responseType: 'blob' })
+    const today = new Date().toISOString().slice(0, 10)
+    const ext = fmt === 'pdf' ? 'pdf' : 'xlsx'
+    const filename = `integrity_report_${today}.${ext}`
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+    showToast(`✅ Fayl yuklab olindi: ${filename}`)
+  } catch (e) {
+    showToast('❌ Eksport muvaffaqiyatsiz: ' + (e.response?.data?.detail || e.message), false)
+  } finally {
+    exporting.value = false
+  }
+}
+
+// ── Lifecycle ───────────────────────────────────────────
 function handleClickOutside(e) {
   if (exportMenuRef.value && !exportMenuRef.value.contains(e.target)) {
     exportOpen.value = false
   }
 }
+
 onMounted(() => {
   loadCases()
   document.addEventListener('click', handleClickOutside)
@@ -370,11 +660,7 @@ onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
 })
 
-function formatDate(d) {
-  return d ? format(new Date(d), 'dd.MM.yyyy HH:mm') : '—'
-}
-
-// Inline badge components
+// ── Inline badge components ─────────────────────────────
 const StatusBadge = defineComponent({
   props: ['status'],
   setup(props) {
@@ -432,4 +718,10 @@ const PriorityBadge = defineComponent({
 
 .toast-enter-active, .toast-leave-active { transition: opacity 0.3s ease, transform 0.3s ease; }
 .toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(12px); }
+
+.modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
+.modal-enter-from, .modal-leave-to { opacity: 0; }
+
+.slide-down-enter-active, .slide-down-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.slide-down-enter-from, .slide-down-leave-to { opacity: 0; transform: translateY(-8px); }
 </style>
