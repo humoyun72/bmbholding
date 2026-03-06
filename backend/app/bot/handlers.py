@@ -35,6 +35,7 @@ from app.services.notification import (
 from app.services.bot_users import get_or_create_bot_user, update_bot_user_lang, get_bot_user_lang as db_get_user_lang
 from app.bot.rate_limit import check_rate_limit, check_case_rate_limit, rate_limited
 from app.bot.i18n import t, get_user_lang, set_user_lang, get_language_keyboard, SUPPORTED_LANGS
+from app.bot.auth import get_admin_user, is_admin, is_investigator_or_above
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,42 @@ def get_persistent_menu(lang: str = "uz") -> ReplyKeyboardMarkup:
     )
 
 
+def get_admin_menu(lang: str = "uz") -> ReplyKeyboardMarkup:
+    """Admin uchun kengaytirilgan menyu"""
+    return ReplyKeyboardMarkup(
+        [
+            [KeyboardButton("📊 Statistika"), KeyboardButton("🔔 Yangi murojaatlar")],
+            [KeyboardButton("⏰ Deadline yaqin"), KeyboardButton("🚨 Muddati o'tgan")],
+            [KeyboardButton("📋 Mening murojaatlarim"), KeyboardButton("👥 Jamoam")],
+            [KeyboardButton("⚙️ Hisobot sozlamalari"), KeyboardButton("🏠 Standart menyu")],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
+
+def get_investigator_menu(lang: str = "uz") -> ReplyKeyboardMarkup:
+    """Investigator uchun kengaytirilgan menyu"""
+    return ReplyKeyboardMarkup(
+        [
+            [KeyboardButton("📋 Mening murojaatlarim"), KeyboardButton("🔔 Yangi tayinlovlar")],
+            [KeyboardButton("⏰ Deadline yaqin"), KeyboardButton("📊 Mening statistikam")],
+            [KeyboardButton("🏠 Standart menyu")],
+        ],
+        resize_keyboard=True,
+        is_persistent=True,
+    )
+
+
+# Admin menyu tugma matnlari
+_ADMIN_MENU_TEXTS = {
+    "📊 Statistika", "🔔 Yangi murojaatlar", "⏰ Deadline yaqin",
+    "🚨 Muddati o'tgan", "📋 Mening murojaatlarim", "👥 Jamoam",
+    "⚙️ Hisobot sozlamalari", "🏠 Standart menyu",
+    "🔔 Yangi tayinlovlar", "📊 Mening statistikam",
+}
+
+
 # Barcha tillardagi persistent menu tugma matnlari (ConversationHandler Regex uchun)
 _MENU_KEYS = ["menu_submit", "menu_check_status", "menu_reply_admin",
               "menu_my_cases", "menu_help", "menu_settings"]
@@ -160,6 +197,8 @@ _ALL_MENU_TEXTS = set()
 for _key in _MENU_KEYS:
     for _lang in SUPPORTED_LANGS:
         _ALL_MENU_TEXTS.add(t(_key, _lang))
+# Admin menyu matnlarini ham qo'shish
+_ALL_MENU_TEXTS.update(_ADMIN_MENU_TEXTS)
 MENU_BUTTON_REGEX = "^(" + "|".join(re.escape(txt) for txt in _ALL_MENU_TEXTS) + ")$"
 
 
@@ -223,11 +262,36 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # context ga ham set qilamiz
     set_user_lang(context, lang)
 
-    # Persistent menyu
-    await update.message.reply_text(
-        "👇 Quyidagi tugmalardan foydalaning:",
-        reply_markup=get_persistent_menu(lang),
-    )
+    # Admin/investigator ekanligini tekshirish
+    admin_user = await get_admin_user(user.id)
+
+    # Menyu tanlash
+    if admin_user and admin_user.role == UserRole.ADMIN:
+        # Admin uchun kengaytirilgan menyu
+        await update.message.reply_text(
+            "👋 *Xush kelibsiz, Admin!*\n\n"
+            "📊 Quyidagi admin tugmalardan foydalaning:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_admin_menu(lang),
+        )
+        context.user_data["is_admin"] = True
+        context.user_data["admin_user_id"] = str(admin_user.id)
+    elif admin_user and admin_user.role == UserRole.INVESTIGATOR:
+        # Investigator uchun kengaytirilgan menyu
+        await update.message.reply_text(
+            "👋 *Xush kelibsiz!*\n\n"
+            "📋 Quyidagi tugmalardan foydalaning:",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=get_investigator_menu(lang),
+        )
+        context.user_data["is_investigator"] = True
+        context.user_data["admin_user_id"] = str(admin_user.id)
+    else:
+        # Oddiy foydalanuvchi — standart menyu
+        await update.message.reply_text(
+            "👇 Quyidagi tugmalardan foydalaning:",
+            reply_markup=get_persistent_menu(lang),
+        )
 
     # Yangi vs qaytib kelgan foydalanuvchi uchun farqli xabar
     welcome_key = "welcome_new" if is_new_user else "welcome_returning"
@@ -326,10 +390,28 @@ async def _handle_telegram_link(
 # ─── /help ───────────────────────────────────────────────────────────────────
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Yordam sahifasini ko'rsatish"""
+    """Yordam sahifasini ko'rsatish (admin bo'lsa kengaytirilgan)"""
+    telegram_id = update.effective_user.id
     lang = get_user_lang(context)
+
+    # Asosiy yordam matni
+    help_text = t("help", lang)
+
+    # Admin bo'lsa qo'shimcha buyruqlar
+    admin_user = await get_admin_user(telegram_id)
+    if admin_user and admin_user.role in (UserRole.ADMIN, UserRole.INVESTIGATOR):
+        admin_help = (
+            "\n\n*📊 Admin buyruqlar:*\n"
+            "/stats — Bugungi statistika\n"
+            "/overdue — Muddati o'tganlar\n"
+            "/mine — Mening murojaatlarim\n"
+            "/search — Murojaat qidirish\n"
+            "/note — Ichki izoh qo'shish (guruhda)"
+        )
+        help_text += admin_help
+
     await update.message.reply_text(
-        t("help", lang),
+        help_text,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([[
             InlineKeyboardButton(t("btn_home", lang), callback_data="home")
@@ -1118,6 +1200,10 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
     """Pastdagi doimiy tugmalar bosilganda ishga tushadi"""
     text = update.message.text
     lang = get_user_lang(context)
+
+    # Admin menyu tugmalarini tekshirish
+    if text in _ADMIN_MENU_TEXTS:
+        return await admin_menu_handler(update, context)
 
     # Barcha tillardagi tugma matnlari bilan solishtirish
     from app.bot.i18n import SUPPORTED_LANGS, t as _t
@@ -2609,6 +2695,534 @@ async def handle_group_reply(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
+# ─── Admin buyruqlar: /stats, /overdue, /mine ────────────────────────────────
+
+async def handle_stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /stats — Bugungi statistika (faqat admin/investigator uchun)
+    """
+    telegram_id = update.effective_user.id
+
+    # Ruxsat tekshiruvi
+    if not await is_investigator_or_above(telegram_id):
+        await update.message.reply_text("❌ Ruxsatingiz yo'q")
+        return
+
+    today = datetime.now(timezone.utc).date()
+    today_start = datetime.combine(today, datetime.min.time()).replace(tzinfo=timezone.utc)
+
+    async with AsyncSessionLocal() as db:
+        # Bugungi statistika
+        new_count = await db.scalar(
+            select(func.count(Case.id)).where(Case.status == CaseStatus.NEW)
+        )
+        in_progress_count = await db.scalar(
+            select(func.count(Case.id)).where(Case.status == CaseStatus.IN_PROGRESS)
+        )
+        completed_count = await db.scalar(
+            select(func.count(Case.id)).where(
+                Case.status == CaseStatus.COMPLETED,
+                Case.closed_at >= today_start
+            )
+        )
+        rejected_count = await db.scalar(
+            select(func.count(Case.id)).where(
+                Case.status == CaseStatus.REJECTED,
+                Case.closed_at >= today_start
+            )
+        )
+
+        # Deadline yaqin (3 kun ichida)
+        deadline_soon = datetime.now(timezone.utc) + timedelta(days=3)
+        deadline_count = await db.scalar(
+            select(func.count(Case.id)).where(
+                Case.due_at <= deadline_soon,
+                Case.due_at > datetime.now(timezone.utc),
+                Case.status.notin_([CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED])
+            )
+        )
+
+    today_str = today.strftime("%d.%m.%Y")
+    stats_text = (
+        f"📊 *Statistika — {today_str}*\n\n"
+        f"🆕 Yangi: {new_count or 0} | 🔄 Ko'rilmoqda: {in_progress_count or 0} | "
+        f"✅ Hal: {completed_count or 0} | ❌ Rad: {rejected_count or 0}\n"
+        f"⏰ Deadline yaqin (3 kun): {deadline_count or 0}"
+    )
+
+    await update.message.reply_text(stats_text, parse_mode=ParseMode.MARKDOWN)
+
+
+async def handle_overdue_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /overdue — Muddati o'tgan murojaatlar (faqat admin/investigator uchun)
+    """
+    telegram_id = update.effective_user.id
+
+    if not await is_investigator_or_above(telegram_id):
+        await update.message.reply_text("❌ Ruxsatingiz yo'q")
+        return
+
+    now = datetime.now(timezone.utc)
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Case)
+            .where(
+                Case.due_at < now,
+                Case.status.notin_([CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED])
+            )
+            .order_by(Case.due_at.asc())
+            .limit(10)
+        )
+        overdue_cases = result.scalars().all()
+
+        # Jami son
+        total_count = await db.scalar(
+            select(func.count(Case.id)).where(
+                Case.due_at < now,
+                Case.status.notin_([CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED])
+            )
+        )
+
+    if not overdue_cases:
+        await update.message.reply_text("✅ Muddati o'tgan murojaatlar yo'q!")
+        return
+
+    text = "🚨 *Muddati o'tgan murojaatlar:*\n\n"
+
+    category_labels = {
+        CaseCategory.CORRUPTION: "Korrupsiya",
+        CaseCategory.FRAUD: "Firibgarlik",
+        CaseCategory.SAFETY: "Xavfsizlik",
+        CaseCategory.DISCRIMINATION: "Kamsitish",
+        CaseCategory.PROCUREMENT: "Tender",
+        CaseCategory.CONFLICT_OF_INTEREST: "Manfaat to'qnashuvi",
+        CaseCategory.OTHER: "Boshqa",
+    }
+
+    for case in overdue_cases:
+        days_overdue = (now - case.due_at).days
+        cat_label = category_labels.get(case.category, str(case.category.value))
+
+        # Assignee nomi
+        if case.assignee:
+            assignee_name = case.assignee.full_name or case.assignee.username
+        else:
+            assignee_name = "Tayinlanmagan"
+
+        text += f"🚨 `{case.external_id}` — {cat_label} — {days_overdue} kun kechikkan — {assignee_name}\n"
+
+    text += f"\n*Jami:* {total_count or 0} ta"
+
+    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN)
+
+
+async def handle_mine_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    /mine — Menga tayinlangan murojaatlar (faqat admin/investigator uchun)
+    """
+    telegram_id = update.effective_user.id
+
+    admin_user = await get_admin_user(telegram_id)
+    if not admin_user:
+        await update.message.reply_text("❌ Ruxsatingiz yo'q")
+        return
+
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Case)
+            .where(
+                Case.assigned_to == admin_user.id,
+                Case.status.notin_([CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED])
+            )
+            .order_by(Case.due_at.asc().nullslast(), Case.created_at.desc())
+            .limit(15)
+        )
+        my_cases = result.scalars().all()
+
+    if not my_cases:
+        await update.message.reply_text("📭 Sizga tayinlangan ochiq murojaatlar yo'q.")
+        return
+
+    text = "📋 *Mening murojaatlarim:*\n\n"
+
+    status_labels = {
+        CaseStatus.NEW: "🆕 Yangi",
+        CaseStatus.IN_PROGRESS: "🔄 Ko'rilmoqda",
+        CaseStatus.NEEDS_INFO: "❓ Ma'lumot kerak",
+    }
+
+    category_short = {
+        CaseCategory.CORRUPTION: "Korrupsiya",
+        CaseCategory.FRAUD: "Firibgarlik",
+        CaseCategory.SAFETY: "Xavfsizlik",
+        CaseCategory.DISCRIMINATION: "Kamsitish",
+        CaseCategory.PROCUREMENT: "Tender",
+        CaseCategory.CONFLICT_OF_INTEREST: "Manfaat",
+        CaseCategory.OTHER: "Boshqa",
+    }
+
+    buttons = []
+    for case in my_cases:
+        status_label = status_labels.get(case.status, case.status.value)
+        cat_label = category_short.get(case.category, str(case.category.value))
+        due_str = case.due_at.strftime("%d.%m") if case.due_at else "—"
+
+        text += f"`{case.external_id}` | {cat_label} | {status_label} | Deadline: {due_str}\n"
+
+        # Inline tugma
+        panel_url = settings.WEBHOOK_URL.replace("/api/telegram/webhook", "")
+        buttons.append([
+            InlineKeyboardButton(
+                f"🔍 {case.external_id}",
+                url=f"{panel_url}/admin/cases/{case.external_id}"
+            )
+        ])
+
+    keyboard = InlineKeyboardMarkup(buttons[:5])  # Ko'pi bilan 5 ta tugma
+
+    await update.message.reply_text(
+        text,
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboard,
+    )
+
+
+# ─── Admin menyu tugmalari handleri ──────────────────────────────────────────
+
+async def admin_menu_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Admin menyu tugmalari bosilganda ishga tushadi"""
+    text = update.message.text
+    telegram_id = update.effective_user.id
+    lang = get_user_lang(context)
+
+    # Admin/investigator ekanligini tekshirish
+    admin_user = await get_admin_user(telegram_id)
+
+    if text == "📊 Statistika":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+        return await handle_stats_command(update, context)
+
+    elif text == "🔔 Yangi murojaatlar":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+        # Yangi murojaatlar ro'yxati
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Case)
+                .where(Case.status == CaseStatus.NEW)
+                .order_by(Case.created_at.desc())
+                .limit(10)
+            )
+            new_cases = result.scalars().all()
+
+        if not new_cases:
+            await update.message.reply_text("✅ Yangi murojaatlar yo'q!")
+            return MAIN_MENU
+
+        text_msg = "🔔 *Yangi murojaatlar:*\n\n"
+        for case in new_cases:
+            date_str = case.created_at.strftime("%d.%m %H:%M")
+            text_msg += f"🆕 `{case.external_id}` — {date_str}\n"
+
+        await update.message.reply_text(text_msg, parse_mode=ParseMode.MARKDOWN)
+        return MAIN_MENU
+
+    elif text == "⏰ Deadline yaqin":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+
+        deadline_soon = datetime.now(timezone.utc) + timedelta(days=3)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Case)
+                .where(
+                    Case.due_at <= deadline_soon,
+                    Case.due_at > datetime.now(timezone.utc),
+                    Case.status.notin_([CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED])
+                )
+                .order_by(Case.due_at.asc())
+                .limit(10)
+            )
+            cases = result.scalars().all()
+
+        if not cases:
+            await update.message.reply_text("✅ Deadline yaqin murojaatlar yo'q!")
+            return MAIN_MENU
+
+        text_msg = "⏰ *Deadline yaqin murojaatlar (3 kun ichida):*\n\n"
+        for case in cases:
+            due_str = case.due_at.strftime("%d.%m.%Y")
+            days_left = (case.due_at.date() - datetime.now(timezone.utc).date()).days
+            text_msg += f"⏰ `{case.external_id}` — {due_str} ({days_left} kun qoldi)\n"
+
+        await update.message.reply_text(text_msg, parse_mode=ParseMode.MARKDOWN)
+        return MAIN_MENU
+
+    elif text == "🚨 Muddati o'tgan":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+        return await handle_overdue_command(update, context)
+
+    elif text == "📋 Mening murojaatlarim":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+        return await handle_mine_command(update, context)
+
+    elif text == "👥 Jamoam":
+        if not admin_user or admin_user.role != UserRole.ADMIN:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+
+        # Jamoa a'zolari va ularning yuklari
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(User)
+                .where(
+                    User.is_active == True,
+                    User.role.in_([UserRole.ADMIN, UserRole.INVESTIGATOR])
+                )
+                .order_by(User.full_name)
+            )
+            team_members = result.scalars().all()
+
+        text_msg = "👥 *Jamoa a'zolari:*\n\n"
+        for member in team_members:
+            name = member.full_name or member.username
+            role_label = "🔴 Admin" if member.role == UserRole.ADMIN else "🔵 Investigator"
+
+            # Ochiq murojaatlar soni
+            async with AsyncSessionLocal() as db:
+                open_count = await db.scalar(
+                    select(func.count(Case.id)).where(
+                        Case.assigned_to == member.id,
+                        Case.status.notin_([CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED])
+                    )
+                )
+
+            text_msg += f"{role_label} *{name}* — {open_count or 0} ta ochiq\n"
+
+        await update.message.reply_text(text_msg, parse_mode=ParseMode.MARKDOWN)
+        return MAIN_MENU
+
+    elif text == "⚙️ Hisobot sozlamalari":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+        return await show_notification_settings(update, context)
+
+    elif text == "🔔 Yangi tayinlovlar":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+
+        # Oxirgi 7 kunda tayinlangan murojaatlar
+        week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                select(Case)
+                .where(
+                    Case.assigned_to == admin_user.id,
+                    Case.updated_at >= week_ago,
+                )
+                .order_by(Case.updated_at.desc())
+                .limit(10)
+            )
+            cases = result.scalars().all()
+
+        if not cases:
+            await update.message.reply_text("📭 Oxirgi 7 kunda yangi tayinlovlar yo'q.")
+            return MAIN_MENU
+
+        text_msg = "🔔 *Yangi tayinlovlar (7 kun):*\n\n"
+        for case in cases:
+            date_str = case.updated_at.strftime("%d.%m %H:%M")
+            status_emoji = {"new": "🆕", "in_progress": "🔄", "needs_info": "❓"}.get(case.status.value, "•")
+            text_msg += f"{status_emoji} `{case.external_id}` — {date_str}\n"
+
+        await update.message.reply_text(text_msg, parse_mode=ParseMode.MARKDOWN)
+        return MAIN_MENU
+
+    elif text == "📊 Mening statistikam":
+        if not admin_user:
+            await update.message.reply_text("❌ Ruxsatingiz yo'q")
+            return MAIN_MENU
+
+        # Shaxsiy statistika
+        async with AsyncSessionLocal() as db:
+            open_count = await db.scalar(
+                select(func.count(Case.id)).where(
+                    Case.assigned_to == admin_user.id,
+                    Case.status.notin_([CaseStatus.COMPLETED, CaseStatus.REJECTED, CaseStatus.ARCHIVED])
+                )
+            )
+            completed_count = await db.scalar(
+                select(func.count(Case.id)).where(
+                    Case.assigned_to == admin_user.id,
+                    Case.status == CaseStatus.COMPLETED
+                )
+            )
+
+            # O'rtacha hal vaqti
+            avg_result = await db.execute(
+                select(func.avg(Case.closed_at - Case.created_at))
+                .where(
+                    Case.assigned_to == admin_user.id,
+                    Case.status == CaseStatus.COMPLETED,
+                    Case.closed_at.isnot(None)
+                )
+            )
+            avg_time = avg_result.scalar()
+
+        avg_days = avg_time.days if avg_time else 0
+
+        text_msg = (
+            f"📊 *Mening statistikam:*\n\n"
+            f"📂 Ochiq murojaatlar: {open_count or 0}\n"
+            f"✅ Yakunlangan: {completed_count or 0}\n"
+            f"⏱ O'rtacha hal vaqti: {avg_days} kun"
+        )
+
+        await update.message.reply_text(text_msg, parse_mode=ParseMode.MARKDOWN)
+        return MAIN_MENU
+
+    elif text == "🏠 Standart menyu":
+        # Standart menyuga qaytish
+        await update.message.reply_text(
+            "👇 Standart menyu:",
+            reply_markup=get_persistent_menu(lang),
+        )
+        return MAIN_MENU
+
+    return MAIN_MENU
+
+
+# ─── Bildirishnoma sozlamalari ───────────────────────────────────────────────
+
+async def show_notification_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Bildirishnoma sozlamalarini ko'rsatish"""
+    telegram_id = update.effective_user.id
+
+    # Joriy sozlamalarni olish
+    from app.models import BotUser
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(BotUser).where(BotUser.telegram_id == telegram_id)
+        )
+        bot_user = result.scalar_one_or_none()
+
+    # Default sozlamalar
+    prefs = {
+        "new_assignment": True,
+        "deadline_reminder": True,
+        "overdue_alert": True,
+    }
+
+    if bot_user and bot_user.notification_prefs:
+        prefs.update(bot_user.notification_prefs)
+
+    # Toggle tugmalar
+    def toggle_label(key: str, label: str) -> str:
+        status = "✅" if prefs.get(key, True) else "❌"
+        return f"{label}: {status}"
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(
+            toggle_label("new_assignment", "🔔 Yangi tayinlov"),
+            callback_data="notif_toggle_new_assignment"
+        )],
+        [InlineKeyboardButton(
+            toggle_label("deadline_reminder", "⏰ Deadline eslatma"),
+            callback_data="notif_toggle_deadline_reminder"
+        )],
+        [InlineKeyboardButton(
+            toggle_label("overdue_alert", "🚨 Muddati o'tgan"),
+            callback_data="notif_toggle_overdue_alert"
+        )],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="home")],
+    ])
+
+    await update.message.reply_text(
+        "⚙️ *Bildirishnoma sozlamalari*\n\n"
+        "Quyidagi sozlamalarni yoqish/o'chirish uchun bosing:",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=keyboard,
+    )
+    return MAIN_MENU
+
+
+async def handle_notification_toggle(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Bildirishnoma sozlamasini toggle qilish"""
+    query = update.callback_query
+    await query.answer()
+
+    telegram_id = query.from_user.id
+
+    # Toggle qilinadigan sozlama
+    pref_key = query.data.replace("notif_toggle_", "")
+
+    from app.models import BotUser
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(BotUser).where(BotUser.telegram_id == telegram_id)
+        )
+        bot_user = result.scalar_one_or_none()
+
+        if not bot_user:
+            await query.answer("❌ Foydalanuvchi topilmadi", show_alert=True)
+            return
+
+        # Joriy sozlamalar
+        prefs = bot_user.notification_prefs or {
+            "new_assignment": True,
+            "deadline_reminder": True,
+            "overdue_alert": True,
+        }
+
+        # Toggle
+        prefs[pref_key] = not prefs.get(pref_key, True)
+        bot_user.notification_prefs = prefs
+
+        await db.commit()
+
+    # Yangilangan sozlamalarni ko'rsatish
+    def toggle_label(key: str, label: str) -> str:
+        status = "✅" if prefs.get(key, True) else "❌"
+        return f"{label}: {status}"
+
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton(
+            toggle_label("new_assignment", "🔔 Yangi tayinlov"),
+            callback_data="notif_toggle_new_assignment"
+        )],
+        [InlineKeyboardButton(
+            toggle_label("deadline_reminder", "⏰ Deadline eslatma"),
+            callback_data="notif_toggle_deadline_reminder"
+        )],
+        [InlineKeyboardButton(
+            toggle_label("overdue_alert", "🚨 Muddati o'tgan"),
+            callback_data="notif_toggle_overdue_alert"
+        )],
+        [InlineKeyboardButton("🔙 Orqaga", callback_data="home")],
+    ])
+
+    try:
+        await query.edit_message_reply_markup(reply_markup=keyboard)
+    except Exception:
+        pass
+
+    status_text = "yoqildi ✅" if prefs[pref_key] else "o'chirildi ❌"
+    await query.answer(f"Sozlama {status_text}")
+
+
+
 def build_application() -> Application:
     app = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
 
@@ -2744,6 +3358,24 @@ def build_application() -> Application:
     # ✅ Admin guruh buyruqlari: /note va /search
     app.add_handler(CommandHandler("note", handle_note_command))
     app.add_handler(CommandHandler("search", handle_search_command))
+
+    # ✅ Admin buyruqlari: /stats, /overdue, /mine
+    app.add_handler(CommandHandler("stats", handle_stats_command))
+    app.add_handler(CommandHandler("overdue", handle_overdue_command))
+    app.add_handler(CommandHandler("mine", handle_mine_command))
+
+    # ✅ Admin menyu tugmalari handleri
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(
+            r"^(📊 Statistika|🔔 Yangi murojaatlar|⏰ Deadline yaqin|🚨 Muddati o'tgan|"
+            r"📋 Mening murojaatlarim|👥 Jamoam|⚙️ Hisobot sozlamalari|🏠 Standart menyu|"
+            r"🔔 Yangi tayinlovlar|📊 Mening statistikam)$"
+        ),
+        admin_menu_handler,
+    ))
+
+    # ✅ Bildirishnoma sozlamalari toggle callback
+    app.add_handler(CallbackQueryHandler(handle_notification_toggle, pattern=r"^notif_toggle_"))
 
     # ✅ Admin guruh: rad etish sababi xabari (guruh chati)
     app.add_handler(MessageHandler(

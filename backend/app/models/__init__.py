@@ -260,5 +260,15 @@ class BotUser(Base):
     last_active: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False
     )
+    # Bildirishnoma sozlamalari (admin/investigator uchun)
+    notification_prefs: Mapped[Optional[dict]] = mapped_column(
+        JSON,
+        nullable=True,
+        default=lambda: {
+            "new_assignment": True,
+            "deadline_reminder": True,
+            "overdue_alert": True,
+        }
+    )
 
 
