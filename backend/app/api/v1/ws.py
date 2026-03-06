@@ -21,14 +21,14 @@ async def websocket_notifications(websocket: WebSocket):
 
     if not token:
         await websocket.accept()
-        await websocket.close(code=4001, reason="Token missing")
+        await websocket.close(code=4001, reason="Token ko'rsatilmagan")
         return
 
     payload = decode_token(token)
     if not payload:
         logger.warning(f"WS invalid token: {token[:40]}...")
         await websocket.accept()
-        await websocket.close(code=4001, reason="Invalid token")
+        await websocket.close(code=4001, reason="Noto'g'ri token")
         return
 
     user_id = payload.get("sub")
@@ -36,7 +36,7 @@ async def websocket_notifications(websocket: WebSocket):
 
     if not user_id or role not in ("admin", "investigator"):
         await websocket.accept()
-        await websocket.close(code=4003, reason="Forbidden")
+        await websocket.close(code=4003, reason="Ruxsat berilmagan")
         return
 
     logger.info(f"WS auth OK: user_id={user_id}, role={role}")

@@ -668,7 +668,7 @@ async def get_case(
     )
     case = result.scalar_one_or_none()
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     # Audit log
     db.add(AuditLog(
@@ -738,7 +738,7 @@ async def export_case_pdf(
     )
     case = result.scalar_one_or_none()
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     cat_labels = {
         "corruption": "Korrupsiya / Pora", "conflict_of_interest": "Manfaatlar to'qnashuvi",
@@ -901,7 +901,7 @@ async def assign_case(
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     case.assigned_to = uuid.UUID(body.user_id) if body.user_id else None
     db.add(AuditLog(
@@ -936,7 +936,7 @@ async def assign_case(
         except Exception as e:
             logger.warning(f"Assignee notification failed for {case_id}: {e}")
 
-    return {"message": "Case assigned"}
+    return {"message": "Murojaat tayinlandi"}
 
 
 @router.post("/{case_id}/status")
@@ -950,7 +950,7 @@ async def change_status(
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     old_status = case.status
     new_status = body.status
@@ -1023,7 +1023,7 @@ async def change_status(
         except Exception as e:
             logger.warning(f"Tiket yangilashda xato ({case_id}): {e}")
 
-    return {"message": "Status updated", "status": new_status.value}
+    return {"message": "Holat yangilandi", "status": new_status.value}
 
 
 @router.post("/{case_id}/comment")
@@ -1037,7 +1037,7 @@ async def add_comment(
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     comment = CaseComment(
         case_id=case.id,
@@ -1066,7 +1066,7 @@ async def add_comment(
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
-    return {"message": "Comment added"}
+    return {"message": "Izoh qo'shildi"}
 
 
 @router.get("/{case_id}/attachments/{attachment_id}")
@@ -1080,7 +1080,7 @@ async def download_attachment(
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     att_result = await db.execute(
         select(CaseAttachment).where(
@@ -1090,7 +1090,7 @@ async def download_attachment(
     )
     attachment = att_result.scalar_one_or_none()
     if not attachment:
-        raise HTTPException(status_code=404, detail="Attachment not found")
+        raise HTTPException(status_code=404, detail="Fayl topilmadi")
 
     db.add(AuditLog(
         user_id=current_user.id,
@@ -1108,7 +1108,7 @@ async def download_attachment(
     try:
         content = await get_file_content(attachment.storage_path)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="File not found on disk")
+        raise HTTPException(status_code=404, detail="Fayl diskda topilmadi")
 
     mime = attachment.mime_type or "application/octet-stream"
     is_viewable = (
@@ -1180,7 +1180,7 @@ async def send_file_to_reporter(
     result = await db.execute(select(Case).where(Case.external_id == case_id))
     case = result.scalar_one_or_none()
     if not case:
-        raise HTTPException(status_code=404, detail="Case not found")
+        raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     # Fayl validatsiya
     file_data = await file.read()

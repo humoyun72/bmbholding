@@ -26,7 +26,7 @@
           </div>
           <div class="flex-1 min-w-0">
             <div class="font-bold text-white text-sm">IntegrityBot</div>
-            <div class="text-surface-500 text-xs">Admin Panel</div>
+            <div class="text-surface-500 text-xs">Boshqaruv paneli</div>
           </div>
           <!-- Close btn mobile -->
           <button @click="sidebarOpen = false"

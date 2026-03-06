@@ -17,7 +17,7 @@
           </svg>
         </div>
         <h1 class="text-2xl font-bold text-white">IntegrityBot</h1>
-        <p class="text-surface-400 text-sm mt-1">Compliance Admin Panel</p>
+        <p class="text-surface-400 text-sm mt-1">Muvofiqlik boshqaruv paneli</p>
       </div>
 
       <!-- Login card -->

@@ -22,7 +22,7 @@ async def telegram_webhook(request: Request):
     # Validate secret token
     secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token")
     if secret != settings.WEBHOOK_SECRET:
-        raise HTTPException(status_code=403, detail="Invalid webhook secret")
+        raise HTTPException(status_code=403, detail="Noto'g'ri webhook maxfiy kaliti")
 
     try:
         data = await request.json()
@@ -39,7 +39,7 @@ async def telegram_webhook(request: Request):
 async def set_webhook():
     """Set the webhook URL with Telegram"""
     if not settings.WEBHOOK_URL:
-        raise HTTPException(status_code=400, detail="WEBHOOK_URL not set in .env")
+        raise HTTPException(status_code=400, detail="WEBHOOK_URL .env faylida sozlanmagan")
     if not settings.WEBHOOK_URL.startswith("https://"):
         raise HTTPException(
             status_code=400,
@@ -53,7 +53,7 @@ async def set_webhook():
         secret_token=settings.WEBHOOK_SECRET,
         allowed_updates=["message", "callback_query", "edited_message", "poll_answer", "poll"],
     )
-    return {"ok": True, "message": f"Webhook set to: {settings.WEBHOOK_URL}", "mode": "webhook"}
+    return {"ok": True, "message": f"Webhook ulandi: {settings.WEBHOOK_URL}", "mode": "webhook"}
 
 
 @router.post("/delete-webhook")
@@ -62,7 +62,7 @@ async def delete_webhook():
     app = get_bot_app()
     await app.initialize()
     await app.bot.delete_webhook(drop_pending_updates=True)
-    return {"ok": True, "message": "Webhook deleted"}
+    return {"ok": True, "message": "Webhook o'chirildi"}
 
 
 @router.get("/info")

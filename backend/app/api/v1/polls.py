@@ -119,7 +119,7 @@ async def get_poll(
     )
     poll = result.scalar_one_or_none()
     if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi")
 
     return {
         "id": str(poll.id),
@@ -157,9 +157,9 @@ async def activate_poll(
     )
     poll = result.scalar_one_or_none()
     if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi")
     if poll.status != PollStatus.DRAFT:
-        raise HTTPException(status_code=400, detail="Only draft polls can be activated")
+        raise HTTPException(status_code=400, detail="Faqat qoralama so'rovnomalarni faollashtirish mumkin")
 
     poll.status = PollStatus.ACTIVE
 
@@ -235,7 +235,7 @@ async def vote(
     )
     option = result.scalar_one_or_none()
     if not option:
-        raise HTTPException(status_code=404, detail="Option not found or poll not active")
+        raise HTTPException(status_code=404, detail="Variant topilmadi yoki so'rovnoma faol emas")
 
     option.vote_count += 1
     await db.commit()
@@ -255,7 +255,7 @@ async def close_poll(
     )
     poll = result.scalar_one_or_none()
     if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi")
 
     poll.status = PollStatus.CLOSED
     poll.closed_at = datetime.now(timezone.utc)
@@ -389,7 +389,7 @@ async def get_poll(
     )
     poll = result.scalar_one_or_none()
     if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi")
 
     return {
         "id": str(poll.id),
@@ -421,7 +421,7 @@ async def activate_poll(
     result = await db.execute(select(Poll).where(Poll.id == uuid.UUID(poll_id)))
     poll = result.scalar_one_or_none()
     if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi")
 
     poll.status = PollStatus.ACTIVE
     await db.commit()
@@ -449,7 +449,7 @@ async def vote(
     )
     option = result.scalar_one_or_none()
     if not option:
-        raise HTTPException(status_code=404, detail="Option not found or poll not active")
+        raise HTTPException(status_code=404, detail="Variant topilmadi yoki so'rovnoma faol emas")
 
     option.vote_count += 1
     await db.commit()
@@ -465,7 +465,7 @@ async def close_poll(
     result = await db.execute(select(Poll).where(Poll.id == uuid.UUID(poll_id)))
     poll = result.scalar_one_or_none()
     if not poll:
-        raise HTTPException(status_code=404, detail="Poll not found")
+        raise HTTPException(status_code=404, detail="So'rovnoma topilmadi")
 
     poll.status = PollStatus.CLOSED
     poll.closed_at = datetime.now(timezone.utc)

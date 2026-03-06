@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between mb-6 gap-3 flex-wrap">
       <div>
         <h1 class="text-xl sm:text-2xl font-bold text-white">Foydalanuvchilar</h1>
-        <p class="text-surface-400 text-sm mt-1">Admin panel foydalanuvchilarini boshqarish</p>
+        <p class="text-surface-400 text-sm mt-1">Boshqaruv paneli foydalanuvchilarini boshqarish</p>
       </div>
       <button @click="openCreate" class="btn-primary whitespace-nowrap">+ Foydalanuvchi qo'shish</button>
     </div>
@@ -171,7 +171,7 @@
             <input v-model="form.username" class="input w-full"
               :disabled="editMode" :class="editMode ? 'opacity-50 cursor-not-allowed' : ''"
               placeholder="john.doe" :required="!editMode" />
-            <p v-if="editMode" class="text-surface-600 text-xs mt-1">Username o'zgartirib bo'lmaydi</p>
+            <p v-if="editMode" class="text-surface-600 text-xs mt-1">Foydalanuvchi nomini o'zgartirib bo'lmaydi</p>
           </div>
 
           <!-- Full name -->

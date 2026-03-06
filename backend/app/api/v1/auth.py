@@ -27,23 +27,23 @@ async def get_current_user(
 ) -> User:
     payload = decode_token(token)
     if not payload:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Noto'g'ri token")
 
     user_id = payload.get("sub")
     if not user_id:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Noto'g'ri token")
 
     result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user or not user.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Foydalanuvchi topilmadi")
     return user
 
 
 def require_roles(*roles: UserRole):
     async def checker(current_user: User = Depends(get_current_user)) -> User:
         if current_user.role not in roles:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Ruxsat etilmagan")
         return current_user
     return checker
 
@@ -123,7 +123,7 @@ async def login(
                 )
             except Exception:
                 pass
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login yoki parol noto'g'ri")
 
     # ── Lokal autentifikatsiya ────────────────────────────────────────────
     if not user or not verify_password(form_data.password, user.hashed_password):
@@ -137,12 +137,12 @@ async def login(
             )
         except Exception:
             pass
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login yoki parol noto'g'ri")
 
     if not user.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account disabled")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Hisob o'chirilgan")
 
-    # Check if 2FA required
+    # 2FA talab qilinishini tekshirish
     if user.totp_enabled:
         totp_code = form_data.scopes[0] if form_data.scopes else None
         if not totp_code or not verify_totp(user.totp_secret, totp_code):
@@ -159,7 +159,7 @@ async def login(
                 pass
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="2FA code required or invalid",
+                detail="2FA kodi kerak yoki noto'g'ri",
                 headers={"X-2FA-Required": "true"}
             )
 
@@ -222,13 +222,13 @@ async def verify_2fa(
     db: AsyncSession = Depends(get_db)
 ):
     if not current_user.totp_secret:
-        raise HTTPException(status_code=400, detail="2FA not set up")
+        raise HTTPException(status_code=400, detail="2FA sozlanmagan")
     if not verify_totp(current_user.totp_secret, body.code):
-        raise HTTPException(status_code=400, detail="Invalid code")
+        raise HTTPException(status_code=400, detail="Noto'g'ri kod")
 
     current_user.totp_enabled = True
     await db.commit()
-    return {"message": "2FA enabled successfully"}
+    return {"message": "2FA muvaffaqiyatli yoqildi"}
 
 
 @router.post("/disable-2fa")
@@ -239,14 +239,14 @@ async def disable_2fa(
 ):
     """2FA ni o'chirish — joriy kodni tasdiqlash kerak"""
     if not current_user.totp_enabled:
-        raise HTTPException(status_code=400, detail="2FA is not enabled")
+        raise HTTPException(status_code=400, detail="2FA yoqilmagan")
     if not verify_totp(current_user.totp_secret, body.code):
-        raise HTTPException(status_code=400, detail="Invalid 2FA code")
+        raise HTTPException(status_code=400, detail="Noto'g'ri 2FA kodi")
 
     current_user.totp_enabled = False
     current_user.totp_secret = None
     await db.commit()
-    return {"message": "2FA disabled successfully"}
+    return {"message": "2FA muvaffaqiyatli o'chirildi"}
 
 
 @router.post("/users", response_model=UserResponse)
@@ -257,7 +257,7 @@ async def create_user(
 ):
     existing = await db.execute(select(User).where(User.username == body.username))
     if existing.scalar_one_or_none():
-        raise HTTPException(status_code=400, detail="Username already exists")
+        raise HTTPException(status_code=400, detail="Bu foydalanuvchi nomi allaqachon mavjud")
 
     user = User(
         username=body.username,
