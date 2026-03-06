@@ -24,16 +24,31 @@ api.interceptors.response.use(
   },
   err => {
     _progressBar?.finish()
+    const status = err.response?.status
     const isLoginEndpoint = err.config?.url?.includes('/auth/token')
-    const is401 = err.response?.status === 401
 
     // Login sahifasida yoki login so'rovida redirect qilmaymiz —
     // aks holda 2FA paytida refresh loop yuz beradi
-    if (is401 && !isLoginEndpoint && window.location.pathname !== '/login') {
+    if (status === 401 && !isLoginEndpoint && window.location.pathname !== '/login') {
       localStorage.removeItem('token')
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
+
+    // Global error page redirect — faqat sahifa so'rovlari uchun
+    // (fon so'rovlari, eksport, va boshqalar uchun emas)
+    if (!err.config?._skipErrorRedirect) {
+      if (status === 403 && !isLoginEndpoint) {
+        window.location.href = '/403'
+      } else if (status === 429) {
+        window.location.href = '/429'
+      } else if (status === 502) {
+        window.location.href = '/502'
+      } else if (status === 503) {
+        window.location.href = '/503'
+      }
+    }
+
     return Promise.reject(err)
   }
 )
