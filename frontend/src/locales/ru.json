@@ -534,7 +534,16 @@
     "webhook_success": "Webhook успешно подключён!",
     "validation_all_required": "Все поля обязательны",
     "validation_min_1h": "Критический должен быть не менее 1 часа",
-    "validation_order": "Порядок должен быть: Критический < Высокий < Средний < Низкий"
+    "validation_order": "Порядок должен быть: Критический < Высокий < Средний < Низкий",
+    "placeholder_name": "Имя Фамилия",
+    "placeholder_pwd": "Минимум 8 символов",
+    "company_name_hint": "В сообщениях бота и отчетах",
+    "system_info": "Информация о системе",
+    "version": "Версия",
+    "environment": "Среда",
+    "env_dev": "Development",
+    "enable_monitoring": "Включить мониторинг",
+    "tab_system": "Система"
   },
   "login": {
     "title": "IntegrityBot",

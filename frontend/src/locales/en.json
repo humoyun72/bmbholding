@@ -534,7 +534,16 @@
     "webhook_success": "Webhook connected successfully!",
     "validation_all_required": "All fields are required",
     "validation_min_1h": "Critical must be at least 1 hour",
-    "validation_order": "Order must be: Critical < High < Medium < Low"
+    "validation_order": "Order must be: Critical < High < Medium < Low",
+    "placeholder_name": "Full Name",
+    "placeholder_pwd": "At least 8 characters",
+    "company_name_hint": "In bot messages and reports",
+    "system_info": "System Info",
+    "version": "Version",
+    "environment": "Environment",
+    "env_dev": "Development",
+    "enable_monitoring": "Enable Monitoring",
+    "tab_system": "System"
   },
   "login": {
     "title": "IntegrityBot",

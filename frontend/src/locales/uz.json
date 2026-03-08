@@ -534,7 +534,16 @@
     "webhook_success": "Webhook muvaffaqiyatli ulandi!",
     "validation_all_required": "Barcha maydonlar to'ldirilishi kerak",
     "validation_min_1h": "Kritik kamida 1 soat bo'lishi kerak",
-    "validation_order": "Tartib: Kritik < Yuqori < O'rta < Past bo'lishi shart"
+    "validation_order": "Tartib: Kritik < Yuqori < O'rta < Past bo'lishi shart",
+    "placeholder_name": "Ism Familiya",
+    "placeholder_pwd": "Kamida 8 belgi",
+    "company_name_hint": "Bot xabarlarida va hisobotlarda",
+    "system_info": "Tizim ma'lumoti",
+    "version": "Versiya",
+    "environment": "Muhit",
+    "env_dev": "Development",
+    "enable_monitoring": "Monitoring yoqish",
+    "tab_system": "Tizim"
   },
   "login": {
     "title": "IntegrityBot",

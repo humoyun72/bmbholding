@@ -48,7 +48,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.fullname') }}</label>
-              <input v-model="profileForm.full_name" type="text" class="input w-full" placeholder="Ism Familiya" />
+              <input v-model="profileForm.full_name" type="text" class="input w-full" :placeholder="t('settings.placeholder_name')" />
             </div>
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.email') }}</label>
@@ -94,7 +94,7 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.new_password') }}</label>
-              <input v-model="pwdForm.new1" type="password" class="input w-full" placeholder="Kamida 8 belgi" autocomplete="new-password" />
+              <input v-model="pwdForm.new1" type="password" class="input w-full" :placeholder="t('settings.placeholder_pwd')" autocomplete="new-password" />
             </div>
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.confirm_password') }}</label>
@@ -630,7 +630,7 @@
               <label class="block text-sm font-medium text-surface-300 mb-1.5">{{ t('settings.company_name') }}</label>
               <input v-model="sysForm.company_name" type="text" class="input w-full"
                 placeholder="Company LLC" />
-              <p class="text-surface-600 text-xs mt-1">Bot xabarlarida va hisobotlarda</p>
+              <p class="text-surface-600 text-xs mt-1">{{ t('settings.company_name_hint') }}</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -735,18 +735,18 @@
 
         <!-- Tizim ma'lumoti -->
         <div class="card p-6">
-          <h3 class="font-semibold text-white mb-4">ℹ️ Tizim ma'lumoti</h3>
+          <h3 class="font-semibold text-white mb-4">ℹ️ {{ t('settings.system_info') }}</h3>
           <div class="text-sm divide-y divide-surface-800">
             <div class="flex justify-between py-2.5">
-              <span class="text-surface-400">Versiya</span>
+              <span class="text-surface-400">{{ t('settings.version') }}</span>
               <span class="text-surface-200">IntegrityBot v1.0</span>
             </div>
             <div class="flex justify-between py-2.5">
-              <span class="text-surface-400">Muhit</span>
-              <span class="text-green-400">● Development</span>
+              <span class="text-surface-400">{{ t('settings.environment') }}</span>
+              <span class="text-green-400">● {{ t('settings.env_dev') }}</span>
             </div>
             <div class="flex justify-between py-2.5">
-              <span class="text-surface-400">Monitoring yoqish</span>
+              <span class="text-surface-400">{{ t('settings.enable_monitoring') }}</span>
               <code class="text-surface-500 text-xs">docker-compose --profile monitoring up -d</code>
             </div>
           </div>
@@ -795,7 +795,7 @@ const tabs = computed(() => [
   { id: 'telegram',  icon: '✈️', label: t('settings.tab_telegram')   },
   { id: 'deadlines', icon: '⏰', label: t('settings.tab_deadlines')  },
   { id: 'bot',       icon: '🤖', label: t('settings.tab_bot')        },
-  { id: 'system',    icon: '⚙️', label: 'System'      },
+  { id: 'system',    icon: '⚙️', label: t('settings.tab_system')      },
 ])
 
 const roleLabel = computed(() => {
