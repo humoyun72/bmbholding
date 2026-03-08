@@ -72,50 +72,6 @@ PRIORITY_BY_CATEGORY = {
     CaseCategory.OTHER: CasePriority.LOW,
 }
 
-WELCOME_TEXT = """
-🛡️ *Integrity Hotline Bot*
-
-Ushbu bot orqali siz xavfsiz va anonim tarzda muammo yoki qoidabuzarlik haqida xabar yuborishingiz mumkin.
-
-*Kafolatlar:*
-✅ To'liq anonimlik (istalsa)
-✅ Xabaringiz shifrlangan holda saqlanadi
-✅ Compliance departamenti darhol xabardor bo'ladi
-✅ 7 ish kuni ichida ko'rib chiqiladi
-
-Nima qilishni istaysiz?
-"""
-
-CATEGORY_TEXT = """
-📋 *Murojaat kategoriyasini tanlang:*
-
-Eng mos kategoriyani belgilang. Bu murojaat ustuvorligini belgilashga yordam beradi.
-"""
-
-HELP_TEXT = """
-ℹ️ *Integrity Hotline Bot — Yordam*
-
-*Asosiy buyruqlar:*
-/start — Bosh menyuga qaytish
-/help — Ushbu yordam sahifasi
-/cancel — Joriy jarayonni bekor qilish
-
-*Nima qila olaman?*
-📝 *Murojaat yuborish* — Qoidabuzarlik haqida xabar bering
-🔍 *Holat tekshirish* — Murojaatingiz statusini ko'ring
-💬 *Javob yuborish* — Adminga qo'shimcha ma'lumot yuboring
-❓ *FAQ* — Ko'p so'raladigan savollarga javoblar
-
-*Anonimlik haqida:*
-Siz anonim yuborishni tanlasangiz, shaxsiyatingiz hech qanday tizimda saqlanmaydi. Lekin javob olish uchun Telegram orqali muloqot davom etadi — faqat siz va bot.
-
-*Murojaat ID ni yo'qotdingizmi?*
-Afsuski, ID ni qayta olish imkoni yo'q. Kelajakda uni xavfsiz joyda saqlang.
-
-*Muammo yuzaga keldimi?*
-compliance@company.uz manziliga yozing.
-"""
-
 
 def get_main_keyboard(lang: str = "uz"):
     return InlineKeyboardMarkup([
@@ -158,10 +114,10 @@ def get_admin_menu(lang: str = "uz") -> ReplyKeyboardMarkup:
     """Admin uchun kengaytirilgan menyu"""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📊 Statistika"), KeyboardButton("🔔 Yangi murojaatlar")],
-            [KeyboardButton("⏰ Deadline yaqin"), KeyboardButton("🚨 Muddati o'tgan")],
-            [KeyboardButton("📋 Mening murojaatlarim"), KeyboardButton("👥 Jamoam")],
-            [KeyboardButton("⚙️ Hisobot sozlamalari"), KeyboardButton("🏠 Standart menyu")],
+            [KeyboardButton(t("admin_menu_stats", lang)), KeyboardButton(t("admin_menu_new_cases", lang))],
+            [KeyboardButton(t("admin_menu_deadline", lang)), KeyboardButton(t("admin_menu_overdue", lang))],
+            [KeyboardButton(t("admin_menu_my_cases", lang)), KeyboardButton(t("admin_menu_team", lang))],
+            [KeyboardButton(t("admin_menu_report_settings", lang)), KeyboardButton(t("admin_menu_standard", lang))],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -172,22 +128,26 @@ def get_investigator_menu(lang: str = "uz") -> ReplyKeyboardMarkup:
     """Investigator uchun kengaytirilgan menyu"""
     return ReplyKeyboardMarkup(
         [
-            [KeyboardButton("📋 Mening murojaatlarim"), KeyboardButton("🔔 Yangi tayinlovlar")],
-            [KeyboardButton("⏰ Deadline yaqin"), KeyboardButton("📊 Mening statistikam")],
-            [KeyboardButton("🏠 Standart menyu")],
+            [KeyboardButton(t("admin_menu_my_cases", lang)), KeyboardButton(t("investigator_menu_new_assign", lang))],
+            [KeyboardButton(t("admin_menu_deadline", lang)), KeyboardButton(t("investigator_menu_my_stats", lang))],
+            [KeyboardButton(t("admin_menu_standard", lang))],
         ],
         resize_keyboard=True,
         is_persistent=True,
     )
 
 
-# Admin menyu tugma matnlari
-_ADMIN_MENU_TEXTS = {
-    "📊 Statistika", "🔔 Yangi murojaatlar", "⏰ Deadline yaqin",
-    "🚨 Muddati o'tgan", "📋 Mening murojaatlarim", "👥 Jamoam",
-    "⚙️ Hisobot sozlamalari", "🏠 Standart menyu",
-    "🔔 Yangi tayinlovlar", "📊 Mening statistikam",
-}
+# Admin menyu tugma matnlari — barcha tillarda dinamik tarzda to'planadi
+_ADMIN_MENU_KEYS = [
+    "admin_menu_stats", "admin_menu_new_cases", "admin_menu_deadline",
+    "admin_menu_overdue", "admin_menu_my_cases", "admin_menu_team",
+    "admin_menu_report_settings", "admin_menu_standard",
+    "investigator_menu_new_assign", "investigator_menu_my_stats",
+]
+_ADMIN_MENU_TEXTS = set()
+for _key in _ADMIN_MENU_KEYS:
+    for _lang in SUPPORTED_LANGS:
+        _ADMIN_MENU_TEXTS.add(t(_key, _lang))
 
 
 # Barcha tillardagi persistent menu tugma matnlari (ConversationHandler Regex uchun)
@@ -200,6 +160,14 @@ for _key in _MENU_KEYS:
 # Admin menyu matnlarini ham qo'shish
 _ALL_MENU_TEXTS.update(_ADMIN_MENU_TEXTS)
 MENU_BUTTON_REGEX = "^(" + "|".join(re.escape(txt) for txt in _ALL_MENU_TEXTS) + ")$"
+
+
+def _clear_user_data(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """context.user_data ni tozalaydi, lekin til sozlamasini saqlab qoladi."""
+    lang = context.user_data.get("lang", "uz")
+    _clear_user_data(context)
+    if lang != "uz":
+        context.user_data["lang"] = lang
 
 
 async def generate_case_id() -> str:
@@ -223,9 +191,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Guruh chatida /start berilsa — faqat qisqa yo'naltirish xabari
     if chat.type in ("group", "supergroup", "channel"):
         await update.message.reply_text(
-            "ℹ️ Bu bot shaxsiy murojaat uchun mo'ljallangan.\n\n"
-            "Anonim murojaat yuborish uchun bevosita botga yozing:\n"
-            "@IntegrityBot"
+            t("group_redirect", "uz")
         )
         return MAIN_MENU
 
@@ -239,12 +205,13 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     allowed, retry_after = await check_rate_limit(user.id, "start")
     if not allowed:
+        time_str = f"{retry_after} soniya"
         await update.message.reply_text(
-            f"⏳ Juda ko'p so'rov. {retry_after} soniyadan keyin urinib ko'ring."
+            t("rate_limit_generic", "uz", time_str=time_str)
         )
         return MAIN_MENU
 
-    context.user_data.clear()
+    _clear_user_data(context)
 
     # DB dan foydalanuvchi tilini o'qi (yoki yangi yozuv yarat)
     is_new_user = False
@@ -269,8 +236,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if admin_user and admin_user.role == UserRole.ADMIN:
         # Admin uchun kengaytirilgan menyu
         await update.message.reply_text(
-            "👋 *Xush kelibsiz, Admin!*\n\n"
-            "📊 Quyidagi admin tugmalardan foydalaning:",
+            t("admin_welcome", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_admin_menu(lang),
         )
@@ -279,8 +245,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif admin_user and admin_user.role == UserRole.INVESTIGATOR:
         # Investigator uchun kengaytirilgan menyu
         await update.message.reply_text(
-            "👋 *Xush kelibsiz!*\n\n"
-            "📋 Quyidagi tugmalardan foydalaning:",
+            t("investigator_welcome", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=get_investigator_menu(lang),
         )
@@ -289,7 +254,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         # Oddiy foydalanuvchi — standart menyu
         await update.message.reply_text(
-            "👇 Quyidagi tugmalardan foydalaning:",
+            t("menu_hint", lang),
             reply_markup=get_persistent_menu(lang),
         )
 
@@ -321,8 +286,7 @@ async def _handle_telegram_link(
 
         if not user_id_str:
             await update.message.reply_text(
-                "❌ *Havola yaroqsiz yoki muddati o'tgan.*\n\n"
-                "Admin paneldan yangi havola oling.",
+                t("link_expired", "uz"),
                 parse_mode=ParseMode.MARKDOWN,
             )
             await r.aclose()
@@ -339,7 +303,7 @@ async def _handle_telegram_link(
             admin_user = result.scalar_one_or_none()
 
             if not admin_user:
-                await update.message.reply_text("❌ Foydalanuvchi topilmadi.")
+                await update.message.reply_text(t("user_not_found", "uz"))
                 return
 
             # Bu telegram ID boshqa foydalanuvchida bormi — tekshirish
@@ -351,8 +315,7 @@ async def _handle_telegram_link(
             )
             if existing.scalar_one_or_none():
                 await update.message.reply_text(
-                    "⚠️ *Bu Telegram akkaunt boshqa foydalanuvchiga bog'langan.*\n\n"
-                    "Avval u yerdan uzib, qayta urinib ko'ring.",
+                    t("tg_already_linked", "uz"),
                     parse_mode=ParseMode.MARKDOWN,
                 )
                 return
@@ -373,18 +336,15 @@ async def _handle_telegram_link(
 
         display_name = admin_user.full_name or admin_user.username
         await update.message.reply_text(
-            f"✅ *Muvaffaqiyatli bog'landi!*\n\n"
-            f"👤 Admin panel: *{display_name}*\n"
-            f"📱 Telegram: @{tg_user.username or tg_user.first_name}\n\n"
-            f"Endi admin panelidan tayinlangan murojaatlar haqida xabar olasiz.",
+            t("tg_link_success", "uz",
+              display_name=display_name,
+              username=tg_user.username or tg_user.first_name),
             parse_mode=ParseMode.MARKDOWN,
         )
 
     except Exception as e:
         logger.error(f"Telegram link error: {e}")
-        await update.message.reply_text(
-            "❌ Bog'lashda xatolik yuz berdi. Qayta urinib ko'ring."
-        )
+        await update.message.reply_text(t("tg_link_error", "uz"))
 
 
 # ─── /help ───────────────────────────────────────────────────────────────────
@@ -400,15 +360,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Admin bo'lsa qo'shimcha buyruqlar
     admin_user = await get_admin_user(telegram_id)
     if admin_user and admin_user.role in (UserRole.ADMIN, UserRole.INVESTIGATOR):
-        admin_help = (
-            "\n\n*📊 Admin buyruqlar:*\n"
-            "/stats — Bugungi statistika\n"
-            "/overdue — Muddati o'tganlar\n"
-            "/mine — Mening murojaatlarim\n"
-            "/search — Murojaat qidirish\n"
-            "/note — Ichki izoh qo'shish (guruhda)"
-        )
-        help_text += admin_help
+        help_text += t("admin_help_extra", lang)
 
     await update.message.reply_text(
         help_text,
@@ -457,57 +409,27 @@ async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         case_external_id = query.data.replace("followup_", "")
         context.user_data["followup_case_id"] = case_external_id
         await query.edit_message_text(
-            f"💬 *Murojaat {case_external_id} bo'yicha xabar yozing:*\n\n"
-            "Adminga qo'shimcha ma'lumot, tushuntirish yoki savolingizni yuboring.\n\n"
-            "_Bekor qilish uchun /cancel yozing_",
+            t("followup_prompt", lang, case_id=case_external_id),
             parse_mode=ParseMode.MARKDOWN
         )
         return FOLLOWUP_ENTER
 
     elif query.data == "faq":
-        faq_text = """
-❓ *Ko'p so'raladigan savollar*
-
-*Mening shaxsiyatim oshkor bo'ladimi?*
-Yo'q. Siz anonim yuborishni tanlasangiz, botimiz hech qanday shaxsiy ma'lumot saqlamaydi.
-
-*Murojaat qancha vaqtda ko'rib chiqiladi?*
-• 🔴 Kritik: 24 soat ichida
-• 🟠 Yuqori: 72 soat ichida
-• 🟡 O'rta: 7 kun ichida
-• 🟢 Past: 30 kun ichida
-
-*Fayl yuborishim mumkinmi?*
-Ha, rasm va hujjatlar (20 MB gacha) yuborishingiz mumkin.
-
-*Murojaat holatini qanday bilaman?*
-Murojaat ID raqamingizni bosh menyudan "Holat tekshirish" orqali kiriting.
-
-*Adminga qo'shimcha ma'lumot yuborishim mumkinmi?*
-Ha! "Adminga javob yozish" tugmasi orqali yoki status tekshirishda "Javob yozish" tugmasini bosing.
-
-*Nechta fayl biriktirish mumkin?*
-Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
-        """
         await query.edit_message_text(
-            faq_text,
+            t("faq", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                InlineKeyboardButton(t("btn_home", lang), callback_data="home")
             ]])
         )
         return MAIN_MENU
 
     elif query.data == "contacts":
         await query.edit_message_text(
-            "📞 *Compliance Departamenti*\n\n"
-            "📧 Email: compliance@company.uz\n"
-            "📱 Telefon: +998 XX XXX XX XX\n\n"
-            "🕐 Ish vaqti: Du-Ju, 09:00-18:00\n\n"
-            "_Shoshilinch holatlarda 24/7 ushbu bot orqali murojaat qiling._",
+            t("contacts", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                InlineKeyboardButton(t("btn_home", lang), callback_data="home")
             ]])
         )
         return MAIN_MENU
@@ -542,9 +464,9 @@ Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
 
         if not case:
             await query.edit_message_text(
-                "❌ Murojaat topilmadi.",
+                t("mycase_not_found", lang),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                    InlineKeyboardButton(t("btn_home", lang), callback_data="home")
                 ]])
             )
             return MAIN_MENU
@@ -554,13 +476,13 @@ Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
             CaseStatus.NEEDS_INFO: "❓", CaseStatus.COMPLETED: "✅",
             CaseStatus.REJECTED: "❌", CaseStatus.ARCHIVED: "📦"
         }
-        status_text = {
-            CaseStatus.NEW: "Yangi",
-            CaseStatus.IN_PROGRESS: "Ko'rib chiqilmoqda",
-            CaseStatus.NEEDS_INFO: "Qo'shimcha ma'lumot kerak",
-            CaseStatus.COMPLETED: "Yakunlandi",
-            CaseStatus.REJECTED: "Rad etildi",
-            CaseStatus.ARCHIVED: "Arxivlandi",
+        status_text_map = {
+            CaseStatus.NEW: t("case_status_new", lang),
+            CaseStatus.IN_PROGRESS: t("case_status_in_progress", lang),
+            CaseStatus.NEEDS_INFO: t("case_status_needs_info", lang),
+            CaseStatus.COMPLETED: t("case_status_completed", lang),
+            CaseStatus.REJECTED: t("case_status_rejected", lang),
+            CaseStatus.ARCHIVED: t("case_status_archived", lang),
         }
         priority_text = {
             CasePriority.CRITICAL: "🔴 Kritik",
@@ -569,30 +491,48 @@ Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
             CasePriority.LOW: "🟢 Past",
         }
 
-        detail = (
-            f"📋 *Murojaat: `{case.external_id}`*\n\n"
-            f"*Holat:* {status_emoji.get(case.status,'•')} {status_text.get(case.status, case.status.value)}\n"
-            f"*Ustuvorlik:* {priority_text.get(case.priority, case.priority.value)}\n"
-            f"*Kategoriya:* {case.category.value}\n"
-            f"*Yuborilgan:* {case.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+        detail = t(
+            "case_detail_title", lang,
+            case_id=case.external_id,
+            status_emoji=status_emoji.get(case.status, "•"),
+            status_text=status_text_map.get(case.status, case.status.value),
+            priority=priority_text.get(case.priority, case.priority.value),
+            category=case.category.value,
+            date=case.created_at.strftime("%d.%m.%Y %H:%M"),
         )
         if case.due_at:
-            detail += f"*Muddat:* {case.due_at.strftime('%d.%m.%Y')}\n"
+            detail += t("case_deadline", lang, date=case.due_at.strftime("%d.%m.%Y"))
 
         keyboard = []
         if case.status in (CaseStatus.NEEDS_INFO, CaseStatus.IN_PROGRESS):
             keyboard.append([InlineKeyboardButton(
-                "💬 Javob yozish",
+                t("btn_reply_admin", lang),
                 callback_data=f"followup_{case.external_id}"
             )])
-        keyboard.append([InlineKeyboardButton("◀️ Orqaga", callback_data="back_mycases")])
-        keyboard.append([InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")])
+        keyboard.append([InlineKeyboardButton(t("btn_back", lang), callback_data="back_mycases")])
+        keyboard.append([InlineKeyboardButton(t("btn_home", lang), callback_data="home")])
 
         await query.edit_message_text(
             detail,
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
+        return MAIN_MENU
+
+    elif query.data == "go_admin_menu":
+        admin_user = await get_admin_user(query.from_user.id)
+        if admin_user and admin_user.role == UserRole.ADMIN:
+            await query.message.reply_text(
+                t("admin_welcome", lang),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_admin_menu(lang),
+            )
+        elif admin_user and admin_user.role == UserRole.INVESTIGATOR:
+            await query.message.reply_text(
+                t("investigator_welcome", lang),
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=get_investigator_menu(lang),
+            )
         return MAIN_MENU
 
     elif query.data == "back_mycases":
@@ -620,10 +560,10 @@ Bitta murojaat uchun 5 tagacha fayl (har biri 20 MB gacha).
                 f"{emoji} {c.external_id} · {date}",
                 callback_data=f"mycase_{c.external_id}"
             )])
-        buttons.append([InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")])
+        buttons.append([InlineKeyboardButton(t("btn_home", lang), callback_data="home")])
 
         await query.edit_message_text(
-            "📂 *Mening murojaatlarim* (so'nggi 10 ta):\n\nKo'rish uchun bosing:",
+            t("mycase_list_title", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup(buttons),
         )
@@ -651,13 +591,7 @@ async def choose_category(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data["category_name"] = cat_name
 
         await query.edit_message_text(
-            f"✅ Kategoriya: *{cat_name}*\n\n"
-            "📝 *Iltimos, muammo haqida batafsil yozing:*\n\n"
-            "Quyidagilarni ko'rsating:\n"
-            "• Kim, nima, qachon, qayerda\n"
-            "• Dalillar (agar bo'lsa)\n"
-            "• Qo'shimcha ma'lumotlar\n\n"
-            "_Matnni quyida yozing (kamida 20 belgi):_",
+            t("category_confirm", lang, cat_name=cat_name),
             parse_mode=ParseMode.MARKDOWN
         )
         return ENTER_DESCRIPTION
@@ -673,7 +607,7 @@ async def enter_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = retry_after // 60
         time_str = f"{minutes} daqiqa" if minutes > 0 else f"{retry_after} soniya"
         await update.message.reply_text(
-            f"⏳ Juda ko'p urinish. {time_str}dan keyin urinib ko'ring."
+            t("rate_limit_generic", lang, time_str=time_str)
         )
         return ENTER_DESCRIPTION
 
@@ -696,12 +630,10 @@ async def enter_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.setdefault("attachments", [])
 
     await update.message.reply_text(
-        "📎 *Fayl yoki rasm biriktirmoqchimisiz?*\n\n"
-        "Rasm yoki hujjat yuboring (20 MB gacha, maksimal 5 ta).\n"
-        "Yoki davom etish uchun tugmani bosing.",
+        t("attach_file", lang),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("➡️ Fayl qo'shmasdan davom etish", callback_data="skip_attachment")]
+            [InlineKeyboardButton(t("btn_skip_attachment", lang), callback_data="skip_attachment")]
         ])
     )
     return ADD_ATTACHMENT
@@ -712,10 +644,11 @@ async def enter_description(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def add_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Rate limiting — fayl yuklash
     user = update.effective_user
+    lang = get_user_lang(context)
     allowed, retry_after = await check_rate_limit(user.id, "file_upload")
     if not allowed:
         await update.message.reply_text(
-            f"⏳ Juda ko'p fayl yuklandi. {retry_after} soniyadan keyin urinib ko'ring."
+            t("rate_limit_file", lang, retry_after=retry_after)
         )
         return ADD_ATTACHMENT
 
@@ -723,9 +656,9 @@ async def add_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if len(attachments) >= 5:
         await update.message.reply_text(
-            "⚠️ Maksimal 5 ta fayl biriktirish mumkin.",
+            t("max_files_reached", lang),
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("➡️ Davom etish", callback_data="skip_attachment")]
+                [InlineKeyboardButton(t("btn_continue", lang), callback_data="skip_attachment")]
             ])
         )
         return ADD_ATTACHMENT
@@ -735,13 +668,10 @@ async def add_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Block executable files
         blocked_exts = [".exe", ".bat", ".sh", ".ps1", ".cmd", ".vbs", ".msi", ".dll"]
         if any(doc.file_name.lower().endswith(ext) for ext in blocked_exts):
-            await update.message.reply_text(
-                "❌ Bu turdagi fayl qabul qilinmaydi (.exe, .bat va boshqalar).\n"
-                "Rasm, PDF, Word, Excel fayllarini yuboring."
-            )
+            await update.message.reply_text(t("blocked_file_type", lang))
             return ADD_ATTACHMENT
         if doc.file_size > 20 * 1024 * 1024:
-            await update.message.reply_text("❌ Fayl hajmi 20 MB dan oshmasligi kerak.")
+            await update.message.reply_text(t("file_too_large", lang))
             return ADD_ATTACHMENT
         attachments.append({
             "file_id": doc.file_id,
@@ -755,15 +685,29 @@ async def add_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "filename": f"photo_{len(attachments)+1}.jpg",
             "mime_type": "image/jpeg",
         })
+    elif update.message.video:
+        video = update.message.video
+        if video.file_size > 50 * 1024 * 1024:
+            await update.message.reply_text(t("file_too_large", lang))
+            return ADD_ATTACHMENT
+        ext = ".mp4"
+        attachments.append({
+            "file_id": video.file_id,
+            "filename": f"video_{len(attachments)+1}{ext}",
+            "mime_type": "video/mp4",
+        })
 
     count = len(attachments)
     remaining = 5 - count
-    more_msg = f"Yana {remaining} ta fayl qo'shishingiz mumkin." if remaining > 0 else "Maksimal songa yetdingiz."
+    more_msg = (
+        t("more_files_allowed", lang, remaining=remaining)
+        if remaining > 0
+        else t("max_files_note", lang)
+    )
     await update.message.reply_text(
-        f"✅ Fayl qo'shildi ({count}/5)\n\n{more_msg}\n"
-        "Davom etish uchun tugmani bosing.",
+        t("file_added", lang, count=count, more_msg=more_msg),
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("➡️ Davom etish", callback_data="skip_attachment")]
+            [InlineKeyboardButton(t("btn_continue", lang), callback_data="skip_attachment")]
         ])
     )
     return ADD_ATTACHMENT
@@ -772,14 +716,14 @@ async def add_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def skip_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    lang = get_user_lang(context)
 
     await query.edit_message_text(
-        "🔒 *Anonimlik sozlamalari*\n\n"
-        "Murojaat anonim yuborilsin?",
+        t("choose_anonymous", lang),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Ha, anonim yuborish", callback_data="anon_yes")],
-            [InlineKeyboardButton("👤 Yo'q, ma'lumotlarimni qoldirmoqchiman", callback_data="anon_no")],
+            [InlineKeyboardButton(t("anon_yes", lang), callback_data="anon_yes")],
+            [InlineKeyboardButton(t("anon_no", lang), callback_data="anon_no")],
         ])
     )
     return CHOOSE_ANONYMOUS
@@ -792,27 +736,30 @@ async def choose_anonymous(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     context.user_data["is_anonymous"] = query.data == "anon_yes"
+    lang = get_user_lang(context)
 
     cat = context.user_data.get("category_name", "Noma'lum")
     desc = context.user_data.get("description", "")
     att_count = len(context.user_data.get("attachments", []))
     is_anon = context.user_data["is_anonymous"]
 
-    summary = (
-        f"📋 *Murojaat xulosasi*\n\n"
-        f"*Kategoriya:* {cat}\n"
-        f"*Anonimlik:* {'✅ Anonim' if is_anon else '❌ Anonim emas'}\n"
-        f"*Fayllar:* {att_count} ta\n\n"
-        f"*Tavsif:*\n_{desc[:300]}{'...' if len(desc) > 300 else ''}_\n\n"
-        "Ushbu ma'lumotlar to'g'rimi?"
+    anon_label = t("anon_yes_label", lang) if is_anon else t("anon_no_label", lang)
+    desc_preview = desc[:300] + ("..." if len(desc) > 300 else "")
+
+    summary = t(
+        "confirm_summary", lang,
+        cat=cat,
+        anon=anon_label,
+        att_count=att_count,
+        desc=desc_preview,
     )
     await query.edit_message_text(
         summary,
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("✅ Tasdiqlash va yuborish", callback_data="confirm_send")],
-            [InlineKeyboardButton("✏️ Qayta tahrirlash", callback_data="edit_restart")],
-            [InlineKeyboardButton("❌ Bekor qilish", callback_data="cancel_all")],
+            [InlineKeyboardButton(t("btn_confirm_send", lang), callback_data="confirm_send")],
+            [InlineKeyboardButton(t("btn_edit_restart", lang), callback_data="edit_restart")],
+            [InlineKeyboardButton(t("btn_cancel_all", lang), callback_data="cancel_all")],
         ])
     )
     return CONFIRM
@@ -826,7 +773,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_user_lang(context)
 
     if query.data == "cancel_all":
-        context.user_data.clear()
+        _clear_user_data(context)
         await query.edit_message_text(
             t("welcome", lang), parse_mode=ParseMode.MARKDOWN, reply_markup=get_main_keyboard(lang)
         )
@@ -834,7 +781,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if query.data == "edit_restart":
         await query.edit_message_text(
-            CATEGORY_TEXT, parse_mode=ParseMode.MARKDOWN, reply_markup=get_category_keyboard()
+            t("choose_category", lang), parse_mode=ParseMode.MARKDOWN, reply_markup=get_category_keyboard(lang)
         )
         return CHOOSE_CATEGORY
 
@@ -845,14 +792,12 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
         minutes = retry_after // 60
         time_str = f"{minutes} daqiqa" if minutes > 0 else f"{retry_after} soniya"
         await query.edit_message_text(
-            f"⏳ *Juda ko'p murojaat yuborildi.*\n\n"
-            f"{time_str}dan keyin urinib ko'ring.\n"
-            f"_Limit: 5 ta murojaat / 5 daqiqa_",
+            t("rate_limit_report", lang, time_str=time_str),
             parse_mode=ParseMode.MARKDOWN,
         )
         return MAIN_MENU
 
-    await query.edit_message_text("⏳ Murojaat saqlanmoqda...")
+    await query.edit_message_text(t("case_saving", lang))
 
     try:
         async with AsyncSessionLocal() as db:
@@ -998,7 +943,7 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=get_main_keyboard(lang)
         )
 
-    context.user_data.clear()
+    _clear_user_data(context)
     return MAIN_MENU
 
 
@@ -1007,10 +952,12 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def check_status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Rate limiting
     user = update.effective_user
+    lang = get_user_lang(context)
     allowed, retry_after = await check_rate_limit(user.id, "check_status")
     if not allowed:
+        time_str = f"{retry_after} soniya"
         await update.message.reply_text(
-            f"⏳ Juda ko'p so'rov. {retry_after} soniyadan keyin urinib ko'ring."
+            t("rate_limit_generic", lang, time_str=time_str)
         )
         return CHECK_STATUS
 
@@ -1018,7 +965,7 @@ async def check_status_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not re.match(r"CASE-\d{8}-\d{5}", text):
         await update.message.reply_text(
-            "⚠️ Noto'g'ri format. Masalan: `CASE-20251201-00001`",
+            t("invalid_case_id_format", lang),
             parse_mode=ParseMode.MARKDOWN
         )
         return CHECK_STATUS
@@ -1033,9 +980,9 @@ async def check_status_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
         if not case:
             await update.message.reply_text(
-                "❌ Murojaat topilmadi. Raqamni to'g'ri kiritganingizni tekshiring.",
+                t("case_check_not_found", lang),
                 reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                    InlineKeyboardButton(t("btn_home", lang), callback_data="home")
                 ]])
             )
             return MAIN_MENU
@@ -1043,9 +990,7 @@ async def check_status_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         # Murojaat topildi — followup ga o'tish
         context.user_data["followup_case_id"] = text
         await update.message.reply_text(
-            f"💬 *Murojaat {text} bo'yicha xabar yozing:*\n\n"
-            "Adminga qo'shimcha ma'lumot, tushuntirish yoki savolingizni yuboring.\n\n"
-            "_Bekor qilish uchun /cancel yozing_",
+            t("followup_prompt", lang, case_id=text),
             parse_mode=ParseMode.MARKDOWN
         )
         return FOLLOWUP_ENTER
@@ -1057,9 +1002,9 @@ async def check_status_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
     if not case:
         await update.message.reply_text(
-            "❌ Murojaat topilmadi. Raqamni to'g'ri kiritganingizni tekshiring.",
+            t("case_check_not_found", lang),
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                InlineKeyboardButton(t("btn_home", lang), callback_data="home")
             ]])
         )
         return MAIN_MENU
@@ -1069,31 +1014,32 @@ async def check_status_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         CaseStatus.NEEDS_INFO: "❓", CaseStatus.COMPLETED: "✅",
         CaseStatus.REJECTED: "❌", CaseStatus.ARCHIVED: "📦"
     }
-    status_text = {
-        CaseStatus.NEW: "Yangi — ko'rib chiqilishini kuting",
-        CaseStatus.IN_PROGRESS: "Ko'rib chiqilmoqda",
-        CaseStatus.NEEDS_INFO: "Qo'shimcha ma'lumot kerak",
-        CaseStatus.COMPLETED: "Yakunlandi",
-        CaseStatus.REJECTED: "Rad etildi",
-        CaseStatus.ARCHIVED: "Arxivlandi"
+    status_text_map = {
+        CaseStatus.NEW: t("case_status_new", lang),
+        CaseStatus.IN_PROGRESS: t("case_status_in_progress", lang),
+        CaseStatus.NEEDS_INFO: t("case_status_needs_info", lang),
+        CaseStatus.COMPLETED: t("case_status_completed", lang),
+        CaseStatus.REJECTED: t("case_status_rejected", lang),
+        CaseStatus.ARCHIVED: t("case_status_archived", lang),
     }
 
-    reply = (
-        f"📋 *Murojaat holati*\n\n"
-        f"*Raqam:* `{case.external_id}`\n"
-        f"*Holat:* {status_emoji.get(case.status, '❔')} {status_text.get(case.status, case.status.value)}\n"
-        f"*Kategoriya:* {case.category.value}\n"
-        f"*Sana:* {case.created_at.strftime('%d.%m.%Y %H:%M')}\n"
+    reply = t(
+        "case_status_title", lang,
+        case_id=case.external_id,
+        status_emoji=status_emoji.get(case.status, "❔"),
+        status_text=status_text_map.get(case.status, case.status.value),
+        category=case.category.value,
+        date=case.created_at.strftime("%d.%m.%Y %H:%M"),
     )
     if case.due_at:
-        reply += f"*Muddat:* {case.due_at.strftime('%d.%m.%Y')}\n"
+        reply += t("case_deadline", lang, date=case.due_at.strftime("%d.%m.%Y"))
 
-    keyboard = [[InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")]]
+    keyboard = [[InlineKeyboardButton(t("btn_home", lang), callback_data="home")]]
 
     # "Needs info" yoki "In progress" bo'lsa — javob tugmasini ko'rsatish
     if case.status in (CaseStatus.NEEDS_INFO, CaseStatus.IN_PROGRESS):
         keyboard.insert(0, [InlineKeyboardButton(
-            "💬 Adminga javob yozish",
+            t("btn_reply_admin", lang),
             callback_data=f"followup_{case.external_id}"
         )])
 
@@ -1114,10 +1060,12 @@ async def followup_enter(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     # Rate limiting
     user = update.effective_user
+    lang = get_user_lang(context)
     allowed, retry_after = await check_rate_limit(user.id, "followup")
     if not allowed:
+        time_str = f"{retry_after} soniya"
         await update.message.reply_text(
-            f"⏳ Juda ko'p xabar yuborildi. {retry_after} soniyadan keyin urinib ko'ring."
+            t("rate_limit_generic", lang, time_str=time_str)
         )
         return FOLLOWUP_ENTER
 
@@ -1126,14 +1074,14 @@ async def followup_enter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not case_external_id:
         await update.message.reply_text(
-            "❌ Xatolik: murojaat ID si topilmadi. Qaytadan urinib ko'ring.",
-            reply_markup=get_main_keyboard()
+            t("followup_case_missing", lang),
+            reply_markup=get_main_keyboard(lang)
         )
-        context.user_data.clear()
+        _clear_user_data(context)
         return MAIN_MENU
 
     if len(text) < 5:
-        await update.message.reply_text("⚠️ Xabar juda qisqa. Iltimos, batafsil yozing.")
+        await update.message.reply_text(t("followup_too_short", lang))
         return FOLLOWUP_ENTER
 
     try:
@@ -1143,10 +1091,10 @@ async def followup_enter(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             if not case:
                 await update.message.reply_text(
-                    "❌ Murojaat topilmadi.",
-                    reply_markup=get_main_keyboard()
+                    t("mycase_not_found", lang),
+                    reply_markup=get_main_keyboard(lang)
                 )
-                context.user_data.clear()
+                _clear_user_data(context)
                 return MAIN_MENU
 
             # CaseComment sifatida saqlash (reporter tomonidan)
@@ -1179,23 +1127,21 @@ async def followup_enter(update: Update, context: ContextTypes.DEFAULT_TYPE):
             logger.error(f"Could not notify admin about followup: {e}")
 
         await update.message.reply_text(
-            f"✅ *Xabaringiz yuborildi!*\n\n"
-            f"Murojaat: `{case_external_id}`\n\n"
-            f"Compliance departamenti javob bilan siz bilan bog'lanadi.",
+            t("followup_sent", lang, case_id=case_external_id),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")
+                InlineKeyboardButton(t("btn_home", lang), callback_data="home")
             ]])
         )
 
     except Exception as e:
         logger.error(f"Followup save error: {e}")
         await update.message.reply_text(
-            "❌ Xatolik yuz berdi. Iltimos, qayta urinib ko'ring.",
-            reply_markup=get_main_keyboard()
+            t("error_generic", lang),
+            reply_markup=get_main_keyboard(lang)
         )
 
-    context.user_data.clear()
+    _clear_user_data(context)
     return MAIN_MENU
 
 
@@ -1217,7 +1163,7 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
         return any(text == _t(key, l) for l in SUPPORTED_LANGS)
 
     if matches("menu_submit"):
-        context.user_data.clear()
+        _clear_user_data(context)
         await update.message.reply_text(
             _t("choose_category", lang),
             parse_mode=ParseMode.MARKDOWN,
@@ -1260,13 +1206,17 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
         return MAIN_MENU
 
     elif matches("menu_settings"):
+        admin_user = await get_admin_user(update.effective_user.id)
+        buttons = [
+            InlineKeyboardButton(_t("btn_home", lang), callback_data="home"),
+            InlineKeyboardButton(_t("btn_language", lang), callback_data="choose_language"),
+        ]
+        if admin_user:
+            buttons.append(InlineKeyboardButton("🔙 Admin menyuga o'tish", callback_data="go_admin_menu"))
         await update.message.reply_text(
             _t("settings_info", lang),
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton(_t("btn_home", lang), callback_data="home"),
-                InlineKeyboardButton(_t("btn_language", lang), callback_data="choose_language"),
-            ]]),
+            reply_markup=InlineKeyboardMarkup([buttons]),
         )
         return MAIN_MENU
 
@@ -1282,10 +1232,12 @@ async def reply_keyboard_handler(update: Update, context: ContextTypes.DEFAULT_T
 async def my_cases_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Foydalanuvchining barcha murojaatlarini ko'rsatish"""
     user = update.effective_user
+    lang = get_user_lang(context)
     allowed, retry_after = await check_rate_limit(user.id, "check_status")
     if not allowed:
+        time_str = f"{retry_after} soniya"
         await update.message.reply_text(
-            f"⏳ Juda ko'p so'rov. {retry_after} soniyadan keyin urinib ko'ring."
+            t("rate_limit_generic", lang, time_str=time_str)
         )
         return
 
@@ -1302,11 +1254,10 @@ async def my_cases_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not cases:
         await update.message.reply_text(
-            "📭 *Sizda hali murojaatlar yo'q.*\n\n"
-            "Murojaat yuborish uchun «📝 Murojaat yuborish» tugmasini bosing.",
+            t("no_cases_yet", lang),
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=InlineKeyboardMarkup([[
-                InlineKeyboardButton("📝 Murojaat yuborish", callback_data="report")
+                InlineKeyboardButton(t("btn_submit_report", lang), callback_data="report")
             ]]),
         )
         return MAIN_MENU
@@ -1327,11 +1278,10 @@ async def my_cases_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         label  = f"{emoji} {case.external_id} · {date}"
         buttons.append([InlineKeyboardButton(label, callback_data=f"mycase_{case.external_id}")])
 
-    buttons.append([InlineKeyboardButton("🏠 Bosh menyu", callback_data="home")])
+    buttons.append([InlineKeyboardButton(t("btn_home", lang), callback_data="home")])
 
     await update.message.reply_text(
-        "📂 *Mening murojaatlarim* (so'nggi 10 ta):\n\n"
-        "Ko'rish uchun bosing:",
+        t("mycase_list_title", lang),
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup(buttons),
     )
@@ -1356,15 +1306,16 @@ async def universal_fallback(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return  # Guruhda hech narsa qilmaymiz
 
     user = update.effective_user
+    lang = get_user_lang(context)
     # Rate limit tekshiruvi (start limiti ishlatiladi)
     allowed, retry_after = await check_rate_limit(user.id, "start")
     if not allowed:
+        time_str = f"{retry_after} soniya"
         await update.message.reply_text(
-            f"⏳ {retry_after} soniyadan keyin urinib ko'ring."
+            t("rate_limit_generic", lang, time_str=time_str)
         )
         return MAIN_MENU
 
-    lang = get_user_lang(context)
     await update.message.reply_text(
         t("unknown_command", lang),
         parse_mode=ParseMode.MARKDOWN,
@@ -1394,8 +1345,7 @@ async def invalid_description_input(update: Update, context: ContextTypes.DEFAUL
         return ENTER_DESCRIPTION
     lang = get_user_lang(context)
     await update.message.reply_text(
-        "✍️ " + t("text_too_short", lang, length=0).split("(")[0].strip() +
-        "\n\nIltimos, murojaat matnini yozing (kamida 20 belgi).",
+        t("invalid_description", lang),
         parse_mode=ParseMode.MARKDOWN,
     )
     return ENTER_DESCRIPTION
@@ -1443,7 +1393,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         elif update.callback_query:
             try:
                 await update.callback_query.answer(
-                    "😔 Texnik xato yuz berdi. /start bosing.",
+                    t("callback_error", lang),
                     show_alert=True,
                 )
             except Exception:
@@ -1463,7 +1413,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     lang = get_user_lang(context)
-    context.user_data.clear()
+    _clear_user_data(context)
     await update.message.reply_text(
         t("cancelled", lang),
         parse_mode=ParseMode.MARKDOWN,
@@ -1567,20 +1517,21 @@ async def send_pending_reminders(context: ContextTypes.DEFAULT_TYPE):
 
             for case in needs_info_cases:
                 try:
+                    # Foydalanuvchi tilini olish (default uz)
+                    try:
+                        reminder_lang = await db_get_user_lang(case.telegram_chat_id)
+                    except Exception:
+                        reminder_lang = "uz"
+
                     await context.bot.send_message(
                         chat_id=case.telegram_chat_id,
-                        text=(
-                            f"🔔 *Eslatma — Murojaat {case.external_id}*\n\n"
-                            f"Compliance departamenti sizdan qo'shimcha ma'lumot kutmoqda.\n\n"
-                            f"Javob yuborish uchun:\n"
-                            f"1️⃣ Bosh menyuga o'ting\n"
-                            f"2️⃣ «Adminga javob yozish» ni bosing\n"
-                            f"3️⃣ Murojaat raqamingizni kiriting: `{case.external_id}`\n\n"
-                            f"_Agar javob 7 kun ichida kelmasa, murojaat yopilishi mumkin._"
-                        ),
+                        text=t("reminder_needs_info", reminder_lang, case_id=case.external_id),
                         parse_mode=ParseMode.MARKDOWN,
                         reply_markup=InlineKeyboardMarkup([[
-                            InlineKeyboardButton("✍️ Javob yozish", callback_data=f"followup_{case.external_id}")
+                            InlineKeyboardButton(
+                                t("btn_write_reply", reminder_lang),
+                                callback_data=f"followup_{case.external_id}"
+                            )
                         ]])
                     )
                     reminders_sent += 1
@@ -1603,14 +1554,18 @@ async def send_pending_reminders(context: ContextTypes.DEFAULT_TYPE):
 
             for case in new_cases:
                 try:
+                    # Foydalanuvchi tilini olish (default uz)
+                    try:
+                        reminder_lang = await db_get_user_lang(case.telegram_chat_id)
+                    except Exception:
+                        reminder_lang = "uz"
+
                     await context.bot.send_message(
                         chat_id=case.telegram_chat_id,
-                        text=(
-                            f"📬 *Murojaat {case.external_id} haqida yangilik*\n\n"
-                            f"Murojaatingiz hali ko'rib chiqilmoqda. "
-                            f"Compliance departamenti tez orada siz bilan bog'lanadi.\n\n"
-                            f"*Holat:* 🆕 Yangi\n"
-                            f"*Yuborilgan:* {case.created_at.strftime('%d.%m.%Y')}"
+                        text=t(
+                            "reminder_new_case", reminder_lang,
+                            case_id=case.external_id,
+                            date=case.created_at.strftime("%d.%m.%Y"),
                         ),
                         parse_mode=ParseMode.MARKDOWN,
                     )
@@ -1801,7 +1756,7 @@ async def handle_assign_callback(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
 
     if not await _check_admin_permission(query):
-        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        await query.answer(t("permission_denied", "uz"), show_alert=True)
         return
 
     case_external_id = query.data.replace("assign_", "", 1)
@@ -1820,7 +1775,7 @@ async def handle_assign_callback(update: Update, context: ContextTypes.DEFAULT_T
         await query.edit_message_reply_markup(reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("⬅️ Orqaga", callback_data=f"back_case_{case_external_id}")]
         ]))
-        await query.message.reply_text("⚠️ Tayinlash uchun faol admin/investigator topilmadi.")
+        await query.message.reply_text(t("assign_no_users", "uz"))
         return
 
     buttons = []
@@ -1833,7 +1788,7 @@ async def handle_assign_callback(update: Update, context: ContextTypes.DEFAULT_T
                 callback_data=f"do_assign_{case_external_id}_{u.id}",
             )
         ])
-    buttons.append([InlineKeyboardButton("❌ Bekor qilish", callback_data=f"back_case_{case_external_id}")])
+    buttons.append([InlineKeyboardButton(t("assign_cancel_btn", "uz"), callback_data=f"back_case_{case_external_id}")])
 
     try:
         await query.edit_message_reply_markup(
@@ -1848,10 +1803,10 @@ async def handle_assign_callback(update: Update, context: ContextTypes.DEFAULT_T
 async def handle_do_assign_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """do_assign_{case_id}_{user_uuid} — murojaat tayinlanadi."""
     query = update.callback_query
-    await query.answer("⏳ Tayinlanmoqda...")
+    await query.answer(t("assigning", "uz"))
 
     if not await _check_admin_permission(query):
-        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        await query.answer(t("permission_denied", "uz"), show_alert=True)
         return
 
     # Callback data: do_assign_{case_external_id}_{user_uuid}
@@ -1869,7 +1824,7 @@ async def handle_do_assign_callback(update: Update, context: ContextTypes.DEFAUL
         import uuid as _uuid
         user_uuid = _uuid.UUID(user_uuid_str)
     except ValueError:
-        await query.answer("❌ Noto'g'ri ma'lumot", show_alert=True)
+        await query.answer(t("invalid_data", "uz"), show_alert=True)
         return
 
     async with AsyncSessionLocal() as db:
@@ -1880,14 +1835,14 @@ async def handle_do_assign_callback(update: Update, context: ContextTypes.DEFAUL
             )
             case = case_result.scalar_one_or_none()
             if not case:
-                await query.answer("❌ Murojaat topilmadi", show_alert=True)
+                await query.answer(t("mycase_not_found", "uz"), show_alert=True)
                 return
 
             # Tayinlanadigan foydalanuvchi
             user_result = await db.execute(select(User).where(User.id == user_uuid))
             assignee = user_result.scalar_one_or_none()
             if not assignee:
-                await query.answer("❌ Foydalanuvchi topilmadi", show_alert=True)
+                await query.answer(t("user_not_found", "uz"), show_alert=True)
                 return
 
             # Faol actor
@@ -1963,10 +1918,10 @@ async def handle_do_assign_callback(update: Update, context: ContextTypes.DEFAUL
 async def handle_start_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """start_{case_external_id} — murojaat holatini in_progress ga o'tkazadi."""
     query = update.callback_query
-    await query.answer("⏳ Boshlanmoqda...")
+    await query.answer(t("starting", "uz"))
 
     if not await _check_admin_permission(query):
-        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        await query.answer(t("permission_denied", "uz"), show_alert=True)
         return
 
     case_external_id = query.data.replace("start_", "", 1)
@@ -1979,12 +1934,12 @@ async def handle_start_callback(update: Update, context: ContextTypes.DEFAULT_TY
             )
             case = case_result.scalar_one_or_none()
             if not case:
-                await query.answer("❌ Murojaat topilmadi", show_alert=True)
+                await query.answer(t("mycase_not_found", "uz"), show_alert=True)
                 return
 
             if case.status not in (CaseStatus.NEW, CaseStatus.NEEDS_INFO):
                 await query.answer(
-                    f"⚠️ Holat: {case.status.value}. Boshlash mumkin emas.",
+                    t("invalid_status_transition", "uz", old=case.status.value, new="in_progress"),
                     show_alert=True,
                 )
                 return
@@ -2030,7 +1985,7 @@ async def handle_reject_callback(update: Update, context: ContextTypes.DEFAULT_T
     await query.answer()
 
     if not await _check_admin_permission(query):
-        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        await query.answer(t("permission_denied", "uz"), show_alert=True)
         return
 
     case_external_id = query.data.replace("reject_", "", 1)
@@ -2141,7 +2096,7 @@ async def handle_view_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     await query.answer()
 
     if not await _check_admin_permission(query):
-        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        await query.answer(t("permission_denied", "uz"), show_alert=True)
         return
 
     case_external_id = query.data.replace("view_", "", 1)
@@ -2188,18 +2143,18 @@ async def handle_status_callback(update: Update, context: ContextTypes.DEFAULT_T
     # Faqat guruhda ishlaydi
     chat = update.effective_chat
     if chat.type not in ("group", "supergroup"):
-        await query.answer("❌ Bu amal faqat guruhda ishlaydi", show_alert=True)
+        await query.answer(t("group_only", "uz"), show_alert=True)
         return
 
     if not await _check_admin_permission(query):
-        await query.answer("❌ Ruxsatingiz yo'q", show_alert=True)
+        await query.answer(t("permission_denied", "uz"), show_alert=True)
         return
 
     # Callback data: status_{case_id}_{new_status}
     # Masalan: status_CASE-20260305-00001_in_progress
     parts = query.data.split("_", 2)  # ["status", "CASE-20260305-00001", "in_progress"] yoki ko'proq
     if len(parts) < 3:
-        await query.answer("❌ Noto'g'ri format", show_alert=True)
+        await query.answer(t("wrong_format", "uz"), show_alert=True)
         return
 
     # Case ID va status ni ajratish
@@ -2207,7 +2162,7 @@ async def handle_status_callback(update: Update, context: ContextTypes.DEFAULT_T
     # Oxirgi _ dan keyin status keladi
     last_underscore = rest.rfind("_")
     if last_underscore == -1:
-        await query.answer("❌ Noto'g'ri format", show_alert=True)
+        await query.answer(t("wrong_format", "uz"), show_alert=True)
         return
 
     case_external_id = rest[:last_underscore]
@@ -2229,7 +2184,7 @@ async def handle_status_callback(update: Update, context: ContextTypes.DEFAULT_T
         )
         return
 
-    await query.answer("⏳ O'zgartirilmoqda...")
+    await query.answer(t("updating", "uz"))
 
     actor_telegram_id = query.from_user.id
 
@@ -2240,7 +2195,7 @@ async def handle_status_callback(update: Update, context: ContextTypes.DEFAULT_T
         case = case_result.scalar_one_or_none()
 
         if not case:
-            await query.answer("❌ Murojaat topilmadi", show_alert=True)
+            await query.answer(t("mycase_not_found", "uz"), show_alert=True)
             return
 
         old_status = case.status
@@ -2249,14 +2204,14 @@ async def handle_status_callback(update: Update, context: ContextTypes.DEFAULT_T
         allowed_next = ALLOWED_TRANSITIONS.get(old_status, [])
         if new_status not in allowed_next:
             await query.answer(
-                f"⚠️ {old_status.value} → {new_status.value} o'tish mumkin emas",
+                t("invalid_status_transition", "uz", old=old_status.value, new=new_status.value),
                 show_alert=True
             )
             return
 
     # "rejected" yoki "completed" uchun sabab so'rash
     if new_status in (CaseStatus.REJECTED, CaseStatus.COMPLETED):
-        status_label = "rad etish" if new_status == CaseStatus.REJECTED else "yakunlash"
+        status_label = t("status_label_rejected", "uz") if new_status == CaseStatus.REJECTED else t("status_label_completed", "uz")
         context.user_data["pending_status_change"] = {
             "case_external_id": case_external_id,
             "new_status": new_status.value,
@@ -3181,7 +3136,7 @@ async def handle_notification_toggle(update: Update, context: ContextTypes.DEFAU
         bot_user = result.scalar_one_or_none()
 
         if not bot_user:
-            await query.answer("❌ Foydalanuvchi topilmadi", show_alert=True)
+            await query.answer(t("user_not_found", "uz"), show_alert=True)
             return
 
         # Joriy sozlamalar
@@ -3281,7 +3236,7 @@ def build_application() -> Application:
                 ],
                 ADD_ATTACHMENT: [
                     *lang_handlers,
-                    MessageHandler(filters.Document.ALL | filters.PHOTO, add_attachment),
+                    MessageHandler(filters.Document.ALL | filters.PHOTO | filters.VIDEO, add_attachment),
                     CallbackQueryHandler(skip_attachment, pattern="^skip_attachment$"),
                     persistent_menu_handler,
                 ],

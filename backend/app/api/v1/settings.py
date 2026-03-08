@@ -18,6 +18,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 DEFAULTS = {
     # Tizim
     "company_name": "Company",
+    "admin_panel_name": "IntegrityBot",
     "system_language": "uz",
     "timezone": "Asia/Tashkent",
     # Bot
@@ -28,6 +29,7 @@ DEFAULTS = {
     "bot_working_days": "1,2,3,4,5",  # 1=Dushanba...7=Yakshanba
     "bot_languages": "uz,ru,en",
     "bot_outside_hours_message": "Ish vaqti 08:00-18:00. Murojaatingiz qabul qilindi va ko'rib chiqiladi.",
+    "poll_chat_id": "",
     # Bildirishnomalar
     "notify_daily_report": "true",
     "notify_daily_report_time": "18:00",
@@ -71,6 +73,7 @@ async def get_public_settings(db: AsyncSession = Depends(get_db)):
     all_s = await get_all_settings(db)
     return {
         "company_name": all_s.get("company_name", "Company"),
+        "admin_panel_name": all_s.get("admin_panel_name", "IntegrityBot"),
         "system_language": all_s.get("system_language", "uz"),
         "bot_languages": all_s.get("bot_languages", "uz,ru,en"),
     }

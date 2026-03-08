@@ -78,6 +78,7 @@ async def export_cases(
     priority: Optional[CasePriority] = None,
     from_date: Optional[str] = Query(None, description="ISO 8601, masalan 2026-01-01"),
     to_date:   Optional[str] = Query(None, description="ISO 8601, masalan 2026-12-31"),
+    ids: Optional[str] = Query(None, description="Vergul bilan ajratilgan ID lar"),
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
@@ -86,6 +87,10 @@ async def export_cases(
 
     # ── Filtr ──────────────────────────────────────────────────────────────
     qfilters = []
+    if ids:
+        id_list = [i.strip() for i in ids.split(',') if i.strip()]
+        if id_list:
+            qfilters.append(Case.external_id.in_(id_list))
     if status:
         qfilters.append(Case.status == status)
     if category:

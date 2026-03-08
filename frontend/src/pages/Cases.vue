@@ -383,10 +383,11 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, defineComponent, h } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, defineComponent, h, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { format } from 'date-fns'
 import { useAuthStore } from '@/stores/auth'
+import { useNotificationStore } from '@/stores/notifications'
 import api from '@/utils/api'
 import CaseRowActions from '@/components/CaseRowActions.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -395,6 +396,7 @@ import { useI18n } from '@/composables/useI18n'
 
 const router = useRouter()
 const auth = useAuthStore()
+const notif = useNotificationStore()
 const { t } = useI18n()
 
 const loading = ref(true)
@@ -714,6 +716,11 @@ function handleClickOutside(e) {
 onMounted(() => {
   loadCases()
   document.addEventListener('click', handleClickOutside)
+  watch(() => notif.notifications.length, (newLen, oldLen) => {
+    if (newLen > oldLen && notif.notifications[0]?.type === 'new_case' && pagination.page === 1) {
+      loadCases()
+    }
+  })
 })
 onUnmounted(() => {
   if (loadAbortCtrl) loadAbortCtrl.abort()

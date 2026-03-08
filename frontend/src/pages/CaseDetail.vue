@@ -205,15 +205,20 @@
           <!-- Tezkor amallar -->
           <div class="card p-5">
             <h3 class="font-semibold text-white mb-4 text-sm">{{ t('case_detail.quick_actions') }}</h3>
-            <div class="space-y-2">
-              <button @click="openStatusModalWith('in_progress')" class="btn-ghost w-full text-sm justify-start">🔄 {{ t('case_detail.start_review') }}</button>
-              <button @click="openStatusModalWith('needs_info')" class="btn-ghost w-full text-sm justify-start">❓ {{ t('case_detail.request_info') }}</button>
-              <button @click="openStatusModalWith('completed')" class="btn-ghost w-full text-sm justify-start text-green-400 hover:text-green-300">✅ {{ t('case_detail.complete') }}</button>
-              <button @click="openStatusModalWith('rejected')" class="btn-ghost w-full text-sm justify-start text-red-400 hover:text-red-300">❌ {{ t('case_detail.reject') }}</button>
+            <div v-if="allowedStatusOptions.length === 0" class="text-surface-500 text-sm text-center py-2">
+              {{ t('case_detail.no_transition') }}
+            </div>
+            <div v-else class="space-y-2">
+              <p class="text-surface-500 text-xs mb-3">{{ statusHint }}</p>
+              <button v-if="isAllowed('in_progress')" @click="openStatusModalWith('in_progress')" class="btn-ghost w-full text-sm justify-start">🔄 {{ t('case_detail.start_review') }}</button>
+              <button v-if="isAllowed('needs_info')" @click="openStatusModalWith('needs_info')" class="btn-ghost w-full text-sm justify-start">❓ {{ t('case_detail.request_info') }}</button>
+              <button v-if="isAllowed('completed')" @click="openStatusModalWith('completed')" class="btn-ghost w-full text-sm justify-start text-green-400 hover:text-green-300">✅ {{ t('case_detail.complete') }}</button>
+              <button v-if="isAllowed('rejected')" @click="openStatusModalWith('rejected')" class="btn-ghost w-full text-sm justify-start text-red-400 hover:text-red-300">❌ {{ t('case_detail.reject') }}</button>
+              <button v-if="isAllowed('archived')" @click="openStatusModalWith('archived')" class="btn-ghost w-full text-sm justify-start text-surface-400">🗄️ {{ t('case_detail.archive') }}</button>
             </div>
           </div>
 
-          <!-- Jira Ticket -->
+          <!-- Jira Ticket (commented out)
           <div class="card p-5">
             <h3 class="font-semibold text-white mb-4 text-sm">🎫 {{ t('case_detail.ticket_system') }}</h3>
             <div v-if="caseData.jira_ticket_id" class="space-y-2">
@@ -239,6 +244,7 @@
               <p v-if="ticketSkipped" class="text-surface-500 text-xs">{{ ticketSkipped }}</p>
             </div>
           </div>
+          -->
         </div>
       </div>
     </template>
@@ -431,6 +437,24 @@ const allowedStatusOptions = computed(() => {
   const allowed = TRANSITIONS[caseData.value.status] || []
   return ALL_STATUS_OPTIONS.value.filter(o => allowed.includes(o.value))
 })
+function isAllowed(status) {
+  const allowed = TRANSITIONS[caseData.value?.status] || []
+  return allowed.includes(status)
+}
+
+const statusHint = computed(() => {
+  if (!caseData.value) return ''
+  const hints = {
+    new: '💡 Murojaatni ko\'rib chiqishni boshlash uchun "Ko\'rib chiqish boshlandi" tugmasini bosing',
+    in_progress: '💡 Ko\'rib chiqish davom etmoqda. Qo\'shimcha ma\'lumot so\'rang yoki yakunlang.',
+    needs_info: '💡 Murojaatchi javob kutmoqda. Javob kelgach ko\'rib chiqishni davom ettiring.',
+    completed: '✅ Murojaat yakunlangan.',
+    rejected: '❌ Murojaat rad etilgan.',
+    archived: '🗄️ Murojaat arxivlangan.',
+  }
+  return hints[caseData.value.status] || ''
+})
+
 function openStatusModal() {
   statusModal.selected = ''; statusModal.reason = ''; statusModal.error = ''; statusModal.open = true
 }
@@ -621,7 +645,16 @@ async function downloadAtt(att) {
 }
 
 async function exportCase() {
-  window.open(`/api/v1/cases/${caseData.value.external_id}/export`, '_blank')
+  try {
+    const resp = await api.get(`/v1/cases/${caseData.value.external_id}/export`, { params: { format: 'pdf' }, responseType: 'blob' })
+    const filename = `case_${caseData.value.external_id}.pdf`
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    alert(e.response?.data?.detail || 'Export xatosi')
+  }
 }
 
 async function createTicket() {

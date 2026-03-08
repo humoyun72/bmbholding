@@ -22,15 +22,6 @@
       <button @click="activateWarning = ''" class="ml-auto text-surface-500 hover:text-white">✕</button>
     </div>
 
-    <!-- Info: where polls are sent -->
-    <div class="mb-6 flex items-center gap-3 bg-blue-500/5 border border-blue-500/20 rounded-xl px-4 py-3">
-      <span class="text-blue-400 text-lg">📢</span>
-      <div class="text-sm">
-        <span class="text-surface-300">{{ t('polls.info_text') }} </span>
-        <span class="text-surface-300">{{ t('polls.info_config') }}</span>
-      </div>
-    </div>
-
     <!-- List -->
     <div class="grid gap-4">
       <div v-if="loading" class="card p-8 text-center">

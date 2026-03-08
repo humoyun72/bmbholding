@@ -25,7 +25,7 @@
             </svg>
           </div>
           <div class="flex-1 min-w-0">
-            <div class="font-bold text-white text-sm">IntegrityBot</div>
+            <div class="font-bold text-white text-sm">{{ adminPanelName }}</div>
             <div class="text-surface-500 text-xs">{{ t('common.control_panel') }}</div>
           </div>
           <!-- Close btn mobile -->
@@ -35,34 +35,8 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
-          <!-- Bell + Lang desktop (inside sidebar header) -->
+          <!-- Bell desktop (inside sidebar header) -->
           <div class="hidden lg:flex items-center gap-1">
-            <!-- Language dropdown (desktop) -->
-            <div class="lang-dropdown relative">
-              <button @click.stop="langDropdownOpen = !langDropdownOpen"
-                class="h-7 px-2 rounded-lg text-surface-400 hover:text-white hover:bg-surface-800 text-xs font-medium flex items-center gap-1 transition-colors">
-                {{ langLabels[currentLang] }}
-                <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                </svg>
-              </button>
-              <Transition name="dropdown">
-                <div v-if="langDropdownOpen"
-                  class="absolute right-0 top-full mt-1 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-50 overflow-hidden min-w-[120px]">
-                  <button v-for="lang in supportedLangs" :key="lang"
-                    @click="selectLang(lang)"
-                    :class="['w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2',
-                      currentLang === lang
-                        ? 'bg-brand-600/20 text-brand-400'
-                        : 'text-surface-300 hover:bg-surface-700 hover:text-white']">
-                    {{ langLabels[lang] }}
-                    <svg v-if="currentLang === lang" class="w-3 h-3 ml-auto text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                    </svg>
-                  </button>
-                </div>
-              </Transition>
-            </div>
             <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
           </div>
         </div>
@@ -80,6 +54,22 @@
           </span>
         </RouterLink>
       </nav>
+
+      <!-- Language switcher -->
+      <div class="px-4 pb-3">
+        <div class="flex gap-1 bg-surface-800 rounded-xl p-1">
+          <button v-for="lang in supportedLangs" :key="lang"
+            @click="selectLang(lang)"
+            :class="[
+              'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg text-xs font-medium transition-all',
+              currentLang === lang
+                ? 'bg-surface-600 text-white shadow-sm'
+                : 'text-surface-400 hover:text-surface-200'
+            ]">
+            {{ langFlags[lang] }}
+          </button>
+        </div>
+      </div>
 
       <!-- User info -->
       <div class="p-4 border-t border-surface-800">
@@ -118,35 +108,9 @@
                 d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
             </svg>
           </div>
-          <span class="text-white font-semibold text-sm">IntegrityBot</span>
+          <span class="text-white font-semibold text-sm">{{ adminPanelName }}</span>
         </div>
         <div class="flex items-center gap-2">
-          <!-- Language switcher (mobile) -->
-          <div class="lang-dropdown relative">
-            <button @click.stop="langDropdownOpen = !langDropdownOpen"
-              class="h-8 px-2 rounded-lg text-surface-300 hover:text-white hover:bg-surface-800 text-xs font-medium flex items-center gap-1 transition-colors">
-              {{ langLabels[currentLang] }}
-              <svg class="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-              </svg>
-            </button>
-            <Transition name="dropdown">
-              <div v-if="langDropdownOpen"
-                class="absolute right-0 top-full mt-1 bg-surface-800 border border-surface-700 rounded-xl shadow-xl z-50 overflow-hidden min-w-[120px]">
-                <button v-for="lang in supportedLangs" :key="lang"
-                  @click="selectLang(lang)"
-                  :class="['w-full text-left px-3 py-2 text-xs transition-colors flex items-center gap-2',
-                    currentLang === lang
-                      ? 'bg-brand-600/20 text-brand-400'
-                      : 'text-surface-300 hover:bg-surface-700 hover:text-white']">
-                  {{ langLabels[lang] }}
-                  <svg v-if="currentLang === lang" class="w-3 h-3 ml-auto text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-                  </svg>
-                </button>
-              </div>
-            </Transition>
-          </div>
           <NotificationBell v-if="auth.isAdmin || auth.isInvestigator" />
         </div>
       </header>
@@ -168,6 +132,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
 import NotificationBell from '@/components/ui/NotificationBell.vue'
 import { useI18n } from '@/composables/useI18n'
+import api from '@/utils/api'
 
 const { t, currentLang, setLang, supportedLangs } = useI18n()
 
@@ -177,17 +142,19 @@ const route = useRoute()
 const router = useRouter()
 
 const sidebarOpen = ref(false)
-const langDropdownOpen = ref(false)
+const adminPanelName = ref('IntegrityBot')
 
 watch(() => route.path, () => { sidebarOpen.value = false })
 
-onMounted(() => {
+onMounted(async () => {
   notif.connect()
-  window.addEventListener('click', closeLangDropdown)
+  try {
+    const { data } = await api.get('/v1/settings/public')
+    if (data.admin_panel_name) adminPanelName.value = data.admin_panel_name
+  } catch (_) {}
 })
 onUnmounted(() => {
   notif.disconnect()
-  window.removeEventListener('click', closeLangDropdown)
 })
 
 const userInitials = computed(() => {
@@ -195,7 +162,7 @@ const userInitials = computed(() => {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
 })
 
-const langLabels = {
+const langFlags = {
   uz: '🇺🇿 UZ',
   ru: '🇷🇺 RU',
   en: '🇬🇧 EN',
@@ -203,13 +170,6 @@ const langLabels = {
 
 function selectLang(lang) {
   setLang(lang)
-  langDropdownOpen.value = false
-}
-
-function closeLangDropdown(e) {
-  if (!e.target.closest('.lang-dropdown')) {
-    langDropdownOpen.value = false
-  }
 }
 
 const icons = {

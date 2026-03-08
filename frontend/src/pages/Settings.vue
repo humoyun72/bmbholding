@@ -1,5 +1,5 @@
 <template>
-  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in max-w-3xl">
+  <div class="p-4 sm:p-6 lg:p-8 animate-fade-in">
     <div class="mb-6">
       <h1 class="text-xl sm:text-2xl font-bold text-white">{{ t('settings.title') }}</h1>
       <p class="text-surface-400 text-sm mt-1">{{ t('settings.subtitle') }}</p>
@@ -118,9 +118,9 @@
     </div>
 
     <!-- ════════════════════════════════════════════
-         2. XAVFSIZLIK (2FA)
+         2. XAVFSIZLIK (2FA) — disabled
     ════════════════════════════════════════════ -->
-    <div v-if="activeTab === 'security'" class="space-y-5">
+    <div v-if="false && activeTab === 'security'" class="space-y-5">
       <div class="card p-6">
         <div class="flex items-start justify-between mb-5">
           <div>
@@ -524,6 +524,16 @@
               <p class="text-surface-600 text-xs mt-1">{{ t('settings.bot_admin_group_tip') }}</p>
             </div>
 
+            <div>
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">
+                🗳️ So'rovnoma kanal/guruh ID
+                <span class="text-surface-500 font-normal ml-1">(POLL_CHAT_ID)</span>
+              </label>
+              <input v-model="sysForm.poll_chat_id" type="text" class="input w-full font-mono"
+                placeholder="-100xxxxxxxxxx" />
+              <p class="text-surface-600 text-xs mt-1">So'rovnomalar shu kanal yoki guruhga yuboriladi</p>
+            </div>
+
             <!-- Ish vaqti -->
             <div>
               <label class="block text-sm font-medium text-surface-300 mb-2">
@@ -593,18 +603,6 @@
           </div>
         </div>
 
-        <!-- Webhook -->
-        <div class="card p-6">
-          <h3 class="font-semibold text-white mb-2">🔗 {{ t('settings.bot_webhook_title') }}</h3>
-          <p class="text-surface-400 text-sm mb-4">{{ t('settings.bot_webhook_desc') }}</p>
-          <div class="flex items-center gap-3 flex-wrap">
-            <button @click="setWebhook" :disabled="webhookLoading" class="btn-ghost text-sm">
-              {{ webhookLoading ? '⏳ ...' : '🔗 Webhook' }}
-            </button>
-            <p v-if="webhookMsg" :class="webhookMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ webhookMsg.text }}</p>
-          </div>
-        </div>
-
         <!-- Saqlash tugmasi -->
         <div class="flex items-center justify-between">
           <p v-if="sysMsg" :class="sysMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ sysMsg.text }}</p>
@@ -631,6 +629,13 @@
               <input v-model="sysForm.company_name" type="text" class="input w-full"
                 placeholder="Company LLC" />
               <p class="text-surface-600 text-xs mt-1">{{ t('settings.company_name_hint') }}</p>
+            </div>
+
+            <div>
+              <label class="block text-sm font-medium text-surface-300 mb-1.5">🖥️ Admin panel nomi</label>
+              <input v-model="sysForm.admin_panel_name" type="text" class="input w-full"
+                placeholder="IntegrityBot" />
+              <p class="text-surface-600 text-xs mt-1">Admin panel sarlavhasida ko'rinadigan nom</p>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -733,25 +738,6 @@
           </div>
         </div>
 
-        <!-- Tizim ma'lumoti -->
-        <div class="card p-6">
-          <h3 class="font-semibold text-white mb-4">ℹ️ {{ t('settings.system_info') }}</h3>
-          <div class="text-sm divide-y divide-surface-800">
-            <div class="flex justify-between py-2.5">
-              <span class="text-surface-400">{{ t('settings.version') }}</span>
-              <span class="text-surface-200">IntegrityBot v1.0</span>
-            </div>
-            <div class="flex justify-between py-2.5">
-              <span class="text-surface-400">{{ t('settings.environment') }}</span>
-              <span class="text-green-400">● {{ t('settings.env_dev') }}</span>
-            </div>
-            <div class="flex justify-between py-2.5">
-              <span class="text-surface-400">{{ t('settings.enable_monitoring') }}</span>
-              <code class="text-surface-500 text-xs">docker-compose --profile monitoring up -d</code>
-            </div>
-          </div>
-        </div>
-
         <!-- Saqlash -->
         <div class="flex items-center justify-between">
           <p v-if="sysMsg" :class="sysMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ sysMsg.text }}</p>
@@ -791,7 +777,7 @@ const activeTab = ref('profile')
 
 const tabs = computed(() => [
   { id: 'profile',   icon: '👤', label: t('settings.tab_profile')    },
-  { id: 'security',  icon: '🔐', label: t('settings.tab_security')   },
+  // { id: 'security',  icon: '🔐', label: t('settings.tab_security')   },
   { id: 'telegram',  icon: '✈️', label: t('settings.tab_telegram')   },
   { id: 'deadlines', icon: '⏰', label: t('settings.tab_deadlines')  },
   { id: 'bot',       icon: '🤖', label: t('settings.tab_bot')        },
@@ -1213,6 +1199,7 @@ const sysSaving = ref(false)
 const sysMsg = ref(null)
 const sysForm = ref({
   company_name: 'Company',
+  admin_panel_name: 'IntegrityBot',
   system_language: 'uz',
   timezone: 'Asia/Tashkent',
   bot_admin_group_id: '',
@@ -1222,6 +1209,7 @@ const sysForm = ref({
   bot_working_days: '1,2,3,4,5',
   bot_languages: 'uz,ru,en',
   bot_outside_hours_message: '',
+  poll_chat_id: '',
   notify_daily_report: 'true',
   notify_daily_report_time: '18:00',
   notify_weekly_report: 'true',
