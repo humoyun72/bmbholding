@@ -62,6 +62,18 @@ const routes = [
       { path: 'settings', name: 'Settings', component: () => import('@/pages/Settings.vue') },
     ]
   },
+  {
+    path: '/forgot-password',
+    name: 'ForgotPassword',
+    component: () => import('@/pages/ForgotPassword.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/reset-password',
+    name: 'ResetPassword',
+    component: () => import('@/pages/ResetPassword.vue'),
+    meta: { public: true },
+  },
   // ── 404 catch-all — eng oxirida bo'lishi kerak ──────────
   {
     path: '/:pathMatch(.*)*',

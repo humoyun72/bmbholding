@@ -188,13 +188,14 @@
               <div><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.category') }}</dt><dd class="text-surface-200">{{ categoryLabel(caseData.category) }}</dd></div>
               <div><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.priority') }}</dt><dd><PriorityBadge :priority="caseData.priority" /></dd></div>
               <div><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.status') }}</dt><dd><StatusBadge :status="caseData.status" /></dd></div>
+              <div v-if="caseData.assignee_name"><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.assignee') }}</dt><dd class="text-surface-200">{{ caseData.assignee_name }}</dd></div>
               <div v-if="caseData.due_at"><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.due_at') }}</dt><dd class="text-surface-200">{{ formatDate(caseData.due_at) }}</dd></div>
               <div v-if="caseData.closed_at"><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.closed_at') }}</dt><dd class="text-surface-200">{{ formatDate(caseData.closed_at) }}</dd></div>
             </dl>
           </div>
 
-          <!-- Assignment -->
-          <div class="card p-5">
+          <!-- Assignment — faqat adminlar uchun -->
+          <div v-if="auth.isAdmin" class="card p-5">
             <h3 class="font-semibold text-white mb-4 text-sm">{{ t('case_detail.assign_section') }}</h3>
             <select v-model="assignedTo" @change="assignCase" class="input text-sm w-full">
               <option value="">{{ t('case_detail.not_assigned') }}</option>
@@ -395,9 +396,11 @@ import api from '@/utils/api'
 import SkeletonLoader from '@/components/SkeletonLoader.vue'
 import ErrorState from '@/components/ErrorState.vue'
 import { useI18n } from '@/composables/useI18n'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const { t } = useI18n()
+const auth = useAuthStore()
 const loading = ref(true)
 const loadError = ref('')
 const sending = ref(false)
@@ -731,7 +734,7 @@ const PriorityBadge = defineComponent({
   }
 })
 
-onMounted(() => { loadCase(); loadUsers() })
+onMounted(() => { loadCase(); if (auth.isAdmin) loadUsers() })
 
 // ── AttachmentCard inline component ──────────────────────────────────────────
 const AttachmentCard = defineComponent({

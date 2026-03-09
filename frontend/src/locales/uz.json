@@ -559,7 +559,34 @@
     "error_invalid": "Noto'g'ri login yoki parol",
     "error_generic": "Xatolik yuz berdi, qayta urinib ko'ring",
     "error_2fa": "Authenticator ilovasidan 6 raqamli kodni kiriting",
-    "copyright": "© {year} IntegrityBot — Barcha huquqlar himoyalangan"
+    "copyright": "© {year} IntegrityBot — Barcha huquqlar himoyalangan",
+    "forgot_password": "Parolni unutdingizmi?"
+  },
+  "forgot_password_page": {
+    "title": "Parolni tiklash",
+    "subtitle": "Email manzilingizni kiriting",
+    "email_label": "Email",
+    "email_placeholder": "email@example.com",
+    "submit_btn": "Tiklash havolasini yuborish",
+    "loading": "Yuborilmoqda...",
+    "success": "Agar bu email tizimda mavjud bo'lsa, tiklash havolasi yuborildi",
+    "back_login": "Kirishga qaytish",
+    "error": "Xatolik yuz berdi"
+  },
+  "reset_password_page": {
+    "title": "Yangi parol o'rnatish",
+    "new_password_label": "Yangi parol",
+    "confirm_password_label": "Parolni tasdiqlash",
+    "new_password_placeholder": "Kamida 8 belgi",
+    "confirm_password_placeholder": "Parolni qayta kiriting",
+    "submit_btn": "Parolni saqlash",
+    "loading": "Saqlanmoqda...",
+    "success": "Parol muvaffaqiyatli o'zgartirildi! Yangi parol bilan kiring.",
+    "back_login": "Kirishga qaytish",
+    "error_mismatch": "Parollar mos kelmaydi",
+    "error_min": "Parol kamida 8 belgidan iborat bo'lishi kerak",
+    "error_invalid_token": "Havola yaroqsiz yoki muddati o'tgan",
+    "error_generic": "Xatolik yuz berdi"
   },
   "force_password": {
     "title": "Parolni o'zgartiring",

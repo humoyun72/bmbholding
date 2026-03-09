@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str
     WEBHOOK_SECRET: str = "changeme"
     WEBHOOK_URL: str = ""
+    FRONTEND_URL: str = ""   # Frontend admin panel URL, e.g. https://admin.example.com
     ADMIN_CHAT_ID: int = 0
     POLL_CHAT_ID: int = 0   # guruh yoki kanal ID — so'rovnomalar shu yerga yuboriladi
     # "webhook" yoki "polling" — bo'sh qoldirilsa WEBHOOK_URL dan avtomatik aniqlanadi

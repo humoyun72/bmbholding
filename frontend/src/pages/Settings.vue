@@ -775,14 +775,18 @@ const auth = useAuthStore()
 const { t, setLang } = useI18n()
 const activeTab = ref('profile')
 
-const tabs = computed(() => [
-  { id: 'profile',   icon: '👤', label: t('settings.tab_profile')    },
-  // { id: 'security',  icon: '🔐', label: t('settings.tab_security')   },
-  { id: 'telegram',  icon: '✈️', label: t('settings.tab_telegram')   },
-  { id: 'deadlines', icon: '⏰', label: t('settings.tab_deadlines')  },
-  { id: 'bot',       icon: '🤖', label: t('settings.tab_bot')        },
-  { id: 'system',    icon: '⚙️', label: t('settings.tab_system')      },
-])
+const tabs = computed(() => {
+  const baseTabs = [
+    { id: 'profile',   icon: '👤', label: t('settings.tab_profile')   },
+    { id: 'telegram',  icon: '✈️', label: t('settings.tab_telegram')  },
+    { id: 'deadlines', icon: '⏰', label: t('settings.tab_deadlines') },
+  ]
+  if (auth.isAdmin) {
+    baseTabs.push({ id: 'bot',    icon: '🤖', label: t('settings.tab_bot')    })
+    baseTabs.push({ id: 'system', icon: '⚙️', label: t('settings.tab_system') })
+  }
+  return baseTabs
+})
 
 const roleLabel = computed(() => {
   const r = auth.user?.role

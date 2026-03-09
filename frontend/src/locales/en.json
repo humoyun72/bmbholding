@@ -559,7 +559,34 @@
     "error_invalid": "Invalid username or password",
     "error_generic": "An error occurred. Please try again.",
     "error_2fa": "Enter the 6-digit code from your Authenticator app",
-    "copyright": "© {year} IntegrityBot — All rights reserved"
+    "copyright": "© {year} IntegrityBot — All rights reserved",
+    "forgot_password": "Forgot password?"
+  },
+  "forgot_password_page": {
+    "title": "Password Recovery",
+    "subtitle": "Enter your email address",
+    "email_label": "Email",
+    "email_placeholder": "email@example.com",
+    "submit_btn": "Send Reset Link",
+    "loading": "Sending...",
+    "success": "If this email exists in the system, a reset link was sent",
+    "back_login": "Back to login",
+    "error": "An error occurred"
+  },
+  "reset_password_page": {
+    "title": "Set New Password",
+    "new_password_label": "New Password",
+    "confirm_password_label": "Confirm Password",
+    "new_password_placeholder": "At least 8 characters",
+    "confirm_password_placeholder": "Repeat password",
+    "submit_btn": "Save Password",
+    "loading": "Saving...",
+    "success": "Password changed successfully! Login with your new password.",
+    "back_login": "Back to login",
+    "error_mismatch": "Passwords do not match",
+    "error_min": "Password must be at least 8 characters",
+    "error_invalid_token": "Link is invalid or expired",
+    "error_generic": "An error occurred"
   },
   "force_password": {
     "title": "Change Your Password",

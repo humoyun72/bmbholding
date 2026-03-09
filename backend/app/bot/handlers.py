@@ -2100,9 +2100,9 @@ async def handle_view_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     case_external_id = query.data.replace("view_", "", 1)
-    panel_url = settings.WEBHOOK_URL.replace("/api/telegram/webhook", "")
+    panel_url = settings.FRONTEND_URL.rstrip("/")
     await query.message.reply_text(
-        f"🔍 Admin panelda ko'rish:\n{panel_url}/admin/cases/{case_external_id}",
+        f"🔍 Admin panelda ko'rish:\n{panel_url}/cases/{case_external_id}",
         disable_web_page_preview=True,
     )
 
@@ -2832,11 +2832,11 @@ async def handle_mine_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         text += f"`{case.external_id}` | {cat_label} | {status_label} | Deadline: {due_str}\n"
 
         # Inline tugma
-        panel_url = settings.WEBHOOK_URL.replace("/api/telegram/webhook", "")
+        panel_url = settings.FRONTEND_URL.rstrip("/")
         buttons.append([
             InlineKeyboardButton(
                 f"🔍 {case.external_id}",
-                url=f"{panel_url}/admin/cases/{case.external_id}"
+                url=f"{panel_url}/cases/{case.external_id}"
             )
         ])
 

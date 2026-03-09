@@ -97,6 +97,7 @@
               <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_priority') }}</th>
               <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_status') }}</th>
               <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_deadline') }}</th>
+              <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_assignee') }}</th>
               <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_date') }}</th>
               <th class="text-left text-xs font-medium text-surface-500 uppercase tracking-wider px-5 py-4">{{ t('cases.col_actions') }}</th>
             </tr>
@@ -122,13 +123,13 @@
             </template>
             <!-- Error state -->
             <tr v-else-if="loadError">
-              <td colspan="8">
+              <td colspan="9">
                 <ErrorState :message="loadError" :retry="loadCases" />
               </td>
             </tr>
             <!-- Empty state -->
             <tr v-else-if="!cases.length">
-              <td colspan="8">
+              <td colspan="9">
                 <EmptyState
                   :icon="hasFilters ? '🔍' : '📭'"
                   :title="hasFilters ? t('cases.no_result') : t('cases.no_cases_empty')"
@@ -141,7 +142,7 @@
               <tr class="border-b border-surface-800/50 hover:bg-surface-800/30 transition-colors group relative"
                 :class="{ 'opacity-50 pointer-events-none': rowLoading === c.external_id }">
                 <!-- Loading overlay -->
-                <td v-if="rowLoading === c.external_id" colspan="8"
+                <td v-if="rowLoading === c.external_id" colspan="9"
                   class="absolute inset-0 bg-surface-900/40 z-10 flex items-center justify-center">
                   <div class="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin"></div>
                 </td>
@@ -182,6 +183,10 @@
                     :title="`Deadline: ${formatDate(c.due_at)}`">
                     {{ formatShortDate(c.due_at) }}
                   </span>
+                  <span v-else class="text-surface-600 text-xs">—</span>
+                </td>
+                <td class="px-5 py-4 cursor-pointer" @click="goToCase(c.external_id)">
+                  <span v-if="c.assignee_name" class="text-surface-300 text-sm">{{ c.assignee_name }}</span>
                   <span v-else class="text-surface-600 text-xs">—</span>
                 </td>
                 <td class="px-5 py-4 text-surface-400 text-sm cursor-pointer" @click="goToCase(c.external_id)">
@@ -269,6 +274,7 @@
         <div class="flex items-center gap-2 flex-wrap mb-2">
           <CategoryBadge :category="c.category" />
           <PriorityBadge :priority="c.priority" />
+          <span v-if="c.assignee_name" class="text-surface-400 text-xs">👤 {{ c.assignee_name }}</span>
         </div>
         <div class="flex items-center justify-between mt-2">
           <span class="text-surface-500 text-xs">{{ formatDate(c.created_at) }}</span>
@@ -519,7 +525,7 @@ function deadlineIcon(c) {
 
 function formatShortDate(d) {
   if (!d) return ''
-  return format(new Date(d), 'dd.MM')
+  return format(new Date(d), 'dd.MM.yyyy')
 }
 
 function formatDate(d) {

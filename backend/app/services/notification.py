@@ -127,7 +127,7 @@ def format_group_message(case) -> str:
         due_str = case.due_at.strftime("%d.%m.%Y")
         text += f"⏰ *Deadline:* {due_str}\n"
 
-    text += f"\n👉 [Admin panelda ko'ring]({settings.WEBHOOK_URL.replace('/api/telegram/webhook', '')}/admin/cases/{case.external_id})"
+    text += f"\n👉 [Admin panelda ko'ring]({settings.FRONTEND_URL.rstrip('/')}/cases/{case.external_id})"
 
     return text
 
@@ -246,7 +246,7 @@ async def notify_admins(
         f"📂 *Kategoriya:* {cat_label}\n"
         f"🔒 *Anonimlik:* {anon_text}\n\n"
         f"📝 *Tavsif:*\n_{short_desc}_\n\n"
-        f"👉 [Admin panelga o'ting]({settings.WEBHOOK_URL.replace('/api/telegram/webhook', '')}/admin)"
+        f"👉 [Admin panelga o'ting]({settings.FRONTEND_URL.rstrip('/')})"
     )
 
     # Inline keyboard
@@ -298,7 +298,7 @@ async def send_email_notification(
         <tr><td><b>Anonimlik</b></td><td>{"Ha" if is_anonymous else "Yo'q"}</td></tr>
         <tr><td><b>Tavsif (qisqa)</b></td><td>{description}</td></tr>
     </table>
-    <br><a href="{settings.WEBHOOK_URL.replace('/api/telegram/webhook', '')}/admin">Admin panelga o'ting</a>
+    <br><a href="{settings.FRONTEND_URL.rstrip('/')}">Admin panelga o'ting</a>
     </body></html>
     """
 

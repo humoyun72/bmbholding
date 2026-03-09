@@ -49,6 +49,15 @@ ADMIN_ONLY_TRANSITIONS: dict[CaseStatus, list[CaseStatus]] = {
 }
 
 
+def _check_investigator_access(current_user: User, case: "Case") -> None:
+    """Investigator faqat o'ziga tayinlangan murojaat ustida amal qila oladi."""
+    if current_user.role == UserRole.INVESTIGATOR and case.assigned_to != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Siz faqat o'zingizga tayinlangan murojaatlar ustida amal qila olasiz"
+        )
+
+
 def decrypt_case(case: Case) -> dict:
     base = {
         "id": str(case.id),
@@ -87,6 +96,9 @@ async def export_cases(
 
     # ── Filtr ──────────────────────────────────────────────────────────────
     qfilters = []
+    # Investigator faqat o'ziga tayinlangan murojaatlarni eksport qila oladi
+    if current_user.role == UserRole.INVESTIGATOR:
+        qfilters.append(Case.assigned_to == current_user.id)
     if ids:
         id_list = [i.strip() for i in ids.split(',') if i.strip()]
         if id_list:
@@ -114,7 +126,7 @@ async def export_cases(
 
     query = (
         select(Case)
-        .options(selectinload(Case.assignee))
+        .options(selectinload(Case.assignee), selectinload(Case.attachments))
         .order_by(Case.created_at.desc())
     )
     if qfilters:
@@ -148,8 +160,10 @@ async def export_cases(
         "low": "Past",
     }
 
-    export_date = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    file_date   = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    TASHKENT_TZ = timezone(timedelta(hours=5))
+    now_tashkent = datetime.now(TASHKENT_TZ)
+    export_date = now_tashkent.strftime("%Y-%m-%d %H:%M (UTC+5)")
+    file_date   = now_tashkent.strftime("%Y-%m-%d")
 
     # ── Filter info matni ──────────────────────────────────────────────────
     filter_parts = []
@@ -170,6 +184,8 @@ async def export_cases(
         assignee_name = ""
         if c.assignee:
             assignee_name = c.assignee.full_name or c.assignee.username
+        case_url = f"{settings.FRONTEND_URL}/cases/{c.external_id}" if settings.FRONTEND_URL else ""
+        att_names = ", ".join(a.original_filename for a in (c.attachments or [])) if c.attachments else ""
         rows.append({
             "id":       c.external_id,
             "category": cat_labels.get(c.category.value if hasattr(c.category, "value") else c.category, str(c.category)),
@@ -177,14 +193,16 @@ async def export_cases(
             "priority": priority_labels.get(c.priority.value if hasattr(c.priority, "value") else c.priority, str(c.priority)),
             "anon":     "Ha" if c.is_anonymous else "Yo'q",
             "assignee": assignee_name,
-            "created":  c.created_at.strftime("%d.%m.%Y %H:%M") if c.created_at else "",
-            "closed":   c.closed_at.strftime("%d.%m.%Y %H:%M") if c.closed_at else "",
+            "created":  c.created_at.astimezone(TASHKENT_TZ).strftime("%d.%m.%Y %H:%M") if c.created_at else "",
+            "closed":   c.closed_at.astimezone(TASHKENT_TZ).strftime("%d.%m.%Y %H:%M") if c.closed_at else "",
             "desc":     desc,
             "status_raw": c.status.value if hasattr(c.status, "value") else str(c.status),
+            "att_names": att_names,
+            "case_url": case_url,
         })
 
     headers_row = ["Murojaat ID", "Tavsif", "Kategoriya", "Holat", "Ustuvorlik",
-                   "Anonimlik", "Ijrochi", "Yaratilgan", "Yopilgan"]
+                   "Anonimlik", "Ijrochi", "Yaratilgan", "Yopilgan", "Fayllar"]
 
     # ══════════════════════════════════════════════════════════════════════
     # EXCEL
@@ -200,7 +218,7 @@ async def export_cases(
         ws.title = "Murojaatlar"
 
         # ── 1-qator: sarlavha ──────────────────────────────────────────────
-        ws.merge_cells("A1:I1")
+        ws.merge_cells("A1:J1")
         ws["A1"] = f"IntegrityBot — Eksport hisoboti  |  {export_date}"
         ws["A1"].font = Font(bold=True, size=13, color="FFFFFF")
         ws["A1"].fill = PatternFill("solid", fgColor="1E3A5F")
@@ -208,7 +226,7 @@ async def export_cases(
         ws.row_dimensions[1].height = 24
 
         # ── 2-qator: filter info ───────────────────────────────────────────
-        ws.merge_cells("A2:I2")
+        ws.merge_cells("A2:J2")
         ws["A2"] = f"Filtr: {filter_info}  |  Jami: {len(rows)} ta murojaat"
         ws["A2"].font = Font(italic=True, size=10, color="444444")
         ws["A2"].fill = PatternFill("solid", fgColor="D9E1F2")
@@ -242,18 +260,22 @@ async def export_cases(
         for r_idx, row in enumerate(rows, start=4):
             fill = row_fills.get(row["status_raw"], None)
             vals = [row["id"], row["desc"], row["category"], row["status"], row["priority"],
-                    row["anon"], row["assignee"], row["created"], row["closed"]]
+                    row["anon"], row["assignee"], row["created"], row["closed"], row["att_names"]]
             for c_idx, val in enumerate(vals, start=1):
                 cell = ws.cell(row=r_idx, column=c_idx, value=val)
                 cell.border = border
-                cell.alignment = Alignment(vertical="top", wrap_text=(c_idx == 2))
+                cell.alignment = Alignment(vertical="top", wrap_text=(c_idx in (2, 10)))
                 if fill:
                     cell.fill = fill
                 if c_idx == 1:
+                    # Murojaat ID ga hyperlink (FRONTEND_URL bo'lsa)
                     cell.font = Font(bold=True, color="1F497D")
+                    if row["case_url"]:
+                        cell.hyperlink = row["case_url"]
+                        cell.font = Font(bold=True, color="0563C1", underline="single")
 
         # ── Ustun kengliklarini auto-fit ───────────────────────────────────
-        col_widths = [18, 60, 22, 18, 12, 10, 20, 18, 18]
+        col_widths = [18, 60, 22, 18, 12, 10, 20, 18, 18, 30]
         for i, w in enumerate(col_widths, start=1):
             ws.column_dimensions[get_column_letter(i)].width = w
 
@@ -312,7 +334,7 @@ async def export_cases(
         story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor("#2E75B6"), spaceAfter=8))
 
         # Jadval sarlavhalari
-        col_widths_pdf = [38*mm, 65*mm, 35*mm, 28*mm, 20*mm, 14*mm, 28*mm, 24*mm, 24*mm]
+        col_widths_pdf = [32*mm, 52*mm, 28*mm, 24*mm, 18*mm, 12*mm, 22*mm, 20*mm, 20*mm, 30*mm]
         header_cells = [Paragraph(h, header_style) for h in headers_row]
         table_data = [header_cells]
 
@@ -326,6 +348,9 @@ async def export_cases(
 
         row_bg_cmds = []
         for r_idx, row in enumerate(rows, start=1):
+            att_cell_text = row["att_names"] or "—"
+            if row["case_url"] and row["att_names"]:
+                att_cell_text = f'<link href="{row["case_url"]}">{row["att_names"][:100]}</link>'
             cells = [
                 Paragraph(row["id"], cell_style),
                 Paragraph(row["desc"][:300], cell_style),
@@ -336,6 +361,7 @@ async def export_cases(
                 Paragraph(row["assignee"], cell_style),
                 Paragraph(row["created"], cell_style),
                 Paragraph(row["closed"], cell_style),
+                Paragraph(att_cell_text, cell_style),
             ]
             table_data.append(cells)
             bg = status_colors_pdf.get(row["status_raw"])
@@ -395,6 +421,9 @@ async def list_cases(
     db: AsyncSession = Depends(get_db),
 ):
     filters = []
+    # Investigator faqat o'ziga tayinlangan murojaatlarni ko'ra oladi
+    if current_user.role == UserRole.INVESTIGATOR:
+        filters.append(Case.assigned_to == current_user.id)
     if status:
         filters.append(Case.status == status)
     if category:
@@ -404,7 +433,7 @@ async def list_cases(
     if assigned_to:
         filters.append(Case.assigned_to == uuid.UUID(assigned_to))
 
-    query = select(Case).options(selectinload(Case.attachments))
+    query = select(Case).options(selectinload(Case.attachments), selectinload(Case.assignee))
     if filters:
         query = query.where(and_(*filters))
     query = query.order_by(Case.created_at.desc())
@@ -416,8 +445,14 @@ async def list_cases(
     result = await db.execute(query.offset(offset).limit(per_page))
     cases = result.scalars().all()
 
+    items = []
+    for c in cases:
+        item = decrypt_case(c)
+        item["assignee_name"] = (c.assignee.full_name or c.assignee.username) if c.assignee else None
+        items.append(item)
+
     return {
-        "items": [decrypt_case(c) for c in cases],
+        "items": items,
         "total": total,
         "page": page,
         "per_page": per_page,
@@ -473,6 +508,9 @@ async def get_stats(
     # ── WHERE shartini qurish ─────────────────────────────────────────────
     def date_filter():
         conds = []
+        # Investigator faqat o'z murojaatlari statistikasini ko'radi
+        if current_user.role == UserRole.INVESTIGATOR:
+            conds.append(Case.assigned_to == current_user.id)
         if from_dt:
             conds.append(Case.created_at >= from_dt)
         if to_dt:
@@ -675,6 +713,9 @@ async def get_case(
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
+    # Investigator tekshiruvi
+    _check_investigator_access(current_user, case)
+
     # Audit log
     db.add(AuditLog(
         user_id=current_user.id,
@@ -764,7 +805,8 @@ async def export_case_pdf(
     except Exception:
         description = "[Shifrni ochib bo'lmadi]"
 
-    export_dt = datetime.now(timezone.utc).strftime("%d.%m.%Y %H:%M UTC")
+    _tashkent = timezone(timedelta(hours=5))
+    export_dt = datetime.now(_tashkent).strftime("%d.%m.%Y %H:%M (UTC+5)")
 
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -795,8 +837,8 @@ async def export_case_pdf(
         ["Ustuvorlik", priority_labels.get(v(case.priority), v(case.priority))],
         ["Anonimlik", "Ha" if case.is_anonymous else "Yo'q"],
         ["Ijrochi", (case.assignee.full_name or case.assignee.username) if case.assignee else "Tayinlanmagan"],
-        ["Yaratilgan", case.created_at.strftime("%d.%m.%Y %H:%M") if case.created_at else "—"],
-        ["Yopilgan", case.closed_at.strftime("%d.%m.%Y %H:%M") if case.closed_at else "—"],
+        ["Yaratilgan", case.created_at.astimezone(_tashkent).strftime("%d.%m.%Y %H:%M") if case.created_at else "—"],
+        ["Yopilgan", case.closed_at.astimezone(_tashkent).strftime("%d.%m.%Y %H:%M") if case.closed_at else "—"],
         ["Muddat", case.due_at.strftime("%d.%m.%Y") if case.due_at else "—"],
     ]
     info_tbl = Table(info_data, colWidths=[50*mm, 120*mm])
@@ -832,7 +874,7 @@ async def export_case_pdf(
             who = "Reporter" if cm.is_from_reporter else (
                 cm.author.full_name if cm.author else "Admin")
             kind = "Ichki" if cm.is_internal else "Tashqi"
-            ts = cm.created_at.strftime("%d.%m %H:%M") if cm.created_at else ""
+            ts = cm.created_at.astimezone(_tashkent).strftime("%d.%m %H:%M") if cm.created_at else ""
             chat_data.append([ts, who, content, kind])
         chat_tbl = Table(chat_data, colWidths=[22*mm, 28*mm, 100*mm, 16*mm])
         chat_tbl.setStyle(TableStyle([
@@ -860,7 +902,7 @@ async def export_case_pdf(
                 a.original_filename,
                 a.mime_type,
                 size,
-                a.uploaded_at.strftime("%d.%m.%Y") if a.uploaded_at else "—",
+                a.uploaded_at.astimezone(_tashkent).strftime("%d.%m.%Y") if a.uploaded_at else "—",
                 uploaded,
             ])
         att_tbl = Table(att_data, colWidths=[60*mm, 35*mm, 20*mm, 25*mm, 25*mm])
@@ -887,7 +929,7 @@ async def export_case_pdf(
     doc.build(story, onFirstPage=footer, onLaterPages=footer)
     buf.seek(0)
 
-    filename = f"case_{case_id}_{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.pdf"
+    filename = f"case_{case_id}_{datetime.now(_tashkent).strftime('%Y-%m-%d')}.pdf"
     return StreamingResponse(
         buf,
         media_type="application/pdf",
@@ -900,7 +942,7 @@ async def assign_case(
     case_id: str,
     body: AssignCaseRequest,
     request: Request,
-    current_user: User = Depends(require_investigator_or_above),
+    current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(select(Case).where(Case.external_id == case_id))
@@ -956,6 +998,9 @@ async def change_status(
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
+
+    # Investigator tekshiruvi
+    _check_investigator_access(current_user, case)
 
     old_status = case.status
     new_status = body.status
@@ -1044,6 +1089,8 @@ async def add_comment(
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
+    _check_investigator_access(current_user, case)
+
     comment = CaseComment(
         case_id=case.id,
         author_id=current_user.id,
@@ -1086,6 +1133,8 @@ async def download_attachment(
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
+
+    _check_investigator_access(current_user, case)
 
     att_result = await db.execute(
         select(CaseAttachment).where(
@@ -1186,6 +1235,8 @@ async def send_file_to_reporter(
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
+
+    _check_investigator_access(current_user, case)
 
     # Fayl validatsiya
     file_data = await file.read()

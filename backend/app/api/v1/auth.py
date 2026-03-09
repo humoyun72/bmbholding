@@ -48,7 +48,13 @@ def require_roles(*roles: UserRole):
     return checker
 
 
+def is_superuser(user: User) -> bool:
+    """Faqat birinchi yaratilgan admin (username='admin') superuser hisoblanadi."""
+    return user.username == "admin"
+
+
 require_admin = require_roles(UserRole.ADMIN)
+require_superadmin = require_roles(UserRole.ADMIN)  # is_superuser() tekshiruvi endpoint ichida
 require_investigator_or_above = require_roles(UserRole.ADMIN, UserRole.INVESTIGATOR)
 
 
@@ -255,6 +261,10 @@ async def create_user(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
+    # Oddiy admin admin roli bilan foydalanuvchi yarata olmaydi
+    if not is_superuser(current_user) and body.role == UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Faqat superadmin boshqa adminlarni yarata oladi")
+
     existing = await db.execute(select(User).where(User.username == body.username))
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Bu foydalanuvchi nomi allaqachon mavjud")
@@ -283,7 +293,15 @@ async def list_users(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(User).order_by(User.created_at.desc()))
+    if is_superuser(current_user):
+        result = await db.execute(select(User).order_by(User.created_at.desc()))
+    else:
+        # Oddiy admin: faqat investigatorlar va o'zi
+        result = await db.execute(
+            select(User).where(
+                (User.role == UserRole.INVESTIGATOR) | (User.id == current_user.id)
+            ).order_by(User.created_at.desc())
+        )
     return [UserResponse.model_validate(u) for u in result.scalars().all()]
 
 
@@ -299,6 +317,15 @@ async def update_user(
     target = result.scalar_one_or_none()
     if not target:
         raise HTTPException(status_code=404, detail="Foydalanuvchi topilmadi")
+
+    # Oddiy admin cheklovlari
+    if not is_superuser(current_user):
+        # Boshqa adminlarni tahrirlay olmaydi (superuser bundan mustasno)
+        if target.role == UserRole.ADMIN and target.id != current_user.id:
+            raise HTTPException(status_code=403, detail="Boshqa adminlarni tahrirlash uchun superadmin huquqi kerak")
+        # Admin rolini tayinlay olmaydi
+        if "role" in body and body["role"] == "admin":
+            raise HTTPException(status_code=403, detail="Admin rolini tayinlash uchun superadmin huquqi kerak")
 
     # O'zgartirilishi mumkin bo'lgan maydonlar
     if "full_name" in body and body["full_name"] is not None:
@@ -361,6 +388,10 @@ async def delete_user(
     # Superuserni himoya qilish
     if target.username == "admin":
         raise HTTPException(status_code=400, detail="Superuserni o'chirish mumkin emas")
+
+    # Oddiy admin faqat investigatorlarni o'chira oladi
+    if not is_superuser(current_user) and target.role == UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Boshqa adminlarni o'chirish uchun superadmin huquqi kerak")
 
     # O'zini o'chira olmaydi
     if target.id == current_user.id:
@@ -462,6 +493,109 @@ async def ldap_test(
         return {"ok": False, "message": "Autentifikatsiya muvaffaqiyatsiz (noto'g'ri login/parol)"}
     except Exception as e:
         return {"ok": False, "message": f"Xato: {str(e)}"}
+
+
+@router.post("/forgot-password")
+async def forgot_password(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Parolni tiklash so'rovi — email yuboradi.
+    Foydalanuvchi mavjudligini oshkor etmaydi (xavfsizlik).
+    """
+    import secrets as _secrets
+    import redis.asyncio as aioredis
+
+    email = body.get("email", "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email kiritilishi kerak")
+
+    result = await db.execute(select(User).where(User.email == email))
+    user = result.scalar_one_or_none()
+
+    # Foydalanuvchi yo'q bo'lsa — xato bermayiz (security best practice)
+    if not user or not user.is_active:
+        return {"message": "Agar bu email tizimda mavjud bo'lsa, tiklash havolasi yuborildi"}
+
+    token = _secrets.token_urlsafe(32)
+    redis_key = f"pw_reset:{token}"
+
+    try:
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await r.setex(redis_key, 3600, str(user.id))  # 1 soat
+        await r.aclose()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Redis xatosi: {e}")
+
+    reset_url = settings.FRONTEND_URL or ""
+    reset_link = f"{reset_url}/reset-password?token={token}" if reset_url else f"Token: {token}"
+
+    try:
+        from app.services.email import send_email
+        body_text = (
+            f"Salom {user.full_name or user.username}!\n\n"
+            f"Parolingizni tiklash uchun quyidagi havolani bosing:\n{reset_link}\n\n"
+            f"Havola 1 soat amal qiladi.\n\n"
+            f"Agar siz bu so'rovni yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring."
+        )
+        await send_email(
+            to=user.email,
+            subject="IntegrityBot — Parolni tiklash",
+            body=body_text,
+        )
+    except Exception as e:
+        import logging as _log
+        _log.getLogger(__name__).warning(f"Parol tiklash emaili yuborilmadi ({user.email}): {e}")
+
+    return {"message": "Agar bu email tizimda mavjud bo'lsa, tiklash havolasi yuborildi"}
+
+
+@router.post("/reset-password")
+async def reset_password(
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    """Token asosida parolni tiklash."""
+    import redis.asyncio as aioredis
+
+    token = body.get("token", "").strip()
+    new_password = body.get("new_password", "")
+
+    if not token or not new_password:
+        raise HTTPException(status_code=400, detail="Token va yangi parol kiritilishi kerak")
+    if len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Parol kamida 8 belgidan iborat bo'lishi kerak")
+
+    redis_key = f"pw_reset:{token}"
+    try:
+        r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        user_id_str = await r.get(redis_key)
+        if not user_id_str:
+            raise HTTPException(status_code=400, detail="Token yaroqsiz yoki muddati o'tgan")
+        await r.delete(redis_key)
+        await r.aclose()
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Redis xatosi: {e}")
+
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id_str)))
+    user = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        raise HTTPException(status_code=400, detail="Foydalanuvchi topilmadi")
+
+    user.hashed_password = hash_password(new_password)
+    user.force_password_change = False
+    db.add(AuditLog(
+        user_id=user.id,
+        action=AuditAction.USER_UPDATE,
+        entity_type="user",
+        entity_id=str(user.id),
+        payload={"action": "password_reset"},
+    ))
+    await db.commit()
+    return {"message": "Parol muvaffaqiyatli tiklandi"}
 
 
 @router.post("/change-password")

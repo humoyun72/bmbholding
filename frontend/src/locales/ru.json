@@ -559,7 +559,34 @@
     "error_invalid": "Неверный логин или пароль",
     "error_generic": "Произошла ошибка. Попробуйте снова.",
     "error_2fa": "Введите 6-значный код из приложения Authenticator",
-    "copyright": "© {year} IntegrityBot — Все права защищены"
+    "copyright": "© {year} IntegrityBot — Все права защищены",
+    "forgot_password": "Забыли пароль?"
+  },
+  "forgot_password_page": {
+    "title": "Восстановление пароля",
+    "subtitle": "Введите ваш email адрес",
+    "email_label": "Email",
+    "email_placeholder": "email@example.com",
+    "submit_btn": "Отправить ссылку для сброса",
+    "loading": "Отправка...",
+    "success": "Если этот email существует в системе, ссылка для сброса была отправлена",
+    "back_login": "Вернуться к входу",
+    "error": "Произошла ошибка"
+  },
+  "reset_password_page": {
+    "title": "Установка нового пароля",
+    "new_password_label": "Новый пароль",
+    "confirm_password_label": "Подтвердить пароль",
+    "new_password_placeholder": "Минимум 8 символов",
+    "confirm_password_placeholder": "Повторите пароль",
+    "submit_btn": "Сохранить пароль",
+    "loading": "Сохранение...",
+    "success": "Пароль успешно изменён! Войдите с новым паролем.",
+    "back_login": "Вернуться к входу",
+    "error_mismatch": "Пароли не совпадают",
+    "error_min": "Пароль должен содержать минимум 8 символов",
+    "error_invalid_token": "Ссылка недействительна или истекла",
+    "error_generic": "Произошла ошибка"
   },
   "force_password": {
     "title": "Измените пароль",

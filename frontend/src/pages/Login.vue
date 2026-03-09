@@ -84,6 +84,12 @@
             </svg>
             {{ loading ? t('login.loading') : t('login.login_btn') }}
           </button>
+          <div class="text-center mt-3">
+            <router-link to="/forgot-password"
+              class="text-brand-400 hover:text-brand-300 text-sm transition-colors">
+              {{ t('login.forgot_password') }}
+            </router-link>
+          </div>
         </form>
       </div>
 

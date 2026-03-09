@@ -184,9 +184,8 @@
             <select v-model="form.role" class="input w-full"
               :disabled="form.username === 'admin'"
               :class="form.username === 'admin' ? 'opacity-50 cursor-not-allowed' : ''">
-              <option value="viewer">👁 {{ t('users.role_viewer_desc') }}</option>
               <option value="investigator">🔍 {{ t('users.role_investigator_desc') }}</option>
-              <option value="admin">👑 {{ t('users.role_admin_desc') }}</option>
+              <option v-if="isSuperAdmin" value="admin">👑 {{ t('users.role_admin_desc') }}</option>
             </select>
           </div>
           <div v-if="editMode && form.username !== 'admin'"
@@ -327,13 +326,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, onUnmounted, onMounted } from 'vue'
+import { ref, reactive, computed, onUnmounted, onMounted } from 'vue'
 import { format } from 'date-fns'
 import api from '@/utils/api'
 import EmptyState from '@/components/EmptyState.vue'
 import { useI18n } from '@/composables/useI18n'
+import { useAuthStore } from '@/stores/auth'
 
 const { t } = useI18n()
+const auth = useAuthStore()
+const isSuperAdmin = computed(() => auth.user?.username === 'admin')
 
 // ── State ─────────────────────────────────────────────────────────
 const loading  = ref(true)
