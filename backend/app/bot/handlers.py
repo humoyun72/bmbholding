@@ -3319,16 +3319,8 @@ def build_application() -> Application:
     app.add_handler(TGPollAnswerHandler(handle_poll_answer))
     app.add_handler(TGPollHandler(handle_poll_update))
 
-    # ✅ Admin guruh: inline keyboard callback handlerlari
-    app.add_handler(CallbackQueryHandler(handle_assign_callback,    pattern=r"^assign_"))
-    app.add_handler(CallbackQueryHandler(handle_do_assign_callback, pattern=r"^do_assign_"))
-    app.add_handler(CallbackQueryHandler(handle_start_callback,     pattern=r"^start_"))
-    app.add_handler(CallbackQueryHandler(handle_reject_callback,    pattern=r"^reject_"))
-    app.add_handler(CallbackQueryHandler(handle_view_callback,      pattern=r"^view_"))
-    app.add_handler(CallbackQueryHandler(handle_back_case_callback, pattern=r"^back_case_"))
-
-    # ✅ Status o'zgartirish callback handleri (ALLOWED_TRANSITIONS bilan)
-    app.add_handler(CallbackQueryHandler(handle_status_callback,    pattern=r"^status_"))
+    # Guruh action callback handlerlari o'chirilgan (#40)
+    # (assign_, do_assign_, start_, reject_, view_, back_case_, status_ — guruhdagi tugmalar olib tashlangan)
 
     # ✅ Admin guruh buyruqlari: /note va /search
     app.add_handler(CommandHandler("note", handle_note_command))

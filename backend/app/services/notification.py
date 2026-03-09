@@ -161,19 +161,17 @@ async def update_group_message(bot: Bot, case, chat_id: int = None) -> "Message 
         chat_id = settings.ADMIN_CHAT_ID
 
     text = format_group_message(case)
-    keyboard = build_status_keyboard(case.external_id, case.status)
 
     message_id = getattr(case, "group_message_id", None)
 
     if message_id:
-        # Mavjud xabarni tahrirlash
+        # Mavjud xabarni tahrirlash (tugmalar yo'q)
         try:
             edited = await bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=message_id,
                 text=text,
                 parse_mode=ParseMode.MARKDOWN,
-                reply_markup=keyboard,
             )
             return edited
         except BadRequest as e:
@@ -192,13 +190,12 @@ async def update_group_message(bot: Bot, case, chat_id: int = None) -> "Message 
             logger.error(f"update_group_message edit failed: {e}")
             return None
 
-    # Yangi xabar yuborish
+    # Yangi xabar yuborish (tugmalar yo'q)
     try:
         sent = await bot.send_message(
             chat_id=chat_id,
             text=text,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboard,
         )
         return sent
     except Exception as e:
@@ -264,27 +261,14 @@ async def notify_admins(
         f"👉 [Admin panelga o'ting]({_frontend_url() or 'https://admin.example.com'})"
     )
 
-    # Inline keyboard
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("👤 Tayinlash",           callback_data=f"assign_{case_id}"),
-            InlineKeyboardButton("🔍 Admin panelda ko'r",  callback_data=f"view_{case_id}"),
-        ],
-        [
-            InlineKeyboardButton("▶️ Boshlash",  callback_data=f"start_{case_id}"),
-            InlineKeyboardButton("❌ Rad etish", callback_data=f"reject_{case_id}"),
-        ],
-    ])
-
     sent_message: "Message | None" = None
 
-    # Telegram notification
+    # Telegram notification (tugmalar yo'q — faqat ma'lumot xabari)
     try:
         sent_message = await bot.send_message(
             chat_id=settings.ADMIN_CHAT_ID,
             text=text,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=keyboard,
         )
     except Exception as e:
         logger.error(f"Telegram notify failed: {e}")

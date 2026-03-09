@@ -312,13 +312,36 @@ async def _run_report_scheduler():
             async with AsyncSessionLocal() as db:
                 sys_settings = await get_all_settings(db)
 
-            daily_enabled = sys_settings.get("notify_daily_report", "true") == "true"
-            weekly_enabled = sys_settings.get("notify_weekly_report", "true") == "true"
+            # Sozlamalar UI tomonidan "notif_" prefiksi bilan saqlanadi (NOTIFICATION_KEYS),
+            # eski DEFAULTS esa "notify_" prefiksi bilan. Yangi kalit ustuvor.
+            daily_enabled_raw = sys_settings.get(
+                "notif_daily_report_enabled",
+                sys_settings.get("notify_daily_report", "true"),
+            )
+            daily_enabled = str(daily_enabled_raw).lower() == "true"
+
+            weekly_enabled_raw = sys_settings.get(
+                "notif_weekly_report_enabled",
+                sys_settings.get("notify_weekly_report", "true"),
+            )
+            weekly_enabled = str(weekly_enabled_raw).lower() == "true"
 
             # Vaqtni parse qilish (HH:MM) → UTC ga o'tkazish (UZT - 5)
-            daily_time_str = sys_settings.get("notify_daily_report_time", "18:00")
-            weekly_time_str = sys_settings.get("notify_weekly_report_time", "09:00")
-            weekly_day = int(sys_settings.get("notify_weekly_report_day", "1"))  # 1=Dushanba
+            daily_time_str = sys_settings.get(
+                "notif_daily_report_time",
+                sys_settings.get("notify_daily_report_time", "18:00"),
+            )
+            weekly_time_str = sys_settings.get(
+                "notif_weekly_report_time",
+                sys_settings.get("notify_weekly_report_time", "09:00"),
+            )
+
+            # weekly_day: NOTIFICATION_KEYS 0-asosli (0=Dush) saqlaydi,
+            # eski DEFAULTS esa 1-asosli (1=Dush). Scheduler formula 1-asosli kutadi.
+            if "notif_weekly_report_day" in sys_settings:
+                weekly_day = int(sys_settings["notif_weekly_report_day"]) + 1  # 0-asosli → 1-asosli
+            else:
+                weekly_day = int(sys_settings.get("notify_weekly_report_day", "1"))  # 1=Dushanba
 
             def parse_hhmm_to_utc(time_str: str):
                 """HH:MM (UZT) → UTC soat, daqiqa"""
