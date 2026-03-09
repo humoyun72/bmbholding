@@ -14,8 +14,8 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str
 
-    # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    # Redis (ixtiyoriy — bo'sh qoldirilsa Redis ishlatilmaydi, shared hosting uchun)
+    REDIS_URL: str = ""
 
     # Telegram
     TELEGRAM_BOT_TOKEN: str

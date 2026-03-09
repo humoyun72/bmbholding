@@ -876,17 +876,14 @@ async def confirm_send(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
             # Real-time WebSocket notification to admin panel
             try:
-                import redis.asyncio as aioredis
-                from app.services.websocket_manager import publish_notification
-                r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-                await publish_notification(r, "new_case", {
+                from app.services.websocket_manager import notify_ws
+                await notify_ws("new_case", {
                     "case_id": case_id,
                     "category": category.value if hasattr(category, "value") else str(category),
                     "priority": PRIORITY_BY_CATEGORY.get(category, CasePriority.MEDIUM).value,
                     "is_anonymous": is_anonymous,
                     "message": f"Yangi murojaat: {case_id}",
                 })
-                await r.aclose()
             except Exception as e:
                 logger.warning(f"WS notify failed: {e}")
 
@@ -1635,15 +1632,12 @@ async def handle_poll_update(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
             # WebSocket broadcast
             try:
-                import redis.asyncio as aioredis
-                from app.services.websocket_manager import publish_notification
-                r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-                await publish_notification(r, "poll_vote", {
+                from app.services.websocket_manager import notify_ws
+                await notify_ws("poll_vote", {
                     "poll_id": str(question.poll_id),
                     "question_id": str(question.id),
                     "message": "So'rovnomada yangi ovoz berildi",
                 })
-                await r.aclose()
             except Exception as e:
                 logger.warning(f"WS poll_vote notify failed: {e}")
 
@@ -1694,15 +1688,12 @@ async def handle_poll_answer(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
             # WebSocket orqali admin panelga real-time yangilanish
             try:
-                import redis.asyncio as aioredis
-                from app.services.websocket_manager import publish_notification
-                r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-                await publish_notification(r, "poll_vote", {
+                from app.services.websocket_manager import notify_ws
+                await notify_ws("poll_vote", {
                     "poll_id": str(question.poll_id),
                     "question_id": str(question.id),
                     "message": "So'rovnomada yangi ovoz berildi",
                 })
-                await r.aclose()
             except Exception as e:
                 logger.warning(f"WS poll_vote notify failed: {e}")
 

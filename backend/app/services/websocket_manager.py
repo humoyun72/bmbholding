@@ -66,6 +66,33 @@ async def publish_notification(redis_client, event_type: str, payload: dict):
         logger.error(f"Redis publish failed: {e}")
 
 
+async def notify_ws(event_type: str, payload: dict):
+    """
+    WebSocket notification yuborish.
+    Redis sozlangan bo'lsa — pub/sub orqali (multi-worker).
+    Bo'lmasa — xotirada to'g'ridan broadcast (shared hosting, bitta worker).
+    """
+    from app.core.config import settings
+
+    data = {"type": event_type, **payload}
+
+    if settings.REDIS_URL:
+        try:
+            import redis.asyncio as aioredis
+            r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+            await r.publish(WS_CHANNEL, json.dumps(data))
+            await r.aclose()
+            return
+        except Exception as e:
+            logger.warning(f"Redis notify xatosi, to'g'ridan broadcast: {e}")
+
+    # Redis yo'q yoki xato — bitta jarayon ichida broadcast
+    try:
+        await manager.broadcast(data)
+    except Exception as e:
+        logger.error(f"Direct WS broadcast xatosi: {e}")
+
+
 async def redis_subscriber(redis_url: str):
     """
     Background task: subscribe to Redis channel and broadcast

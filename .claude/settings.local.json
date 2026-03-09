@@ -9,7 +9,8 @@
       "Bash(grep:*)",
       "Bash(docker compose:*)",
       "Bash(python3:*)",
-      "Bash(\"G:/pet_projects/integrity-bot/backend/app/api/v1/settings.py\":*)"
+      "Bash(\"G:/pet_projects/integrity-bot/backend/app/api/v1/settings.py\":*)",
+      "Bash(\"G:/pet_projects/integrity-bot/.github/passenger-restart/restart.txt\":*)"
     ]
   }
 }

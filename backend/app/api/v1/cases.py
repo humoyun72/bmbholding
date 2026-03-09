@@ -1217,15 +1217,12 @@ async def add_comment(
 
     # ── WebSocket real-time notification ──────────────────────────────────────
     try:
-        import redis.asyncio as aioredis
-        from app.services.websocket_manager import publish_notification
-        _r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
-        await publish_notification(_r, "new_comment", {
+        from app.services.websocket_manager import notify_ws
+        await notify_ws("new_comment", {
             "case_id": case.external_id,
             "is_internal": body.is_internal,
             "author": current_user.full_name or current_user.username,
         })
-        await _r.aclose()
     except Exception as _e:
         logger.debug(f"WS publish skip: {_e}")
 

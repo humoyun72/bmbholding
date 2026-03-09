@@ -78,10 +78,13 @@ async def lifespan(app: FastAPI):
                 await db.rollback()
                 logger.info("Admin user already exists, skipping creation.")
 
-    # Start Redis subscriber for WebSocket broadcast
-    from app.services.websocket_manager import redis_subscriber
-    _redis_subscriber_task = asyncio.create_task(redis_subscriber(settings.REDIS_URL))
-    logger.info("Redis WS subscriber started ✅")
+    # Start Redis subscriber for WebSocket broadcast (ixtiyoriy — REDIS_URL bo'lsa)
+    if settings.REDIS_URL:
+        from app.services.websocket_manager import redis_subscriber
+        _redis_subscriber_task = asyncio.create_task(redis_subscriber(settings.REDIS_URL))
+        logger.info("Redis WS subscriber started ✅")
+    else:
+        logger.info("REDIS_URL sozlanmagan — WebSocket bitta jarayonda ishlaydi (shared hosting)")
 
     # Start data retention scheduler (har kecha 02:00 UTC)
     from app.services.retention import run_retention

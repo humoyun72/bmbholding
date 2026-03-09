@@ -6,9 +6,21 @@ on:
   pull_request:
     branches: [main]
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_PREFIX: ${{ github.repository_owner }}/integrity-bot
+# ══════════════════════════════════════════════════════════════════════════════
+#  GitHub Secrets (Settings → Secrets and variables → Actions):
+#
+#  FTP_HOST         = ftp.bmb-holding.uz
+#  FTP_USERNAME     = tgbot@bmb-holding.uz
+#  FTP_PASSWORD     = tgbot@123
+#  FTP_FRONTEND_DIR = /bmbholding/murojaat/          ← murojaat.bmb-holding.uz papkasi
+#  FTP_BACKEND_DIR  = /bmbholding/apimurojaat/        ← apimurojaat.bmb-holding.uz Python app
+#
+#  VITE_API_URL     = https://apimurojaat.bmb-holding.uz/api
+#  WEBHOOK_URL      = https://apimurojaat.bmb-holding.uz/api/telegram/webhook
+#  WEBHOOK_SECRET   = .env dagi WEBHOOK_SECRET qiymati
+#  TELEGRAM_BOT_TOKEN = BotFather dan olingan token
+#  ADMIN_CHAT_ID    = Telegram guruh ID (-100...)
+# ══════════════════════════════════════════════════════════════════════════════
 
 jobs:
   # ─── Test Backend ─────────────────────────────────────────────────────────
@@ -55,7 +67,6 @@ jobs:
         run: |
           cd backend
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
 
       - name: Run tests
         env:
@@ -63,7 +74,7 @@ jobs:
           REDIS_URL: redis://localhost:6379/0
           TELEGRAM_BOT_TOKEN: fake_token
           WEBHOOK_SECRET: test_secret
-          WEBHOOK_URL: https://test.com/webhook
+          WEBHOOK_URL: https://apimurojaat.bmb-holding.uz/api/telegram/webhook
           ADMIN_CHAT_ID: "123456"
           SECRET_KEY: test_secret_key_very_long_string_here
           ENCRYPTION_KEY: dGVzdGtleXRlc3RrZXl0ZXN0a2V5dGVzdA==
@@ -71,9 +82,9 @@ jobs:
           cd backend
           python -m pytest tests/ -v --tb=short || echo "No tests yet"
 
-  # ─── Lint Frontend ────────────────────────────────────────────────────────
+  # ─── Lint & Build Frontend ────────────────────────────────────────────────
   lint-frontend:
-    name: 🎨 Frontend Lint
+    name: 🎨 Frontend Lint & Build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -82,119 +93,118 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Install & Build
+      - name: Install & Build check
         run: |
           cd frontend
           npm install
           npm run build
 
-  # ─── Build & Push Docker Images ───────────────────────────────────────────
-  build-and-push:
-    name: 🐳 Build & Push Images
+  # ─── Deploy Frontend → murojaat.bmb-holding.uz ───────────────────────────
+  deploy-frontend:
+    name: 📁 Deploy Frontend → murojaat.bmb-holding.uz
     runs-on: ubuntu-latest
-    needs: [test-backend, lint-frontend]
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
-
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Extract metadata (backend)
-        id: meta-backend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-backend
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=,suffix=,format=short
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
-      - name: Build and push backend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          push: true
-          tags: ${{ steps.meta-backend.outputs.tags }}
-          labels: ${{ steps.meta-backend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Extract metadata (frontend)
-        id: meta-frontend
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-frontend
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix=,suffix=,format=short
-            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-
-      - name: Build and push frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ${{ steps.meta-frontend.outputs.tags }}
-          labels: ${{ steps.meta-frontend.outputs.labels }}
-          build-args: VITE_API_URL=https://yourdomain.com/api
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # ─── Deploy to Production ────────────────────────────────────────────────
-  deploy:
-    name: 🚀 Deploy to Production
-    runs-on: ubuntu-latest
-    needs: build-and-push
+    needs: lint-frontend
     if: github.ref == 'refs/heads/main'
-    environment: production  # Requires manual approval in GitHub
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+      - uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
-          script: |
-#            cd /opt/integrity-bot
-#            git pull origin main
-#
-#            # Pull new images
-#            docker pull ghcr.io/${{ github.repository_owner }}/integrity-bot-backend:latest
-#            docker pull ghcr.io/${{ github.repository_owner }}/integrity-bot-frontend:latest
-#
-#            # Rolling update (no downtime)
-#            docker compose up -d --no-deps backend
-#            sleep 5
-#            docker compose up -d --no-deps frontend nginx
-#
-#            # Cleanup old images
-#            docker image prune -f
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-            echo "✅ Deployment successful!"
-            echo "2"
+      - name: Build frontend
+        env:
+          VITE_API_URL: ${{ secrets.VITE_API_URL }}
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Upload via FTP → murojaat.bmb-holding.uz
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: frontend/dist/
+          server-dir: ${{ secrets.FTP_FRONTEND_DIR }}
+          dangerous-clean-slate: false
+
+  # ─── Deploy Backend → apimurojaat.bmb-holding.uz ─────────────────────────
+  deploy-backend:
+    name: 🐍 Deploy Backend → apimurojaat.bmb-holding.uz
+    runs-on: ubuntu-latest
+    needs: test-backend
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload backend via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: backend/
+          server-dir: ${{ secrets.FTP_BACKEND_DIR }}
+          dangerous-clean-slate: false
+          exclude: |
+            **/.env
+            **/__pycache__/**
+            **/*.pyc
+            **/.git/**
+            **/tests/**
+
+      - name: Trigger Passenger restart
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: .github/passenger-restart/
+          server-dir: ${{ secrets.FTP_BACKEND_DIR }}tmp/
+          dangerous-clean-slate: false
+
+  # ─── Telegram Webhook ─────────────────────────────────────────────────────
+  set-webhook:
+    name: 🔗 Set Telegram Webhook
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Register webhook with Telegram
+        env:
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
+        run: |
+          sleep 15
+
+          RESPONSE=$(curl -s -X POST \
+            "https://api.telegram.org/bot${BOT_TOKEN}/setWebhook" \
+            -d "url=${WEBHOOK_URL}" \
+            -d "secret_token=${WEBHOOK_SECRET}" \
+            -d 'allowed_updates=["message","callback_query","edited_message","poll_answer","poll"]')
+
+          echo "Javob: $RESPONSE"
+
+          if echo "$RESPONSE" | grep -q '"ok":true'; then
+            echo "✅ Webhook o'rnatildi: $WEBHOOK_URL"
+          else
+            echo "⚠️  Webhook o'rnatishda muammo"
+            exit 1
+          fi
 
   # ─── Notify on Failure ────────────────────────────────────────────────────
   notify-failure:
     name: 📢 Notify on Failure
     runs-on: ubuntu-latest
-    needs: [test-backend, lint-frontend, build-and-push, deploy]
+    needs: [test-backend, lint-frontend, deploy-frontend, deploy-backend]
     if: failure()
     steps:
       - name: Notify via Telegram
@@ -202,7 +212,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.ADMIN_CHAT_ID }}
         run: |
-          curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
-            -d chat_id="$CHAT_ID" \
-            -d text="❌ CI/CD MUVAFFAQIYATSIZ!%0A%0ARepo: ${{ github.repository }}%0ABranch: ${{ github.ref_name }}%0ACommit: ${{ github.sha }}%0AWorkflow: ${{ github.workflow }}" \
-            -d parse_mode="HTML"
+          curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/sendMessage" \
+            -d "chat_id=${CHAT_ID}" \
+            -d "text=❌ CI/CD MUVAFFAQIYATSIZ!%0A%0ARepo: ${{ github.repository }}%0ABranch: ${{ github.ref_name }}%0ACommit: ${{ github.sha }}" \
+            -d "parse_mode=HTML"
