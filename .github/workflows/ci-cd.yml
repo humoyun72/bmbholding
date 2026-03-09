@@ -197,6 +197,7 @@ jobs:
             echo "✅ Webhook o'rnatildi: $WEBHOOK_URL"
           else
             echo "⚠️  Webhook o'rnatishda muammo"
+            echo "$RESPONSE"
             exit 1
           fi
 
