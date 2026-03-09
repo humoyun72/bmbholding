@@ -165,7 +165,7 @@ MENU_BUTTON_REGEX = "^(" + "|".join(re.escape(txt) for txt in _ALL_MENU_TEXTS) +
 def _clear_user_data(context: ContextTypes.DEFAULT_TYPE) -> None:
     """context.user_data ni tozalaydi, lekin til sozlamasini saqlab qoladi."""
     lang = context.user_data.get("lang", "uz")
-    _clear_user_data(context)
+    context.user_data.clear()
     if lang != "uz":
         context.user_data["lang"] = lang
 
