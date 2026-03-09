@@ -1,4 +1,5 @@
 import logging
+import re
 import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -9,6 +10,15 @@ from app.core.config import settings
 from app.models import CaseCategory, CaseStatus, CasePriority
 
 logger = logging.getLogger(__name__)
+
+
+def _frontend_url() -> str:
+    """Frontend URL. FRONTEND_URL bo'lmasa WEBHOOK_URL dan hosil qiladi."""
+    if settings.FRONTEND_URL:
+        return settings.FRONTEND_URL.rstrip("/")
+    if settings.WEBHOOK_URL:
+        return re.sub(r"/api/telegram/webhook.*", "", settings.WEBHOOK_URL).rstrip("/")
+    return ""
 
 # ─── Status holat mashinasi (handlers.py bilan sinxronlash uchun) ─────────────
 ALLOWED_TRANSITIONS: dict[CaseStatus, list[CaseStatus]] = {
@@ -127,7 +137,9 @@ def format_group_message(case) -> str:
         due_str = case.due_at.strftime("%d.%m.%Y")
         text += f"⏰ *Deadline:* {due_str}\n"
 
-    text += f"\n👉 [Admin panelda ko'ring]({settings.FRONTEND_URL.rstrip('/')}/cases/{case.external_id})"
+    base = _frontend_url()
+    if base:
+        text += f"\n👉 [Admin panelda ko'ring]({base}/cases/{case.external_id})"
 
     return text
 
@@ -208,13 +220,16 @@ async def notify_assignee(
         priority.value if hasattr(priority, "value") else str(priority),
         str(priority)
     )
+    base = _frontend_url()
+    case_link = f"{base}/cases/{case_id}" if base else ""
+    link_line = f"\n👉 [Admin panelda ko'ring]({case_link})" if case_link else f"\n🔖 Murojaat raqami: `{case_id}`"
     message = (
         f"📋 *Sizga yangi murojaat tayinlandi!*\n\n"
         f"🔖 *Raqam:* `{case_id}`\n"
         f"📂 *Kategoriya:* {cat_label}\n"
         f"⚠️ *Ustuvorlik:* {pri_label}\n"
-        f"⏰ *Deadline:* {due_date}\n\n"
-        f"👉 Admin panelda ko'ring"
+        f"⏰ *Deadline:* {due_date}"
+        f"{link_line}"
     )
     try:
         await bot.send_message(
@@ -246,7 +261,7 @@ async def notify_admins(
         f"📂 *Kategoriya:* {cat_label}\n"
         f"🔒 *Anonimlik:* {anon_text}\n\n"
         f"📝 *Tavsif:*\n_{short_desc}_\n\n"
-        f"👉 [Admin panelga o'ting]({settings.FRONTEND_URL.rstrip('/')})"
+        f"👉 [Admin panelga o'ting]({_frontend_url() or 'https://admin.example.com'})"
     )
 
     # Inline keyboard
@@ -298,7 +313,7 @@ async def send_email_notification(
         <tr><td><b>Anonimlik</b></td><td>{"Ha" if is_anonymous else "Yo'q"}</td></tr>
         <tr><td><b>Tavsif (qisqa)</b></td><td>{description}</td></tr>
     </table>
-    <br><a href="{settings.FRONTEND_URL.rstrip('/')}">Admin panelga o'ting</a>
+    <br><a href="{_frontend_url()}">Admin panelga o'ting</a>
     </body></html>
     """
 

@@ -188,7 +188,19 @@
               <div><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.category') }}</dt><dd class="text-surface-200">{{ categoryLabel(caseData.category) }}</dd></div>
               <div><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.priority') }}</dt><dd><PriorityBadge :priority="caseData.priority" /></dd></div>
               <div><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.status') }}</dt><dd><StatusBadge :status="caseData.status" /></dd></div>
-              <div v-if="caseData.assignee_name"><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.assignee') }}</dt><dd class="text-surface-200">{{ caseData.assignee_name }}</dd></div>
+              <div v-if="caseData.assignees?.length">
+                <dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.assignee') }}</dt>
+                <dd class="space-y-1">
+                  <div v-for="a in caseData.assignees" :key="a.id" class="text-surface-200 text-sm">
+                    👤 {{ a.name }}
+                    <span v-if="a.notes" class="block text-surface-500 text-xs ml-4 truncate">{{ a.notes }}</span>
+                  </div>
+                </dd>
+              </div>
+              <div v-else-if="caseData.assignee_name">
+                <dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.assignee') }}</dt>
+                <dd class="text-surface-200">{{ caseData.assignee_name }}</dd>
+              </div>
               <div v-if="caseData.due_at"><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.due_at') }}</dt><dd class="text-surface-200">{{ formatDate(caseData.due_at) }}</dd></div>
               <div v-if="caseData.closed_at"><dt class="text-surface-500 text-xs mb-1">{{ t('case_detail.closed_at') }}</dt><dd class="text-surface-200">{{ formatDate(caseData.closed_at) }}</dd></div>
             </dl>
@@ -197,15 +209,31 @@
           <!-- Assignment — faqat adminlar uchun -->
           <div v-if="auth.isAdmin" class="card p-5">
             <h3 class="font-semibold text-white mb-4 text-sm">{{ t('case_detail.assign_section') }}</h3>
-            <select v-model="assignedTo" @change="assignCase" class="input text-sm w-full">
-              <option value="">{{ t('case_detail.not_assigned') }}</option>
-              <option v-for="u in users" :key="u.id" :value="u.id">{{ u.full_name || u.username }}</option>
-            </select>
+            <!-- Hozirgi ijrochilar -->
+            <div v-if="caseData.assignees?.length" class="space-y-2 mb-3">
+              <div v-for="a in caseData.assignees" :key="a.id"
+                class="flex items-center gap-2 bg-surface-800 rounded-lg px-3 py-2 text-sm">
+                <span class="text-brand-400">👤</span>
+                <div class="flex-1 min-w-0">
+                  <div class="text-white truncate">{{ a.name }}</div>
+                  <div v-if="a.notes" class="text-surface-500 text-xs truncate">{{ a.notes }}</div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-surface-500 text-xs mb-3">{{ t('case_detail.not_assigned') }}</div>
+            <button @click="openAssignModal" class="btn-ghost w-full text-sm justify-center">
+              👤 {{ caseData.assignees?.length ? t('case_detail.reassign') : t('case_detail.assign_btn') }}
+            </button>
           </div>
 
           <!-- Tezkor amallar -->
           <div class="card p-5">
             <h3 class="font-semibold text-white mb-4 text-sm">{{ t('case_detail.quick_actions') }}</h3>
+            <!-- Ijrochi tayinlanmagan ogohlantirish -->
+            <div v-if="!hasAssignee" class="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2 mb-3 text-amber-400 text-xs">
+              <span class="flex-shrink-0 mt-0.5">⚠️</span>
+              <span>{{ t('case_detail.no_assignee_warning') }}</span>
+            </div>
             <div v-if="allowedStatusOptions.length === 0" class="text-surface-500 text-sm text-center py-2">
               {{ t('case_detail.no_transition') }}
             </div>
@@ -249,6 +277,64 @@
         </div>
       </div>
     </template>
+
+    <!-- ── Ijrochi Tayinlash Modal ── -->
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="assignModal.open" class="fixed inset-0 z-[99998] flex items-center justify-center p-4"
+          @click.self="assignModal.open = false">
+          <div class="absolute inset-0 bg-black/75 backdrop-blur-sm"></div>
+          <div class="relative z-10 bg-surface-900 rounded-2xl border border-surface-700 shadow-2xl w-full max-w-md">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-surface-800">
+              <h3 class="font-semibold text-white">👤 {{ t('case_detail.assign_section') }}</h3>
+              <button @click="assignModal.open = false"
+                class="w-8 h-8 rounded-lg hover:bg-surface-700 flex items-center justify-center text-surface-400 hover:text-white transition-colors">✕</button>
+            </div>
+            <div class="p-5 space-y-4">
+              <!-- Ijrochilar tanlash -->
+              <div>
+                <label class="text-surface-400 text-xs mb-2 block">{{ t('case_detail.select_assignees') }}</label>
+                <div class="space-y-1 max-h-48 overflow-y-auto">
+                  <label v-for="u in investigatorUsers" :key="u.id"
+                    class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer hover:bg-surface-800 transition-colors">
+                    <input type="checkbox" :value="u.id" v-model="assignModal.selectedIds"
+                      class="w-4 h-4 rounded accent-brand-500" />
+                    <span class="text-white text-sm">{{ u.full_name || u.username }}</span>
+                    <span class="text-surface-500 text-xs ml-auto">{{ u.role }}</span>
+                  </label>
+                </div>
+              </div>
+              <!-- Izoh -->
+              <div>
+                <label class="text-surface-400 text-xs mb-2 block">{{ t('case_detail.assign_notes') }}</label>
+                <textarea v-model="assignModal.notes" rows="2"
+                  class="input w-full resize-none text-sm"
+                  :placeholder="t('case_detail.assign_notes_placeholder')"></textarea>
+              </div>
+              <!-- Deadline -->
+              <div>
+                <label class="text-surface-400 text-xs mb-2 block">{{ t('case_detail.assign_due_at') }}</label>
+                <input type="date" v-model="assignModal.dueAt" class="input text-sm w-full" />
+              </div>
+              <p v-if="assignModal.error" class="text-red-400 text-sm bg-red-500/10 rounded-lg px-3 py-2">
+                {{ assignModal.error }}
+              </p>
+            </div>
+            <div class="flex items-center justify-end gap-3 px-5 py-4 border-t border-surface-800">
+              <button @click="assignModal.open = false" class="btn-ghost text-sm">{{ t('case_detail.cancel') }}</button>
+              <button @click="submitAssign" :disabled="assignModal.saving"
+                class="btn-primary text-sm disabled:opacity-40">
+                <svg v-if="assignModal.saving" class="w-4 h-4 animate-spin mr-2" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                </svg>
+                {{ t('case_detail.confirm') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
 
     <!-- ── Status O'zgartirish Modal ── -->
     <Teleport to="body">
@@ -406,7 +492,6 @@ const loadError = ref('')
 const sending = ref(false)
 const caseData = ref(null)
 const users = ref([])
-const assignedTo = ref('')
 const newComment = reactive({ content: '', is_internal: false })
 const ticketCreating = ref(false)
 const ticketError = ref('')
@@ -416,8 +501,107 @@ const chatEl = ref(null)
 const fileInputRef = ref(null)
 const uploadFile = ref(null)
 
+// ── Assign Modal ──────────────────────────────────────────────────────────────
+const assignModal = reactive({ open: false, selectedIds: [], notes: '', dueAt: '', saving: false, error: '' })
+
+const hasAssignee = computed(() => {
+  return (caseData.value?.assignees?.length > 0) || !!caseData.value?.assigned_to
+})
+
+const investigatorUsers = computed(() => {
+  return users.value.filter(u => ['admin', 'investigator'].includes(u.role))
+})
+
+function openAssignModal() {
+  const current = caseData.value?.assignees || []
+  assignModal.selectedIds = current.map(a => a.id)
+  assignModal.notes = ''
+  assignModal.dueAt = caseData.value?.due_at ? caseData.value.due_at.split('T')[0] : ''
+  assignModal.error = ''
+  assignModal.open = true
+}
+
+async function submitAssign() {
+  assignModal.saving = true
+  assignModal.error = ''
+  try {
+    await api.post(`/v1/cases/${caseData.value.external_id}/assign`, {
+      user_ids: assignModal.selectedIds,
+      notes: assignModal.notes.trim() || null,
+      due_at: assignModal.dueAt ? new Date(assignModal.dueAt).toISOString() : null,
+    })
+    assignModal.open = false
+    await loadCase()
+  } catch (e) {
+    assignModal.error = e.response?.data?.detail || t('case_detail.error_occurred')
+  } finally {
+    assignModal.saving = false
+  }
+}
+
 // ── Status Modal ──────────────────────────────────────────────────────────────
 const statusModal = reactive({ open: false, selected: '', reason: '', error: '', saving: false })
+
+// ── WebSocket real-time ───────────────────────────────────────────────────────
+const wsConn = ref(null)
+let wsPingInterval = null
+
+function buildWsUrl() {
+  const token = auth.token
+  const base = import.meta.env.VITE_API_URL || ''
+  let wsBase
+  if (base && (base.startsWith('http://') || base.startsWith('https://'))) {
+    wsBase = base.replace(/^http/, 'ws').replace(/\/$/, '')
+  } else {
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    wsBase = `${proto}//${window.location.host}/api`
+  }
+  return `${wsBase}/ws/notifications?token=${token}`
+}
+
+function connectWs() {
+  if (!auth.isInvestigator || wsConn.value) return
+  try {
+    const ws = new WebSocket(buildWsUrl())
+    wsConn.value = ws
+
+    ws.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data)
+        if (msg.type === 'new_comment' && caseData.value && msg.case_id === caseData.value.external_id) {
+          loadCase()
+        }
+      } catch {}
+    }
+
+    ws.onclose = () => {
+      wsConn.value = null
+      clearInterval(wsPingInterval)
+      wsPingInterval = null
+    }
+
+    ws.onerror = () => {
+      ws.close()
+    }
+
+    ws.onopen = () => {
+      wsPingInterval = setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send('{"type":"ping"}')
+        }
+      }, 25000)
+    }
+  } catch {}
+}
+
+function disconnectWs() {
+  clearInterval(wsPingInterval)
+  wsPingInterval = null
+  if (wsConn.value) {
+    wsConn.value.close()
+    wsConn.value = null
+  }
+}
 
 const TRANSITIONS = {
   new:         ['in_progress', 'rejected', 'needs_info'],
@@ -524,6 +708,7 @@ async function loadAllBlobs() {
 
 onUnmounted(() => {
   Object.values(blobCache).forEach(({ url }) => URL.revokeObjectURL(url))
+  disconnectWs()
 })
 function isImage(att) { return att?.mime_type?.startsWith('image/') }
 function isVideo(att) { return att?.mime_type?.startsWith('video/') }
@@ -568,7 +753,6 @@ async function loadCase() {
   try {
     const { data } = await api.get(`/v1/cases/${route.params.id}`)
     caseData.value = data
-    assignedTo.value = data.assigned_to || ''
     await loadAllBlobs()
   } catch (e) {
     loadError.value = e.response?.data?.detail || t('case_detail.load_error')
@@ -591,9 +775,6 @@ function scrollChatBottom() {
 }
 
 // ── Actions ──────────────────────────────────────────────────────────────────
-async function assignCase() {
-  try { await api.post(`/v1/cases/${caseData.value.external_id}/assign`, { user_id: assignedTo.value || null }) } catch {}
-}
 
 function onFileSelect(e) {
   const f = e.target.files?.[0]
@@ -734,7 +915,7 @@ const PriorityBadge = defineComponent({
   }
 })
 
-onMounted(() => { loadCase(); if (auth.isAdmin) loadUsers() })
+onMounted(() => { loadCase().then(() => connectWs()); if (auth.isAdmin) loadUsers() })
 
 // ── AttachmentCard inline component ──────────────────────────────────────────
 const AttachmentCard = defineComponent({

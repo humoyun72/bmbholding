@@ -373,3 +373,42 @@ async def send_test_weekly_report(
     await db.commit()
 
     return {"sent": True, "chat_id": str(chat_id)}
+
+
+@router.post("/test-email")
+async def send_test_email(
+    body: dict,
+    current_user: User = Depends(require_admin),
+):
+    """SMTP sozlamalarini tekshirish uchun test email yuboradi (faqat admin)."""
+    from app.services.email import send_email
+    from app.core.config import settings as app_settings
+
+    to_email = body.get("email", "").strip() or current_user.email
+
+    if not app_settings.SMTP_USER or not app_settings.SMTP_HOST:
+        raise HTTPException(status_code=400, detail="SMTP sozlanmagan (.env faylidagi SMTP_USER va SMTP_HOST ni to'ldiring)")
+
+    sent = await send_email(
+        to=to_email,
+        subject="IntegrityBot — SMTP test xabari",
+        body=(
+            "Bu SMTP test xabari.\n\n"
+            f"SMTP host: {app_settings.SMTP_HOST}:{app_settings.SMTP_PORT}\n"
+            f"SMTP user: {app_settings.SMTP_USER}\n"
+        ),
+        html=f"""
+<html><body style="font-family:Arial,sans-serif;padding:20px">
+  <h3 style="color:#4f46e5">✅ IntegrityBot SMTP test</h3>
+  <p>SMTP konfiguratsiya muvaffaqiyatli ishlayapti!</p>
+  <ul>
+    <li><b>Host:</b> {app_settings.SMTP_HOST}:{app_settings.SMTP_PORT}</li>
+    <li><b>User:</b> {app_settings.SMTP_USER}</li>
+  </ul>
+</body></html>""",
+    )
+
+    if sent:
+        return {"sent": True, "to": to_email}
+    raise HTTPException(status_code=500, detail="Email yuborib bo'lmadi. Backend loglarini tekshiring.")
+

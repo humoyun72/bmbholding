@@ -116,8 +116,7 @@ def get_admin_menu(lang: str = "uz") -> ReplyKeyboardMarkup:
         [
             [KeyboardButton(t("admin_menu_stats", lang)), KeyboardButton(t("admin_menu_new_cases", lang))],
             [KeyboardButton(t("admin_menu_deadline", lang)), KeyboardButton(t("admin_menu_overdue", lang))],
-            [KeyboardButton(t("admin_menu_my_cases", lang)), KeyboardButton(t("admin_menu_team", lang))],
-            [KeyboardButton(t("admin_menu_report_settings", lang)), KeyboardButton(t("admin_menu_standard", lang))],
+            [KeyboardButton(t("admin_menu_team", lang)), KeyboardButton(t("admin_menu_standard", lang))],
         ],
         resize_keyboard=True,
         is_persistent=True,
@@ -144,6 +143,7 @@ _ADMIN_MENU_KEYS = [
     "admin_menu_report_settings", "admin_menu_standard",
     "investigator_menu_new_assign", "investigator_menu_my_stats",
 ]
+# admin_menu_my_cases investigator menusida qoladi; admin menusidan olib tashlandi
 _ADMIN_MENU_TEXTS = set()
 for _key in _ADMIN_MENU_KEYS:
     for _lang in SUPPORTED_LANGS:
@@ -160,6 +160,16 @@ for _key in _MENU_KEYS:
 # Admin menyu matnlarini ham qo'shish
 _ALL_MENU_TEXTS.update(_ADMIN_MENU_TEXTS)
 MENU_BUTTON_REGEX = "^(" + "|".join(re.escape(txt) for txt in _ALL_MENU_TEXTS) + ")$"
+
+
+def _frontend_url() -> str:
+    """Frontend admin panel URL. FRONTEND_URL bo'lmasa WEBHOOK_URL dan hosil qiladi."""
+    if settings.FRONTEND_URL:
+        return settings.FRONTEND_URL.rstrip("/")
+    if settings.WEBHOOK_URL:
+        import re
+        return re.sub(r"/api/telegram/webhook.*", "", settings.WEBHOOK_URL).rstrip("/")
+    return ""
 
 
 def _clear_user_data(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -2100,11 +2110,12 @@ async def handle_view_callback(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     case_external_id = query.data.replace("view_", "", 1)
-    panel_url = settings.FRONTEND_URL.rstrip("/")
-    await query.message.reply_text(
-        f"🔍 Admin panelda ko'rish:\n{panel_url}/cases/{case_external_id}",
-        disable_web_page_preview=True,
-    )
+    panel_url = _frontend_url()
+    if panel_url:
+        link_text = f"🔍 Admin panelda ko'rish:\n{panel_url}/cases/{case_external_id}"
+    else:
+        link_text = f"🔍 Murojaat raqami: `{case_external_id}`\n(Admin panelga kiring)"
+    await query.message.reply_text(link_text, parse_mode=ParseMode.MARKDOWN, disable_web_page_preview=True)
 
 
 # ─── 6. back_case callback — asl keyboardga qaytish ─────────────────────────
@@ -2831,14 +2842,15 @@ async def handle_mine_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
         text += f"`{case.external_id}` | {cat_label} | {status_label} | Deadline: {due_str}\n"
 
-        # Inline tugma
-        panel_url = settings.FRONTEND_URL.rstrip("/")
-        buttons.append([
-            InlineKeyboardButton(
-                f"🔍 {case.external_id}",
-                url=f"{panel_url}/cases/{case.external_id}"
-            )
-        ])
+        # Inline tugma — faqat to'liq URL bo'lsa qo'shamiz
+        panel_url = _frontend_url()
+        if panel_url:
+            buttons.append([
+                InlineKeyboardButton(
+                    f"🔍 {case.external_id}",
+                    url=f"{panel_url}/cases/{case.external_id}"
+                )
+            ])
 
     keyboard = InlineKeyboardMarkup(buttons[:5])  # Ko'pi bilan 5 ta tugma
 
@@ -3085,8 +3097,11 @@ async def show_notification_settings(update: Update, context: ContextTypes.DEFAU
         "overdue_alert": True,
     }
 
-    if bot_user and bot_user.notification_prefs:
-        prefs.update(bot_user.notification_prefs)
+    try:
+        if bot_user and getattr(bot_user, "notification_prefs", None):
+            prefs.update(bot_user.notification_prefs)
+    except Exception:
+        pass
 
     # Toggle tugmalar
     def toggle_label(key: str, label: str) -> str:

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_serializer
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 from uuid import UUID
 from app.models import UserRole, CaseStatus
@@ -89,7 +89,10 @@ class CaseDetailResponse(CaseResponse):
 
 
 class AssignCaseRequest(BaseModel):
-    user_id: Optional[str] = None
+    user_id: Optional[str] = None          # backward compat — single assignee
+    user_ids: Optional[List[str]] = None   # multiple assignees
+    notes: Optional[str] = None
+    due_at: Optional[datetime] = None
 
 
 class ChangeStatusRequest(BaseModel):

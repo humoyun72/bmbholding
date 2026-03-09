@@ -196,7 +196,15 @@
     "click_to_load_audio": "Click to play",
     "pdf_click_to_view": "PDF — click to view",
     "load_error": "Error loading case",
-    "view_btn": "View"
+    "view_btn": "View",
+    "archive": "Archive",
+    "reassign": "Change Assignees",
+    "assign_btn": "Assign Investigator",
+    "no_assignee_warning": "No investigator assigned. Please assign one before changing status.",
+    "select_assignees": "Select Investigators",
+    "assign_notes": "Assignment Notes",
+    "assign_notes_placeholder": "Instructions or notes for the investigator...",
+    "assign_due_at": "Due Date (Deadline)"
   },
   "status": {
     "new": "New",
@@ -529,6 +537,10 @@
     "notif_saved": "Settings saved and applied",
     "test_daily_sent": "Daily test report sent",
     "test_weekly_sent": "Weekly test report sent",
+    "smtp_test_title": "SMTP Email Test",
+    "smtp_test_desc": "Send a test email to verify your SMTP configuration",
+    "smtp_test_btn": "Send test email",
+    "smtp_test_sent": "Test email sent",
     "test_report_sent": "Test report sent",
     "settings_saved": "Settings saved",
     "webhook_success": "Webhook connected successfully!",

@@ -17,7 +17,7 @@ from app.core.security import (
     decrypt_comment_content, encrypt_comment_content,
 )
 from app.models import (
-    Case, CaseAttachment, CaseComment, AuditLog, AuditAction, CaseStatus,
+    Case, CaseAttachment, CaseComment, CaseAssignee, AuditLog, AuditAction, CaseStatus,
     CasePriority, CaseCategory, User, UserRole
 )
 from app.schemas.cases import (
@@ -51,7 +51,18 @@ ADMIN_ONLY_TRANSITIONS: dict[CaseStatus, list[CaseStatus]] = {
 
 def _check_investigator_access(current_user: User, case: "Case") -> None:
     """Investigator faqat o'ziga tayinlangan murojaat ustida amal qila oladi."""
-    if current_user.role == UserRole.INVESTIGATOR and case.assigned_to != current_user.id:
+    if current_user.role != UserRole.INVESTIGATOR:
+        return
+    # Birinchi case_assignees ni tekshir (yangi junction table)
+    if case.case_assignees:
+        assigned_ids = {ca.user_id for ca in case.case_assignees}
+        if current_user.id not in assigned_ids:
+            raise HTTPException(
+                status_code=403,
+                detail="Siz faqat o'zingizga tayinlangan murojaatlar ustida amal qila olasiz"
+            )
+    elif case.assigned_to != current_user.id:
+        # Eski yozuvlar uchun fallback
         raise HTTPException(
             status_code=403,
             detail="Siz faqat o'zingizga tayinlangan murojaatlar ustida amal qila olasiz"
@@ -423,7 +434,14 @@ async def list_cases(
     filters = []
     # Investigator faqat o'ziga tayinlangan murojaatlarni ko'ra oladi
     if current_user.role == UserRole.INVESTIGATOR:
-        filters.append(Case.assigned_to == current_user.id)
+        filters.append(
+            or_(
+                Case.assigned_to == current_user.id,
+                Case.id.in_(
+                    select(CaseAssignee.case_id).where(CaseAssignee.user_id == current_user.id)
+                ),
+            )
+        )
     if status:
         filters.append(Case.status == status)
     if category:
@@ -706,6 +724,7 @@ async def get_case(
             selectinload(Case.attachments),
             selectinload(Case.comments).selectinload(CaseComment.author),
             selectinload(Case.assignee),
+            selectinload(Case.case_assignees).selectinload(CaseAssignee.user),
         )
         .where(Case.external_id == case_id)
     )
@@ -754,6 +773,18 @@ async def get_case(
     ]
     if case.assignee:
         base["assignee_name"] = case.assignee.full_name or case.assignee.username
+
+    # Barcha tayinlangan ijrochilar
+    base["assignees"] = [
+        {
+            "id": str(ca.user_id),
+            "name": ca.user.full_name or ca.user.username if ca.user else str(ca.user_id),
+            "notes": ca.notes,
+            "due_at": ca.due_at,
+            "assigned_at": ca.assigned_at,
+        }
+        for ca in sorted(case.case_assignees, key=lambda x: x.assigned_at)
+    ]
 
     return base
 
@@ -945,45 +976,94 @@ async def assign_case(
     current_user: User = Depends(require_admin),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Case).where(Case.external_id == case_id))
+    result = await db.execute(
+        select(Case)
+        .options(selectinload(Case.case_assignees))
+        .where(Case.external_id == case_id)
+    )
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
-    case.assigned_to = uuid.UUID(body.user_id) if body.user_id else None
+    # user_ids ni aniqlash (user_ids ustuvor, keyin user_id)
+    if body.user_ids is not None:
+        target_ids = [uid.strip() for uid in body.user_ids if uid and uid.strip()]
+    elif body.user_id is not None:
+        target_ids = [body.user_id.strip()] if body.user_id.strip() else []
+    else:
+        target_ids = []
+
+    # UUID validatsiyasi
+    parsed_ids: list[uuid.UUID] = []
+    for uid_str in target_ids:
+        try:
+            parsed_ids.append(uuid.UUID(uid_str))
+        except ValueError:
+            raise HTTPException(status_code=422, detail=f"Noto'g'ri user_id: {uid_str}")
+
+    # Mavjud tayinlovlarni o'chirish
+    for ca in list(case.case_assignees):
+        await db.delete(ca)
+
+    # Yangi tayinlovlar
+    for u_id in parsed_ids:
+        db.add(CaseAssignee(
+            case_id=case.id,
+            user_id=u_id,
+            notes=body.notes,
+            due_at=body.due_at,
+            assigned_by_id=current_user.id,
+        ))
+
+    # Birinchi ijrochini assigned_to ga yozish (backward compat)
+    case.assigned_to = parsed_ids[0] if parsed_ids else None
+
+    # due_at yangilash
+    if body.due_at is not None:
+        case.due_at = body.due_at
+
     db.add(AuditLog(
         user_id=current_user.id,
         case_id=case.id,
         action=AuditAction.CASE_ASSIGN,
-        payload={"assigned_to": body.user_id},
+        payload={"assigned_to": [str(u) for u in parsed_ids], "notes": body.notes},
         ip_address=request.client.host if request.client else None,
     ))
+
+    # commit() dan OLDIN kerakli maydonlarni saqlaymiz —
+    # commit() so'ng SQLAlchemy case atributlarini expire qiladi
+    _case_external_id = case.external_id
+    _case_category = case.category
+    _case_priority = case.priority
+    _case_due_at = case.due_at
+
     await db.commit()
 
-    # ── Ijrochiga Telegram bildirishnoma ──────────────────────────────────
-    if body.user_id:
+    # ── Ijrochilarga Telegram bildirishnoma ───────────────────────────────
+    if parsed_ids:
         try:
-            assignee_result = await db.execute(
-                select(User).where(User.id == uuid.UUID(body.user_id))
+            from app.api.v1.telegram import get_bot_app
+            from app.services.notification import notify_assignee
+            bot_app = get_bot_app()
+            due_date_str = _case_due_at.strftime("%d.%m.%Y") if _case_due_at else "Belgilanmagan"
+            users_result = await db.execute(
+                select(User).where(User.id.in_(parsed_ids))
             )
-            assignee = assignee_result.scalar_one_or_none()
-            if assignee and assignee.telegram_chat_id:
-                from app.api.v1.telegram import get_bot_app
-                from app.services.notification import notify_assignee
-                bot_app = get_bot_app()
-                due_date = case.due_at.strftime("%d.%m.%Y") if case.due_at else "Belgilanmagan"
-                await notify_assignee(
-                    bot=bot_app.bot,
-                    case_id=case.external_id,
-                    category=case.category,
-                    priority=case.priority,
-                    due_date=due_date,
-                    assignee_telegram_id=assignee.telegram_chat_id,
-                )
+            assignees = users_result.scalars().all()
+            for assignee in assignees:
+                if assignee.telegram_chat_id:
+                    await notify_assignee(
+                        bot=bot_app.bot,
+                        case_id=_case_external_id,
+                        category=_case_category,
+                        priority=_case_priority,
+                        due_date=due_date_str,
+                        assignee_telegram_id=assignee.telegram_chat_id,
+                    )
         except Exception as e:
             logger.warning(f"Assignee notification failed for {case_id}: {e}")
 
-    return {"message": "Murojaat tayinlandi"}
+    return {"message": "Murojaat tayinlandi", "assignees": [str(u) for u in parsed_ids]}
 
 
 @router.post("/{case_id}/status")
@@ -994,13 +1074,25 @@ async def change_status(
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Case).where(Case.external_id == case_id))
+    result = await db.execute(
+        select(Case)
+        .options(selectinload(Case.case_assignees))
+        .where(Case.external_id == case_id)
+    )
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
 
     # Investigator tekshiruvi
     _check_investigator_access(current_user, case)
+
+    # Ijrochi tayinlanmagan bo'lsa holat o'zgartirib bo'lmaydi
+    has_assignee = bool(case.case_assignees) or bool(case.assigned_to)
+    if not has_assignee:
+        raise HTTPException(
+            status_code=400,
+            detail="Murojaatga ijrochi tayinlanmagan. Avval ijrochi tayinlang."
+        )
 
     old_status = case.status
     new_status = body.status
@@ -1084,7 +1176,11 @@ async def add_comment(
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Case).where(Case.external_id == case_id))
+    result = await db.execute(
+        select(Case)
+        .options(selectinload(Case.case_assignees))
+        .where(Case.external_id == case_id)
+    )
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
@@ -1118,6 +1214,21 @@ async def add_comment(
         ip_address=request.client.host if request.client else None,
     ))
     await db.commit()
+
+    # ── WebSocket real-time notification ──────────────────────────────────────
+    try:
+        import redis.asyncio as aioredis
+        from app.services.websocket_manager import publish_notification
+        _r = aioredis.from_url(settings.REDIS_URL, decode_responses=True)
+        await publish_notification(_r, "new_comment", {
+            "case_id": case.external_id,
+            "is_internal": body.is_internal,
+            "author": current_user.full_name or current_user.username,
+        })
+        await _r.aclose()
+    except Exception as _e:
+        logger.debug(f"WS publish skip: {_e}")
+
     return {"message": "Izoh qo'shildi"}
 
 
@@ -1129,7 +1240,11 @@ async def download_attachment(
     current_user: User = Depends(require_investigator_or_above),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Case).where(Case.external_id == case_id))
+    result = await db.execute(
+        select(Case)
+        .options(selectinload(Case.case_assignees))
+        .where(Case.external_id == case_id)
+    )
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")
@@ -1231,7 +1346,11 @@ async def send_file_to_reporter(
     import os
     import hashlib
 
-    result = await db.execute(select(Case).where(Case.external_id == case_id))
+    result = await db.execute(
+        select(Case)
+        .options(selectinload(Case.case_assignees))
+        .where(Case.external_id == case_id)
+    )
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="Murojaat topilmadi")

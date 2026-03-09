@@ -533,20 +533,66 @@ async def forgot_password(
 
     try:
         from app.services.email import send_email
+        import logging as _log
+        _auth_log = _log.getLogger(__name__)
+
+        name = user.full_name or user.username
         body_text = (
-            f"Salom {user.full_name or user.username}!\n\n"
-            f"Parolingizni tiklash uchun quyidagi havolani bosing:\n{reset_link}\n\n"
+            f"Salom {name}!\n\n"
+            f"Parolingizni tiklash uchun quyidagi havolani bosing:\n\n"
+            f"{reset_link}\n\n"
             f"Havola 1 soat amal qiladi.\n\n"
             f"Agar siz bu so'rovni yubormagan bo'lsangiz, ushbu xatni e'tiborsiz qoldiring."
         )
-        await send_email(
+        body_html = f"""
+<html><body style="font-family:Arial,sans-serif;background:#f0f2f5;margin:0;padding:20px">
+  <div style="max-width:480px;margin:0 auto;background:#ffffff;border-radius:10px;
+              padding:36px 32px;box-shadow:0 2px 8px rgba(0,0,0,.08)">
+    <h2 style="margin:0 0 8px;color:#1e1e2e;font-size:20px">🔐 Parolni tiklash</h2>
+    <p style="color:#555;margin:0 0 20px;font-size:14px">
+      Salom, <strong>{name}</strong>!
+    </p>
+    <p style="color:#555;font-size:14px;margin:0 0 24px">
+      Parolingizni tiklash so'rovi qabul qilindi. Quyidagi tugmani bosing:
+    </p>
+    <div style="text-align:center;margin:0 0 28px">
+      <a href="{reset_link}"
+        style="display:inline-block;background:#4f46e5;color:#ffffff;
+               padding:13px 30px;border-radius:7px;font-size:15px;font-weight:600;
+               text-decoration:none;letter-spacing:.3px">
+        Parolni tiklash
+      </a>
+    </div>
+    <p style="color:#888;font-size:12px;margin:0 0 8px">
+      Tugma ishlamasa, ushbu havolani brauzeringizga nusxalang:
+    </p>
+    <p style="background:#f5f5f5;border-radius:5px;padding:10px;font-size:11px;
+              color:#555;word-break:break-all;margin:0 0 24px">{reset_link}</p>
+    <hr style="border:none;border-top:1px solid #eee;margin:0 0 16px">
+    <p style="color:#aaa;font-size:11px;margin:0">
+      ⏱ Havola <strong>1 soat</strong> amal qiladi.<br>
+      Agar bu so'rov siz tomondan yuborilmagan bo'lsa, ushbu xatni e'tiborsiz qoldiring.
+    </p>
+  </div>
+</body></html>"""
+
+        sent = await send_email(
             to=user.email,
             subject="IntegrityBot — Parolni tiklash",
             body=body_text,
+            html=body_html,
         )
+        if sent:
+            _auth_log.info(f"Parol tiklash emaili yuborildi: {user.email}")
+        else:
+            _auth_log.error(
+                f"Parol tiklash emaili yuborilmadi ({user.email}). "
+                f"SMTP sozlamalarini tekshiring: host={settings.SMTP_HOST} "
+                f"port={settings.SMTP_PORT} user={settings.SMTP_USER!r}"
+            )
     except Exception as e:
         import logging as _log
-        _log.getLogger(__name__).warning(f"Parol tiklash emaili yuborilmadi ({user.email}): {e}")
+        _log.getLogger(__name__).error(f"Parol tiklash emaili xatosi ({user.email}): {e}")
 
     return {"message": "Agar bu email tizimda mavjud bo'lsa, tiklash havolasi yuborildi"}
 

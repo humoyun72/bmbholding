@@ -5,7 +5,7 @@
         <h1 class="text-xl sm:text-2xl font-bold text-white">{{ t('polls.title') }}</h1>
         <p class="text-surface-400 text-sm mt-1">{{ t('polls.subtitle') }}</p>
       </div>
-      <button @click="showCreate = true" class="btn-primary whitespace-nowrap">
+      <button v-if="auth.isAdmin" @click="showCreate = true" class="btn-primary whitespace-nowrap">
         + {{ t('polls.create') }}
       </button>
     </div>
@@ -45,11 +45,11 @@
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <button v-if="poll.status === 'draft'" @click.stop="activatePoll(poll.id)"
+            <button v-if="auth.isAdmin && poll.status === 'draft'" @click.stop="activatePoll(poll.id)"
               class="btn-primary text-xs px-3 py-1.5">
               ▶ {{ t('polls.activate') }}
             </button>
-            <button v-if="poll.status === 'active'" @click.stop="closePoll(poll.id)"
+            <button v-if="auth.isAdmin && poll.status === 'active'" @click.stop="closePoll(poll.id)"
               class="btn-ghost text-xs px-3 py-1.5 text-red-400 hover:text-red-300">
               ■ {{ t('polls.close') }}
             </button>
@@ -62,8 +62,8 @@
       </div>
     </div>
 
-    <!-- Create modal -->
-    <div v-if="showCreate" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <!-- Create modal — faqat admin -->
+    <div v-if="auth.isAdmin && showCreate" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div class="card w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-slide-up">
         <div class="p-6 border-b border-surface-800 flex items-center justify-between">
           <h2 class="text-lg font-semibold text-white">{{ t('polls.create_title') }}</h2>
@@ -121,9 +121,11 @@ import { useRouter } from 'vue-router'
 import { format } from 'date-fns'
 import api from '@/utils/api'
 import { useI18n } from '@/composables/useI18n'
+import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()
 const { t } = useI18n()
+const auth = useAuthStore()
 const loading = ref(true)
 const saving = ref(false)
 const showCreate = ref(false)

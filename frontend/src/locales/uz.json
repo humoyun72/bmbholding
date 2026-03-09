@@ -196,7 +196,15 @@
     "click_to_load_audio": "Yuklash uchun bosing",
     "pdf_click_to_view": "PDF — ko'rish uchun bosing",
     "load_error": "Murojaatni yuklashda xatolik yuz berdi",
-    "view_btn": "Ko'rish"
+    "view_btn": "Ko'rish",
+    "archive": "Arxivlash",
+    "reassign": "Ijrochini o'zgartirish",
+    "assign_btn": "Ijrochi tayinlash",
+    "no_assignee_warning": "Ijrochi tayinlanmagan. Status o'zgartirish uchun avval ijrochi tayinlang.",
+    "select_assignees": "Ijrochilarni tanlang",
+    "assign_notes": "Tayinlash izohi",
+    "assign_notes_placeholder": "Ijrochi uchun ko'rsatma yoki izoh...",
+    "assign_due_at": "Ijro muddati (deadline)"
   },
   "status": {
     "new": "Yangi",
@@ -529,6 +537,10 @@
     "notif_saved": "Sozlamalar saqlandi va qo'llanildi",
     "test_daily_sent": "Kunlik test hisobot yuborildi",
     "test_weekly_sent": "Haftalik test hisobot yuborildi",
+    "smtp_test_title": "SMTP Email Test",
+    "smtp_test_desc": "Email yuborish sozlamalarini tekshirish uchun test xabari yuboring",
+    "smtp_test_btn": "Test email yuborish",
+    "smtp_test_sent": "Test email yuborildi",
     "test_report_sent": "Test hisobot yuborildi",
     "settings_saved": "Sozlamalar saqlandi",
     "webhook_success": "Webhook muvaffaqiyatli ulandi!",

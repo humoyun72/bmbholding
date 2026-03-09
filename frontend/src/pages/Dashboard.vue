@@ -106,27 +106,39 @@
 
     <template v-else>
       <!-- Overdue / Deadline warning banners -->
-      <div v-if="stats?.overdue_count > 0"
-        @click="router.push('/cases?status=in_progress&overdue=true')"
-        class="mb-4 p-4 rounded-xl bg-red-500/15 border border-red-500/30 cursor-pointer hover:bg-red-500/20 transition-colors flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
+      <div v-if="stats?.overdue_count > 0 && !overdueDismissed"
+        class="mb-4 p-4 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 cursor-pointer flex-1"
+          @click="router.push('/cases?status=in_progress')">
           <span class="text-2xl">🚨</span>
           <span class="text-red-300 font-medium text-sm">
             {{ t('dashboard.overdue_count', { count: stats.overdue_count }) }}
           </span>
         </div>
-        <span class="text-red-400 text-xs font-medium whitespace-nowrap">{{ t('dashboard.overdue_view') }}</span>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="text-red-400 text-xs font-medium cursor-pointer hover:text-red-300 transition-colors"
+            @click="router.push('/cases?status=in_progress')">{{ t('dashboard.overdue_view') }}</span>
+          <button @click="dismissOverdue"
+            class="w-6 h-6 rounded-lg flex items-center justify-center text-red-400 hover:text-red-200 hover:bg-red-500/20 transition-colors text-sm leading-none"
+            title="Yopish">✕</button>
+        </div>
       </div>
-      <div v-if="stats?.deadline_near_count > 0"
-        @click="router.push('/cases?status=in_progress&deadline_near=true')"
-        class="mb-4 p-4 rounded-xl bg-yellow-500/15 border border-yellow-500/30 cursor-pointer hover:bg-yellow-500/20 transition-colors flex items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
+      <div v-if="stats?.deadline_near_count > 0 && !deadlineDismissed"
+        class="mb-4 p-4 rounded-xl bg-yellow-500/15 border border-yellow-500/30 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 cursor-pointer flex-1"
+          @click="router.push('/cases')">
           <span class="text-2xl">⏰</span>
           <span class="text-yellow-300 font-medium text-sm">
             {{ t('dashboard.deadline_near', { count: stats.deadline_near_count }) }}
           </span>
         </div>
-        <span class="text-yellow-400 text-xs font-medium whitespace-nowrap">{{ t('dashboard.overdue_view') }}</span>
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="text-yellow-400 text-xs font-medium cursor-pointer hover:text-yellow-300 transition-colors"
+            @click="router.push('/cases')">{{ t('dashboard.overdue_view') }}</span>
+          <button @click="dismissDeadline"
+            class="w-6 h-6 rounded-lg flex items-center justify-center text-yellow-400 hover:text-yellow-200 hover:bg-yellow-500/20 transition-colors text-sm leading-none"
+            title="Yopish">✕</button>
+        </div>
       </div>
 
       <!-- Stats row -->
@@ -256,6 +268,10 @@ const activePeriod = ref('')   // 'today' | 'week' | 'month' | 'year' | ''
 const customOpen = ref(false)
 const customFrom = ref('')
 const customTo   = ref('')
+const overdueDismissed  = ref(sessionStorage.getItem('db_overdue_dismissed') === '1')
+const deadlineDismissed = ref(sessionStorage.getItem('db_deadline_dismissed') === '1')
+function dismissOverdue()  { overdueDismissed.value = true;  sessionStorage.setItem('db_overdue_dismissed', '1') }
+function dismissDeadline() { deadlineDismissed.value = true; sessionStorage.setItem('db_deadline_dismissed', '1') }
 
 // AbortController — eski so'rovni bekor qilish
 let abortCtrl = null

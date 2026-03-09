@@ -738,6 +738,25 @@
           </div>
         </div>
 
+        <!-- SMTP test -->
+        <div class="card p-6">
+          <h3 class="font-semibold text-white mb-2">📧 {{ t('settings.smtp_test_title') }}</h3>
+          <p class="text-surface-500 text-xs mb-4">{{ t('settings.smtp_test_desc') }}</p>
+          <div class="flex items-center gap-3 flex-wrap">
+            <input v-model="smtpTestEmail" type="email" class="input flex-1 text-sm min-w-48"
+              :placeholder="auth.user?.email || 'test@example.com'" />
+            <button @click="sendTestEmail" :disabled="smtpTestLoading"
+              class="btn-ghost text-sm flex items-center gap-2 disabled:opacity-50 whitespace-nowrap">
+              <svg v-if="smtpTestLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+              </svg>
+              <span v-else>🧪</span>
+              {{ t('settings.smtp_test_btn') }}
+            </button>
+          </div>
+        </div>
+
         <!-- Saqlash -->
         <div class="flex items-center justify-between">
           <p v-if="sysMsg" :class="sysMsg.ok ? 'text-green-400' : 'text-red-400'" class="text-sm">{{ sysMsg.text }}</p>
@@ -777,11 +796,11 @@ const activeTab = ref('profile')
 
 const tabs = computed(() => {
   const baseTabs = [
-    { id: 'profile',   icon: '👤', label: t('settings.tab_profile')   },
-    { id: 'telegram',  icon: '✈️', label: t('settings.tab_telegram')  },
-    { id: 'deadlines', icon: '⏰', label: t('settings.tab_deadlines') },
+    { id: 'profile',  icon: '👤', label: t('settings.tab_profile')  },
+    { id: 'telegram', icon: '✈️', label: t('settings.tab_telegram') },
   ]
   if (auth.isAdmin) {
+    baseTabs.push({ id: 'deadlines', icon: '⏰', label: t('settings.tab_deadlines') })
     baseTabs.push({ id: 'bot',    icon: '🤖', label: t('settings.tab_bot')    })
     baseTabs.push({ id: 'system', icon: '⚙️', label: t('settings.tab_system') })
   }
@@ -913,6 +932,8 @@ const notifSaving = ref(false)
 const notifMsg = ref(null)
 const testDailyLoading = ref(false)
 const testWeeklyLoading = ref(false)
+const smtpTestEmail = ref('')
+const smtpTestLoading = ref(false)
 
 async function loadDeadlineSettings() {
   dlLoading.value = true
@@ -987,6 +1008,19 @@ async function sendTestWeekly() {
     showToast('❌ ' + (e.response?.data?.detail || t('settings.error')), false)
   } finally {
     testWeeklyLoading.value = false
+  }
+}
+
+async function sendTestEmail() {
+  smtpTestLoading.value = true
+  try {
+    const email = smtpTestEmail.value.trim() || auth.user?.email
+    const { data } = await api.post('/v1/settings/test-email', { email })
+    showToast(`✅ ${t('settings.smtp_test_sent')} → ${data.to}`)
+  } catch (e) {
+    showToast('❌ ' + (e.response?.data?.detail || t('settings.error')), false)
+  } finally {
+    smtpTestLoading.value = false
   }
 }
 

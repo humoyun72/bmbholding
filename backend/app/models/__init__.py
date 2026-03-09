@@ -136,6 +136,7 @@ class Case(Base):
     comments: Mapped[list["CaseComment"]] = relationship("CaseComment", back_populates="case", cascade="all, delete-orphan")
     notifications: Mapped[list["Notification"]] = relationship("Notification", back_populates="case", cascade="all, delete-orphan")
     audit_logs: Mapped[list["AuditLog"]] = relationship("AuditLog", back_populates="case")
+    case_assignees: Mapped[list["CaseAssignee"]] = relationship("CaseAssignee", primaryjoin="CaseAssignee.case_id == Case.id", back_populates="case", cascade="all, delete-orphan")
 
 
 class CaseAttachment(Base):
@@ -168,6 +169,26 @@ class CaseComment(Base):
 
     case: Mapped[Case] = relationship("Case", back_populates="comments")
     author: Mapped[Optional[User]] = relationship("User", back_populates="comments")
+
+
+class CaseAssignee(Base):
+    """Bir murojaatga bir nechta ijrochi tayinlash uchun junction jadval."""
+    __tablename__ = "case_assignees"
+    __table_args__ = (
+        UniqueConstraint("case_id", "user_id", name="uq_case_assignee"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    case_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cases.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    due_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    assigned_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
+    case: Mapped["Case"] = relationship("Case", foreign_keys=[case_id], back_populates="case_assignees")
+    user: Mapped["User"] = relationship("User", foreign_keys=[user_id])
+    assigned_by: Mapped[Optional["User"]] = relationship("User", foreign_keys=[assigned_by_id])
 
 
 class AuditLog(Base):
