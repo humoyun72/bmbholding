@@ -170,21 +170,22 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
           script: |
-            cd /opt/integrity-bot
-            git pull origin main
-
-            # Pull new images
-            docker pull ghcr.io/${{ github.repository_owner }}/integrity-bot-backend:latest
-            docker pull ghcr.io/${{ github.repository_owner }}/integrity-bot-frontend:latest
-
-            # Rolling update (no downtime)
-            docker compose up -d --no-deps backend
-            sleep 5
-            docker compose up -d --no-deps frontend nginx
-
-            # Cleanup old images
-            docker image prune -f
+#            cd /opt/integrity-bot
+#            git pull origin main
+#
+#            # Pull new images
+#            docker pull ghcr.io/${{ github.repository_owner }}/integrity-bot-backend:latest
+#            docker pull ghcr.io/${{ github.repository_owner }}/integrity-bot-frontend:latest
+#
+#            # Rolling update (no downtime)
+#            docker compose up -d --no-deps backend
+#            sleep 5
+#            docker compose up -d --no-deps frontend nginx
+#
+#            # Cleanup old images
+#            docker image prune -f
 
             echo "✅ Deployment successful!"
 
