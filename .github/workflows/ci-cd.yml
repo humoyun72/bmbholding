@@ -188,6 +188,7 @@ jobs:
 #            docker image prune -f
 
             echo "✅ Deployment successful!"
+            echo "2"
 
   # ─── Notify on Failure ────────────────────────────────────────────────────
   notify-failure:
